@@ -100,12 +100,20 @@ https://supabase.com/dashboard/project/wgjfwjourukgtxpkuaup/sql/new
   if (tableError) throw new Error(`席マスタ: ${tableError.message}`)
   console.log(`✅ ${TABLES.length}席 投入完了\n`)
 
-  // 商品マスタ
+  // 商品マスタ（既存データがあればスキップ）
   console.log('🍙 商品マスタを投入中...')
-  const { error: productError } = await supabase
+  const { count } = await supabase
     .from('products')
-    .upsert(PRODUCTS, { onConflict: 'name' })
-  if (productError) throw new Error(`商品マスタ: ${productError.message}`)
+    .select('*', { count: 'exact', head: true })
+  if ((count ?? 0) > 0) {
+    console.log(`⏭  商品マスタは既に ${count} 件登録済みのためスキップ\n`)
+  } else {
+    const { error: productError } = await supabase
+      .from('products')
+      .insert(PRODUCTS)
+    if (productError) throw new Error(`商品マスタ: ${productError.message}`)
+    console.log(`✅ ${PRODUCTS.length}品 投入完了\n`)
+  }
   console.log(`✅ ${PRODUCTS.length}品 投入完了\n`)
 
   // 確認
