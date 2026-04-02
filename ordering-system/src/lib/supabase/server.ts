@@ -1,0 +1,42 @@
+import { createServerClient } from '@supabase/ssr'
+import { createClient as createServiceClient } from '@supabase/supabase-js'
+import { cookies } from 'next/headers'
+
+/**
+ * Server Component / Route Handler 用クライアント（ anon key ）
+ */
+export async function createClient() {
+  const cookieStore = await cookies()
+
+  return createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    {
+      cookies: {
+        getAll() {
+          return cookieStore.getAll()
+        },
+        setAll(cookiesToSet: { name: string; value: string; options?: Record<string, unknown> }[]) {
+          try {
+            cookiesToSet.forEach(({ name, value, options }) => {
+              cookieStore.set(name, value, options)
+            })
+          } catch {
+            // Server Components では set 不可（無視）
+          }
+        },
+      },
+    },
+  )
+}
+
+/**
+ * APIルートでRLSをバイパスする場合に使用するサービスロールクライアント
+ * 注意: サーバーサイドのみで使用すること
+ */
+export function createServiceRoleClient() {
+  return createServiceClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!,
+  )
+}
