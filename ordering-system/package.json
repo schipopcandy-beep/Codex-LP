@@ -7,7 +7,8 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "setup-db": "node scripts/setup-db.mjs"
+    "setup-db": "node scripts/setup-db.mjs",
+    "update-products": "node scripts/update-products.mjs"
   },
   "dependencies": {
     "@supabase/ssr": "^0.5.2",
