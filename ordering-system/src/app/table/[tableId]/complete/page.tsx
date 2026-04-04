@@ -37,7 +37,7 @@ export default function CompletePage({ params }: Props) {
     <div className="min-h-dvh bg-cream-50 flex flex-col">
       <header className="bg-cream-50/95 backdrop-blur border-b border-cream-300 px-4 py-2 flex justify-center">
         <Image
-          src={storageUrl('織はやロゴ.png')}
+          src={storageUrl('logo.png')}
           alt="織はや"
           width={120}
           height={48}
