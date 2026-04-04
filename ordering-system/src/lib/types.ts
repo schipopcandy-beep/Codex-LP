@@ -79,6 +79,9 @@ export function calcOrderTotal(items: OrderItem[]): number {
   }, 0)
 }
 
+export const STORAGE_BASE = 'https://wgjfwjourukgtxpkuaup.supabase.co/storage/v1/object/public/product-images'
+export const storageUrl = (filename: string) => `${STORAGE_BASE}/${encodeURIComponent(filename)}`
+
 export const TABLE_NAMES: Record<string, string> = {
   'table-1': 'テーブル 1',
   'table-2': 'テーブル 2',

@@ -2,9 +2,10 @@
 
 import { use, useEffect, useState } from 'react'
 import Link from 'next/link'
+import Image from 'next/image'
 import { useSearchParams } from 'next/navigation'
 import type { Order } from '@/lib/types'
-import { calcOrderTotal, TABLE_NAMES, TOPPING_NAME, TOPPING_PRICE } from '@/lib/types'
+import { calcOrderTotal, TABLE_NAMES, TOPPING_NAME, TOPPING_PRICE, storageUrl } from '@/lib/types'
 import StatusBadge from '@/components/admin/StatusBadge'
 
 interface Props {
@@ -20,17 +21,11 @@ export default function CompletePage({ params }: Props) {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    if (!orderId) {
-      setLoading(false)
-      return
-    }
+    if (!orderId) { setLoading(false); return }
 
     fetch(`/api/orders/${orderId}`)
       .then((r) => r.json())
-      .then((data) => {
-        setOrder(data)
-        setLoading(false)
-      })
+      .then((data) => { setOrder(data); setLoading(false) })
       .catch(() => setLoading(false))
   }, [orderId])
 
@@ -40,16 +35,24 @@ export default function CompletePage({ params }: Props) {
 
   return (
     <div className="min-h-dvh bg-cream-50 flex flex-col">
-      <header className="bg-cream-50/90 backdrop-blur border-b border-cream-300 px-4 py-3">
-        <p className="font-serif text-2xl font-bold text-brown-700 text-center">
-          🍙 おにぎり
-        </p>
+      <header className="bg-cream-50/95 backdrop-blur border-b border-cream-300 px-4 py-2 flex justify-center">
+        <Image
+          src={storageUrl('織はやロゴ.png')}
+          alt="織はや"
+          width={120}
+          height={48}
+          className="object-contain h-10 w-auto"
+        />
       </header>
 
       <main className="flex-1 max-w-lg mx-auto w-full px-4 py-8 flex flex-col gap-6">
         {/* 完了メッセージ */}
         <div className="text-center space-y-3">
-          <div className="text-6xl animate-bounce">✅</div>
+          <div className="w-16 h-16 rounded-full bg-matcha-500 flex items-center justify-center mx-auto">
+            <svg className="w-8 h-8 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+            </svg>
+          </div>
           <h1 className="font-serif text-3xl font-bold text-brown-700">
             ご注文ありがとうございます
           </h1>
@@ -100,7 +103,7 @@ export default function CompletePage({ params }: Props) {
         {/* お知らせ */}
         <div className="card p-4 bg-amber-50 border-amber-200">
           <p className="text-brown-700 text-base leading-relaxed">
-            🍙 まもなくご用意いたします。<br />
+            まもなくご用意いたします。<br />
             お会計はお帰りの際、レジにてお申し付けください。
           </p>
         </div>

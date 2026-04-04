@@ -12,21 +12,11 @@ interface Props {
   onRemove: (product: Product) => void
 }
 
-export default function ProductCard({
-  product,
-  quantity,
-  withTopping,
-  onAdd,
-  onRemove,
-}: Props) {
+export default function ProductCard({ product, quantity, withTopping, onAdd, onRemove }: Props) {
   const isSoldOut = product.is_sold_out
 
   return (
-    <div
-      className={`card overflow-hidden flex flex-col ${
-        isSoldOut ? 'opacity-60' : ''
-      }`}
-    >
+    <div className={`card overflow-hidden flex flex-col ${isSoldOut ? 'opacity-60' : ''}`}>
       {/* 商品画像 */}
       <div className="relative w-full aspect-square bg-cream-200">
         {product.image_url ? (
@@ -38,8 +28,8 @@ export default function ProductCard({
             sizes="(max-width: 640px) 50vw, 33vw"
           />
         ) : (
-          <div className="w-full h-full flex items-center justify-center text-5xl">
-            🍙
+          <div className="w-full h-full flex items-center justify-center bg-cream-200">
+            <span className="text-brown-300 text-sm">no image</span>
           </div>
         )}
         {isSoldOut && (
@@ -71,21 +61,13 @@ export default function ProductCard({
             <input
               type="checkbox"
               checked={withTopping}
-              onChange={(e) => {
-                if (e.target.checked) {
-                  onAdd(product, true)
-                } else {
-                  onAdd(product, false)
-                }
-              }}
+              onChange={(e) => onAdd(product, e.target.checked)}
               className="w-4 h-4 accent-brown-600"
               disabled={quantity === 0}
             />
             <span>
               +{TOPPING_NAME}
-              <span className="text-brown-400 ml-1">
-                (+¥{TOPPING_PRICE})
-              </span>
+              <span className="text-brown-400 ml-1">(+¥{TOPPING_PRICE})</span>
             </span>
           </label>
         )}

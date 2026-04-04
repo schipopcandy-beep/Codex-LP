@@ -21,25 +21,14 @@ export default function AdminDashboard() {
   useEffect(() => {
     fetchOrders()
 
-    // Supabase Realtime で注文の追加・更新をリアルタイム反映
     const supabase = createClient()
     const channel = supabase
       .channel('admin-orders')
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'orders' },
-        () => fetchOrders(),
-      )
-      .on(
-        'postgres_changes',
-        { event: 'INSERT', schema: 'public', table: 'order_items' },
-        () => fetchOrders(),
-      )
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, () => fetchOrders())
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'order_items' }, () => fetchOrders())
       .subscribe()
 
-    return () => {
-      supabase.removeChannel(channel)
-    }
+    return () => { supabase.removeChannel(channel) }
   }, [fetchOrders])
 
   const newCount = orders.filter((o) => o.status === 'new').length
@@ -47,7 +36,6 @@ export default function AdminDashboard() {
 
   return (
     <div className="p-4 md:p-6">
-      {/* サマリ */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
         <SummaryCard label="新規" count={newCount} color="text-amber-700 bg-amber-50 border-amber-200" />
         <SummaryCard label="調理中" count={preparingCount} color="text-blue-700 bg-blue-50 border-blue-200" />
@@ -55,9 +43,11 @@ export default function AdminDashboard() {
         <div className="card p-3 flex items-center justify-center">
           <button
             onClick={fetchOrders}
-            className="text-brown-500 text-sm flex items-center gap-2"
+            className="text-brown-500 text-sm font-medium flex items-center gap-2"
           >
-            <span className="text-xl">🔄</span>
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+            </svg>
             更新
           </button>
         </div>
@@ -66,13 +56,11 @@ export default function AdminDashboard() {
       <h1 className="section-title mb-4">未会計の注文</h1>
 
       {loading ? (
-        <div className="text-center py-16">
-          <div className="text-5xl animate-bounce">🍙</div>
-          <p className="text-brown-400 mt-2">読み込み中...</p>
+        <div className="text-center py-16 text-brown-400">
+          <p className="text-lg">読み込み中...</p>
         </div>
       ) : orders.length === 0 ? (
         <div className="text-center py-16 text-brown-400">
-          <p className="text-5xl mb-3">🍵</p>
           <p className="text-xl">現在、未会計の注文はありません</p>
         </div>
       ) : (
@@ -86,15 +74,7 @@ export default function AdminDashboard() {
   )
 }
 
-function SummaryCard({
-  label,
-  count,
-  color,
-}: {
-  label: string
-  count: number
-  color: string
-}) {
+function SummaryCard({ label, count, color }: { label: string; count: number; color: string }) {
   return (
     <div className={`card p-3 border ${color}`}>
       <p className="text-sm font-medium opacity-80">{label}</p>
