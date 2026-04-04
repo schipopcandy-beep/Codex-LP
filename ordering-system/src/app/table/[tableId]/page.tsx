@@ -138,7 +138,7 @@ export default function TableOrderPage({ params }: Props) {
       <header className="sticky top-0 z-30 bg-cream-50/95 backdrop-blur border-b border-cream-300">
         <div className="max-w-2xl mx-auto px-4 py-2 flex items-center justify-between">
           <Image
-            src={storageUrl('織はやロゴ.png')}
+            src={storageUrl('logo.png')}
             alt="織はや"
             width={120}
             height={48}
@@ -151,7 +151,7 @@ export default function TableOrderPage({ params }: Props) {
       {/* 店内写真ヒーロー */}
       <div className="relative w-full h-36 overflow-hidden">
         <Image
-          src={storageUrl('店内写真.JPG')}
+          src={storageUrl('interior.jpg')}
           alt="店内の様子"
           fill
           className="object-cover"

@@ -13,7 +13,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       <nav className="bg-brown-700 text-white px-4 py-2 flex items-center justify-between shadow-md">
         <Link href="/admin" className="flex items-center">
           <Image
-            src={storageUrl('織はやロゴ.png')}
+            src={storageUrl('logo.png')}
             alt="織はや"
             width={100}
             height={40}
