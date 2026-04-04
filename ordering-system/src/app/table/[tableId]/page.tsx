@@ -2,10 +2,11 @@
 
 import { useEffect, useState, useCallback, use } from 'react'
 import { useRouter } from 'next/navigation'
+import Image from 'next/image'
 import ProductCard from '@/components/customer/ProductCard'
 import Cart from '@/components/customer/Cart'
 import type { Product, CartItem } from '@/lib/types'
-import { TABLE_NAMES } from '@/lib/types'
+import { TABLE_NAMES, storageUrl } from '@/lib/types'
 
 const VALID_TABLE_IDS = [
   'table-1', 'table-2', 'table-3', 'table-4',
@@ -24,7 +25,6 @@ export default function TableOrderPage({ params }: Props) {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
-  // カート: { [productId-topping]: CartItem }
   const [cartMap, setCartMap] = useState<Map<string, CartItem>>(new Map())
   const [isSubmitting, setIsSubmitting] = useState(false)
 
@@ -33,7 +33,6 @@ export default function TableOrderPage({ params }: Props) {
 
   const cartItems: CartItem[] = Array.from(cartMap.values())
 
-  // 商品取得
   useEffect(() => {
     if (!VALID_TABLE_IDS.includes(tableId)) {
       setError('無効な席IDです')
@@ -60,14 +59,10 @@ export default function TableOrderPage({ params }: Props) {
       const existing = next.get(key)
 
       if (existing) {
-        // トッピング変更の場合は既存アイテムを更新
         next.set(key, { ...existing, quantity: existing.quantity + 1, with_topping: withTopping })
       } else {
-        // 同じ商品の逆トッピングがあれば削除して新規追加
         const oppositeKey = cartKey(product.id, !withTopping)
-        if (next.has(oppositeKey)) {
-          next.delete(oppositeKey)
-        }
+        if (next.has(oppositeKey)) next.delete(oppositeKey)
         next.set(key, { product, quantity: 1, with_topping: withTopping })
       }
       return next
@@ -77,7 +72,6 @@ export default function TableOrderPage({ params }: Props) {
   const handleRemove = useCallback((product: Product) => {
     setCartMap((prev) => {
       const next = new Map(prev)
-      // トッピングあり・なし両方を探す
       for (const withTopping of [true, false]) {
         const key = cartKey(product.id, withTopping)
         const existing = next.get(key)
@@ -133,10 +127,7 @@ export default function TableOrderPage({ params }: Props) {
   if (error) {
     return (
       <div className="min-h-dvh flex items-center justify-center p-8 text-center">
-        <div>
-          <p className="text-5xl mb-4">🍙</p>
-          <p className="text-xl text-brown-600">{error}</p>
-        </div>
+        <p className="text-xl text-brown-600">{error}</p>
       </div>
     )
   }
@@ -144,25 +135,36 @@ export default function TableOrderPage({ params }: Props) {
   return (
     <div className="min-h-dvh bg-cream-50 pb-28">
       {/* ヘッダー */}
-      <header className="sticky top-0 z-30 bg-cream-50/90 backdrop-blur border-b border-cream-300">
-        <div className="max-w-2xl mx-auto px-4 py-3 flex items-center justify-between">
-          <div>
-            <p className="font-serif text-2xl font-bold text-brown-700">🍙 おにぎり</p>
-            <p className="text-sm text-brown-400">{tableName}</p>
-          </div>
-          <p className="text-sm text-brown-400">
-            ご注文はカートからどうぞ
-          </p>
+      <header className="sticky top-0 z-30 bg-cream-50/95 backdrop-blur border-b border-cream-300">
+        <div className="max-w-2xl mx-auto px-4 py-2 flex items-center justify-between">
+          <Image
+            src={storageUrl('織はやロゴ.png')}
+            alt="織はや"
+            width={120}
+            height={48}
+            className="object-contain h-10 w-auto"
+          />
+          <p className="text-sm text-brown-400">{tableName}</p>
         </div>
       </header>
+
+      {/* 店内写真ヒーロー */}
+      <div className="relative w-full h-36 overflow-hidden">
+        <Image
+          src={storageUrl('店内写真.JPG')}
+          alt="店内の様子"
+          fill
+          className="object-cover"
+          priority
+          sizes="100vw"
+        />
+        <div className="absolute inset-0 bg-brown-900/30" />
+      </div>
 
       <main className="max-w-2xl mx-auto px-3 py-4">
         {loading ? (
           <div className="flex items-center justify-center py-20">
-            <div className="text-center space-y-3">
-              <div className="text-5xl animate-bounce">🍙</div>
-              <p className="text-brown-500">メニューを読み込み中...</p>
-            </div>
+            <p className="text-brown-400 text-lg">メニューを読み込み中...</p>
           </div>
         ) : (
           <>

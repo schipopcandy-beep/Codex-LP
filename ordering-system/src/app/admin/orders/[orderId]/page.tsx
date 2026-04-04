@@ -178,7 +178,7 @@ export default function OrderDetailPage({ params }: Props) {
           disabled={updating}
           className="w-full py-5 rounded-2xl bg-matcha-600 text-white text-2xl font-bold shadow-lg active:bg-matcha-500 disabled:opacity-50"
         >
-          💴 会計済みにする
+          会計済みにする
         </button>
       )}
 

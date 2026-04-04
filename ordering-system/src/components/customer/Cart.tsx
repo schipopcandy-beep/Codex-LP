@@ -20,17 +20,16 @@ export default function Cart({ items, onSubmit, isSubmitting }: Props) {
   return (
     <>
       {/* カートバー（下部固定） */}
-      <div className="fixed bottom-0 left-0 right-0 z-40 safe-bottom">
+      <div className="fixed bottom-0 left-0 right-0 z-40">
         <div className="bg-brown-600 text-white px-4 py-3 flex items-center justify-between shadow-lg">
           <button
             onClick={() => setIsOpen(true)}
             className="flex items-center gap-3 flex-1"
           >
             <div className="relative">
-              <span className="text-2xl">🛒</span>
-              <span className="absolute -top-1 -right-1 bg-amber-400 text-brown-900 text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center">
-                {totalCount}
-              </span>
+              <div className="w-7 h-7 rounded-full bg-white/20 flex items-center justify-center">
+                <span className="text-white font-bold text-sm">{totalCount}</span>
+              </div>
             </div>
             <span className="font-bold text-lg">カートを見る</span>
           </button>
@@ -43,14 +42,9 @@ export default function Cart({ items, onSubmit, isSubmitting }: Props) {
       {/* カートドロワー */}
       {isOpen && (
         <div className="fixed inset-0 z-50 flex flex-col justify-end">
-          {/* オーバーレイ */}
-          <div
-            className="absolute inset-0 bg-black/50"
-            onClick={() => setIsOpen(false)}
-          />
+          <div className="absolute inset-0 bg-black/50" onClick={() => setIsOpen(false)} />
 
           <div className="relative bg-cream-50 rounded-t-3xl max-h-[80dvh] flex flex-col shadow-2xl">
-            {/* ハンドル */}
             <div className="flex justify-center pt-3 pb-1">
               <div className="w-10 h-1 bg-brown-300 rounded-full" />
             </div>
@@ -66,17 +60,13 @@ export default function Cart({ items, onSubmit, isSubmitting }: Props) {
               </button>
             </div>
 
-            {/* アイテムリスト */}
             <div className="overflow-y-auto flex-1 px-4 py-3 space-y-3">
               {items.map((item) => {
                 const toppingCost = item.with_topping ? TOPPING_PRICE : 0
                 const subtotal = (item.product.price + toppingCost) * item.quantity
 
                 return (
-                  <div
-                    key={`${item.product.id}-${item.with_topping}`}
-                    className="flex justify-between items-start gap-2"
-                  >
+                  <div key={`${item.product.id}-${item.with_topping}`} className="flex justify-between items-start gap-2">
                     <div className="flex-1">
                       <p className="font-bold text-base text-brown-800">
                         {item.product.name}
@@ -98,7 +88,6 @@ export default function Cart({ items, onSubmit, isSubmitting }: Props) {
               })}
             </div>
 
-            {/* 合計 & 注文ボタン */}
             <div className="px-4 py-4 border-t border-cream-300 space-y-3">
               <div className="flex justify-between items-center">
                 <span className="text-xl font-bold text-brown-800">合計</span>
@@ -110,10 +99,7 @@ export default function Cart({ items, onSubmit, isSubmitting }: Props) {
                 ※ お会計はレジにて対面でお願いします
               </p>
               <button
-                onClick={async () => {
-                  await onSubmit()
-                  setIsOpen(false)
-                }}
+                onClick={async () => { await onSubmit(); setIsOpen(false) }}
                 disabled={isSubmitting}
                 className="btn-primary w-full text-xl py-4"
               >
@@ -121,7 +107,6 @@ export default function Cart({ items, onSubmit, isSubmitting }: Props) {
               </button>
             </div>
 
-            {/* iOS ホームバー余白 */}
             <div className="pb-safe" />
           </div>
         </div>
