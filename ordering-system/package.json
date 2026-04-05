@@ -11,6 +11,7 @@
     "update-products": "node scripts/update-products.mjs"
   },
   "dependencies": {
+    "@line/liff": "^2.25.0",
     "@supabase/ssr": "^0.5.2",
     "@supabase/supabase-js": "^2.49.1",
     "next": "^15.3.0",

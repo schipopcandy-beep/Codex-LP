@@ -1,10 +1,11 @@
 'use client'
 
-import { useEffect, useState, useCallback, use } from 'react'
+import { useEffect, useState, useCallback, useRef, use } from 'react'
 import { useRouter } from 'next/navigation'
 import Image from 'next/image'
 import ProductCard from '@/components/customer/ProductCard'
 import Cart from '@/components/customer/Cart'
+import OrderAccessGuard from '@/components/customer/OrderAccessGuard'
 import type { Product, CartItem } from '@/lib/types'
 import { TABLE_NAMES, storageUrl } from '@/lib/types'
 
@@ -20,6 +21,8 @@ interface Props {
 export default function TableOrderPage({ params }: Props) {
   const { tableId } = use(params)
   const router = useRouter()
+
+  const lineUserIdRef = useRef<string | null>(null)
 
   const [products, setProducts] = useState<Product[]>([])
   const [loading, setLoading] = useState(true)
@@ -98,6 +101,7 @@ export default function TableOrderPage({ params }: Props) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           table_id: tableId,
+          line_user_id: lineUserIdRef.current ?? undefined,
           items: cartItems.map((item) => ({
             product_id: item.product.id,
             product_name: item.product.name,
@@ -132,7 +136,7 @@ export default function TableOrderPage({ params }: Props) {
     )
   }
 
-  return (
+  const orderUI = (
     <div className="min-h-dvh bg-cream-50 pb-28">
       {/* ヘッダー */}
       <header className="sticky top-0 z-30 bg-cream-50/95 backdrop-blur border-b border-cream-300">
@@ -198,5 +202,14 @@ export default function TableOrderPage({ params }: Props) {
         isSubmitting={isSubmitting}
       />
     </div>
+  )
+
+  return (
+    <OrderAccessGuard
+      tableId={tableId}
+      onUserIdReady={(uid) => { lineUserIdRef.current = uid }}
+    >
+      {orderUI}
+    </OrderAccessGuard>
   )
 }
