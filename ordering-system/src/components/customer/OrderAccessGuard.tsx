@@ -15,8 +15,6 @@ type GuardStatus =
   | 'not-friend'
   | 'ready'
   | 'error-no-seat'
-  | 'error-liff'
-  | 'error-friend-api'
 
 const LIFF_ID = process.env.NEXT_PUBLIC_LIFF_ID ?? ''
 const ADD_FRIEND_URL = process.env.NEXT_PUBLIC_LINE_ADD_FRIEND_URL ?? ''
@@ -24,10 +22,7 @@ const ADD_FRIEND_URL = process.env.NEXT_PUBLIC_LINE_ADD_FRIEND_URL ?? ''
 export default function OrderAccessGuard({ tableId, children, onUserIdReady }: Props) {
   const [status, setStatus] = useState<GuardStatus>('initializing')
   const [userId, setUserId] = useState<string | null>(null)
-  const [errorMessage, setErrorMessage] = useState<string | null>(null)
-
-  // LIFF_ID が未設定なら認証をスキップ（ローカル開発用フォールバック）
-  const liffEnabled = Boolean(LIFF_ID)
+  const [recheckError, setRecheckError] = useState<string | null>(null)
 
   const checkFriend = useCallback(async (uid: string): Promise<boolean> => {
     const res = await fetch('/api/line/friend-status', {
@@ -41,13 +36,14 @@ export default function OrderAccessGuard({ tableId, children, onUserIdReady }: P
   }, [])
 
   useEffect(() => {
+    // 席情報なし → エラー
     if (!tableId) {
       setStatus('error-no-seat')
       return
     }
 
-    if (!liffEnabled) {
-      // LIFF未設定時はスキップしてそのまま表示
+    // LIFF_ID 未設定 → 通常Webとして動作（LINEチェックをスキップ）
+    if (!LIFF_ID) {
       setStatus('ready')
       return
     }
@@ -61,9 +57,16 @@ export default function OrderAccessGuard({ tableId, children, onUserIdReady }: P
 
         if (cancelled) return
 
+        // ─── LINEアプリ外（通常ブラウザ）→ LINE認証をスキップして注文画面へ ───
+        // QRコードは通常URLなので、ブラウザで開いた場合はそのまま表示する
+        if (!liff.isInClient()) {
+          setStatus('ready')
+          return
+        }
+
+        // ─── LINEアプリ内 → ログイン確認 ───
         if (!liff.isLoggedIn()) {
           setStatus('logging-in')
-          // ログイン後に tableId が含まれた現在のURLへ戻る
           liff.login({ redirectUri: window.location.href })
           return
         }
@@ -80,27 +83,27 @@ export default function OrderAccessGuard({ tableId, children, onUserIdReady }: P
         if (cancelled) return
 
         setStatus(isFriend ? 'ready' : 'not-friend')
-      } catch (e) {
+      } catch {
         if (cancelled) return
-        const msg = e instanceof Error ? e.message : 'LIFFの初期化に失敗しました'
-        setErrorMessage(msg)
-        setStatus('error-liff')
+        // LIFF初期化・取得失敗 → graceful fallback（通常Webとして動作）
+        setStatus('ready')
       }
     }
 
     init()
     return () => { cancelled = true }
-  }, [tableId, liffEnabled, checkFriend, onUserIdReady])
+  }, [tableId, checkFriend, onUserIdReady])
 
   const handleRecheck = useCallback(async () => {
     if (!userId) return
+    setRecheckError(null)
     setStatus('checking-friend')
     try {
       const isFriend = await checkFriend(userId)
       setStatus(isFriend ? 'ready' : 'not-friend')
     } catch {
-      setStatus('error-friend-api')
-      setErrorMessage('友だち確認に失敗しました。もう一度お試しください。')
+      setStatus('not-friend')
+      setRecheckError('確認に失敗しました。もう一度お試しください。')
     }
   }, [userId, checkFriend])
 
@@ -135,26 +138,7 @@ export default function OrderAccessGuard({ tableId, children, onUserIdReady }: P
     )
   }
 
-  // --- LIFF / API エラー ---
-  if (status === 'error-liff' || status === 'error-friend-api') {
-    return (
-      <div className="min-h-dvh flex items-center justify-center p-8 text-center bg-cream-50">
-        <div className="max-w-sm">
-          <p className="text-2xl mb-3">⚠️</p>
-          <p className="text-brown-700 text-lg font-semibold mb-2">エラーが発生しました</p>
-          <p className="text-brown-500 text-sm mb-6">{errorMessage}</p>
-          <button
-            onClick={() => window.location.reload()}
-            className="w-full py-3 rounded-xl bg-brown-600 text-white font-semibold text-base active:opacity-80"
-          >
-            再読み込み
-          </button>
-        </div>
-      </div>
-    )
-  }
-
-  // --- 友だち未追加 ---
+  // --- 友だち未追加（LINEアプリ内のみ表示される） ---
   if (status === 'not-friend') {
     return (
       <div className="min-h-dvh flex flex-col items-center justify-center p-6 bg-cream-50">
@@ -185,6 +169,10 @@ export default function OrderAccessGuard({ tableId, children, onUserIdReady }: P
             </p>
           )}
 
+          {recheckError && (
+            <p className="text-center text-xs text-red-500">{recheckError}</p>
+          )}
+
           <div className="space-y-3">
             {ADD_FRIEND_URL ? (
               <a
@@ -213,6 +201,6 @@ export default function OrderAccessGuard({ tableId, children, onUserIdReady }: P
     )
   }
 
-  // --- 認証済み: 注文画面を表示 ---
+  // --- 条件クリア: 注文画面を表示 ---
   return <>{children}</>
 }
