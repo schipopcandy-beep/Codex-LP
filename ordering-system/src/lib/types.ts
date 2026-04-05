@@ -92,3 +92,26 @@ export const TABLE_NAMES: Record<string, string> = {
   'counter-3': 'カウンター 3',
   'counter-4': 'カウンター 4',
 }
+
+/** QRコードの seat パラメータ → 内部 tableId 変換マップ
+ *  例: t1 → table-1, c3 → counter-3
+ */
+export const SEAT_TO_TABLE_ID: Record<string, string> = {
+  t1: 'table-1',
+  t2: 'table-2',
+  t3: 'table-3',
+  t4: 'table-4',
+  c1: 'counter-1',
+  c2: 'counter-2',
+  c3: 'counter-3',
+  c4: 'counter-4',
+}
+
+/**
+ * seat パラメータ（例: "t1"）を tableId（例: "table-1"）に変換する。
+ * 未知の値は null を返す。
+ */
+export function seatToTableId(seat: string | null | undefined): string | null {
+  if (!seat) return null
+  return SEAT_TO_TABLE_ID[seat] ?? null
+}
