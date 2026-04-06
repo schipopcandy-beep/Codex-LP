@@ -9,25 +9,23 @@ interface Props {
 }
 
 type GuardStatus =
-  | 'initializing'
-  | 'logging-in'
+  | 'initializing'   // LIFF初期化中 / LINEアプリ起動待ち
+  | 'logging-in'     // LINEログインリダイレクト中
   | 'checking-friend'
-  | 'friend-prompt'   // 友だち追加案内（通常ブラウザ経由・ソフトゲート）
-  | 'not-friend'      // 友だち未追加（LINEアプリ内・検証済み）
+  | 'not-friend'     // LINEアプリ内・友だち未追加（検証済み）
   | 'ready'
   | 'error-no-seat'
 
 const LIFF_ID = process.env.NEXT_PUBLIC_LIFF_ID ?? ''
 const ADD_FRIEND_URL = process.env.NEXT_PUBLIC_LINE_ADD_FRIEND_URL ?? ''
 
+/** sessionStorage キー: LINEの友だち追加ページへ遷移したフラグ */
+const LINE_ADD_KEY = 'orihaya-line-add'
+
 export default function OrderAccessGuard({ tableId, children, onUserIdReady }: Props) {
   const [status, setStatus] = useState<GuardStatus>('initializing')
   const [userId, setUserId] = useState<string | null>(null)
   const [recheckError, setRecheckError] = useState<string | null>(null)
-
-  /** 友だち追加URLが設定されている場合は案内画面、なければ即注文画面 */
-  const goToFriendPromptOrReady = () =>
-    ADD_FRIEND_URL ? setStatus('friend-prompt') : setStatus('ready')
 
   const checkFriend = useCallback(async (uid: string): Promise<boolean> => {
     const res = await fetch('/api/line/friend-status', {
@@ -40,15 +38,50 @@ export default function OrderAccessGuard({ tableId, children, onUserIdReady }: P
     return data.isFriend as boolean
   }, [])
 
+  /**
+   * LINEの友だち追加ページへ自動遷移する。
+   * - ページが残る場合（LINEアプリが起動）: visibilitychange で戻りを検知
+   * - ページが遷移する場合（ブラウザ内): ブラウザbackで戻ったときに sessionStorage フラグを検知
+   */
+  const redirectToLineAdd = useCallback(() => {
+    sessionStorage.setItem(LINE_ADD_KEY, '1')
+    window.location.href = ADD_FRIEND_URL
+    // LINE app が開いた場合はページが残るため initializing のまま待機
+    // visibilitychange ハンドラが "戻り" を検知して ready にする
+  }, [])
+
+  // LINEアプリから戻ってきたときの検知（ページが残っているケース）
+  useEffect(() => {
+    const onVisible = () => {
+      if (document.visibilityState === 'visible' && sessionStorage.getItem(LINE_ADD_KEY)) {
+        sessionStorage.removeItem(LINE_ADD_KEY)
+        setStatus('ready')
+      }
+    }
+    document.addEventListener('visibilitychange', onVisible)
+    return () => document.removeEventListener('visibilitychange', onVisible)
+  }, [])
+
   useEffect(() => {
     if (!tableId) {
       setStatus('error-no-seat')
       return
     }
 
-    // LIFF_ID 未設定 → 通常Web動作。友だち追加案内だけ表示する
+    // LIFF_ID 未設定 → 通常Web動作
     if (!LIFF_ID) {
-      goToFriendPromptOrReady()
+      if (ADD_FRIEND_URL) {
+        // ブラウザbackで戻ってきた場合（sessionStorageフラグあり）
+        if (sessionStorage.getItem(LINE_ADD_KEY)) {
+          sessionStorage.removeItem(LINE_ADD_KEY)
+          setStatus('ready')
+        } else {
+          // 初回アクセス: LINEの友だち追加ページへ自動遷移
+          redirectToLineAdd()
+        }
+      } else {
+        setStatus('ready')
+      }
       return
     }
 
@@ -61,9 +94,18 @@ export default function OrderAccessGuard({ tableId, children, onUserIdReady }: P
 
         if (cancelled) return
 
-        // LINEアプリ外（通常ブラウザ）→ 友だち追加案内を表示してから注文へ
+        // LINEアプリ外（通常ブラウザ）→ 友だち追加ページへ自動遷移
         if (!liff.isInClient()) {
-          goToFriendPromptOrReady()
+          if (ADD_FRIEND_URL) {
+            if (sessionStorage.getItem(LINE_ADD_KEY)) {
+              sessionStorage.removeItem(LINE_ADD_KEY)
+              setStatus('ready')
+            } else {
+              redirectToLineAdd()
+            }
+          } else {
+            setStatus('ready')
+          }
           return
         }
 
@@ -88,15 +130,23 @@ export default function OrderAccessGuard({ tableId, children, onUserIdReady }: P
         setStatus(isFriend ? 'ready' : 'not-friend')
       } catch {
         if (cancelled) return
-        // LIFF初期化失敗 → 友だち追加案内を表示してから注文へ
-        goToFriendPromptOrReady()
+        // LIFF失敗 → 友だち追加ページへ自動遷移（またはそのまま表示）
+        if (ADD_FRIEND_URL) {
+          if (sessionStorage.getItem(LINE_ADD_KEY)) {
+            sessionStorage.removeItem(LINE_ADD_KEY)
+            setStatus('ready')
+          } else {
+            redirectToLineAdd()
+          }
+        } else {
+          setStatus('ready')
+        }
       }
     }
 
     init()
     return () => { cancelled = true }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tableId, checkFriend, onUserIdReady])
+  }, [tableId, checkFriend, onUserIdReady, redirectToLineAdd])
 
   const handleRecheck = useCallback(async () => {
     if (!userId) return
@@ -111,7 +161,7 @@ export default function OrderAccessGuard({ tableId, children, onUserIdReady }: P
     }
   }, [userId, checkFriend])
 
-  // --- LINE アイコン（共通パーツ） ---
+  // LINE アイコン
   const LineIcon = () => (
     <div className="flex justify-center">
       <div className="w-16 h-16 rounded-2xl bg-[#06C755] flex items-center justify-center">
@@ -122,7 +172,7 @@ export default function OrderAccessGuard({ tableId, children, onUserIdReady }: P
     </div>
   )
 
-  // --- ローディング ---
+  // --- ローディング / LINE起動待ち ---
   if (
     status === 'initializing' ||
     status === 'logging-in' ||
@@ -145,50 +195,7 @@ export default function OrderAccessGuard({ tableId, children, onUserIdReady }: P
         <div className="max-w-sm">
           <p className="text-2xl mb-3">⚠️</p>
           <p className="text-brown-700 text-lg font-semibold mb-2">席情報が確認できませんでした</p>
-          <p className="text-brown-500 text-sm">
-            卓上のQRコードを読み直してください。
-          </p>
-        </div>
-      </div>
-    )
-  }
-
-  // --- 友だち追加案内（通常ブラウザ経由・ソフトゲート） ---
-  // ADD_FRIEND_URLが設定されている場合に表示。「注文へ進む」で即注文画面へ。
-  if (status === 'friend-prompt') {
-    return (
-      <div className="min-h-dvh flex flex-col items-center justify-center p-6 bg-cream-50">
-        <div className="w-full max-w-sm bg-white rounded-2xl shadow-md p-6 space-y-5">
-          <LineIcon />
-
-          <div className="text-center space-y-2">
-            <h1 className="text-xl font-bold text-brown-800">
-              LINE公式アカウントのご登録
-            </h1>
-            <p className="text-sm text-brown-500 leading-relaxed">
-              友だち追加で最新情報やお得なクーポンをお届けします。
-              <br />
-              追加後に「注文へ進む」をタップしてください。
-            </p>
-          </div>
-
-          <div className="space-y-3">
-            <a
-              href={ADD_FRIEND_URL}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="block w-full py-3 rounded-xl bg-[#06C755] text-white font-semibold text-base text-center active:opacity-80"
-            >
-              友だち追加する
-            </a>
-
-            <button
-              onClick={() => setStatus('ready')}
-              className="w-full py-3 rounded-xl border-2 border-brown-600 text-brown-700 font-semibold text-base active:opacity-80"
-            >
-              注文へ進む
-            </button>
-          </div>
+          <p className="text-brown-500 text-sm">卓上のQRコードを読み直してください。</p>
         </div>
       </div>
     )
@@ -200,22 +207,14 @@ export default function OrderAccessGuard({ tableId, children, onUserIdReady }: P
       <div className="min-h-dvh flex flex-col items-center justify-center p-6 bg-cream-50">
         <div className="w-full max-w-sm bg-white rounded-2xl shadow-md p-6 space-y-5">
           <LineIcon />
-
           <div className="text-center space-y-2">
-            <h1 className="text-xl font-bold text-brown-800">
-              注文前にLINE追加をお願いします
-            </h1>
+            <h1 className="text-xl font-bold text-brown-800">注文前にLINE追加をお願いします</h1>
             <p className="text-sm text-brown-500 leading-relaxed">
               この席から注文するには、LINE公式アカウントの友だち追加が必要です。
-              <br />
-              追加後に下のボタンから注文へ進めます。
+              <br />追加後に下のボタンから注文へ進めます。
             </p>
           </div>
-
-          {recheckError && (
-            <p className="text-center text-xs text-red-500">{recheckError}</p>
-          )}
-
+          {recheckError && <p className="text-center text-xs text-red-500">{recheckError}</p>}
           <div className="space-y-3">
             {ADD_FRIEND_URL ? (
               <a
@@ -228,10 +227,9 @@ export default function OrderAccessGuard({ tableId, children, onUserIdReady }: P
               </a>
             ) : (
               <p className="text-center text-xs text-brown-400">
-                ※ 友だち追加URLが設定されていません（管理者にお問い合わせください）
+                ※ 友だち追加URLが設定されていません
               </p>
             )}
-
             <button
               onClick={handleRecheck}
               className="w-full py-3 rounded-xl border-2 border-brown-600 text-brown-700 font-semibold text-base active:opacity-80"
@@ -244,6 +242,6 @@ export default function OrderAccessGuard({ tableId, children, onUserIdReady }: P
     )
   }
 
-  // --- 条件クリア: 注文画面を表示 ---
+  // --- 注文画面を表示 ---
   return <>{children}</>
 }
