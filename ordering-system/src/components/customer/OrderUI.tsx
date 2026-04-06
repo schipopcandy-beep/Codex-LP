@@ -6,7 +6,7 @@ import Image from 'next/image'
 import ProductCard from '@/components/customer/ProductCard'
 import Cart from '@/components/customer/Cart'
 import type { Product, CartItem } from '@/lib/types'
-import { TABLE_NAMES, storageUrl } from '@/lib/types'
+import { TABLE_NAMES, storageUrl, LUNCH_PLATE_NAME, getLunchPlateSurcharge } from '@/lib/types'
 
 interface Props {
   tableId: string
@@ -27,7 +27,35 @@ export default function OrderUI({ tableId, lineUserId, buildCompleteHref }: Prop
   const [cartMap, setCartMap] = useState<Map<string, CartItem>>(new Map())
   const [isSubmitting, setIsSubmitting] = useState(false)
 
+  /** ランチプレートのおにぎり選択: productId → 選択数 */
+  const [lunchNigiri, setLunchNigiri] = useState<Map<string, number>>(new Map())
+
   const cartItems: CartItem[] = Array.from(cartMap.values())
+
+  /** カート内のランチプレート枚数 */
+  const lunchPlateCount = cartItems
+    .filter((item) => item.product.name === LUNCH_PLATE_NAME)
+    .reduce((sum, item) => sum + item.quantity, 0)
+
+  // ランチプレート枚数が減ったとき、選択数をトリム
+  useEffect(() => {
+    const required = lunchPlateCount * 2
+    const selected = Array.from(lunchNigiri.values()).reduce((s, v) => s + v, 0)
+    if (selected <= required) return
+
+    // 超過分を末尾のエントリから削除
+    let over = selected - required
+    const next = new Map(lunchNigiri)
+    for (const [id, cnt] of [...next.entries()].reverse()) {
+      if (over <= 0) break
+      const remove = Math.min(cnt, over)
+      const newCnt = cnt - remove
+      if (newCnt <= 0) next.delete(id)
+      else next.set(id, newCnt)
+      over -= remove
+    }
+    setLunchNigiri(next)
+  }, [lunchPlateCount]) // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     fetch('/api/products')
@@ -83,19 +111,36 @@ export default function OrderUI({ tableId, lineUserId, buildCompleteHref }: Prop
     setIsSubmitting(true)
 
     try {
+      // ランチプレートのおにぎり選択をオーダーアイテムに変換
+      const lunchNigiriItems = Array.from(lunchNigiri.entries()).flatMap(([productId, count]) => {
+        const product = products.find((p) => p.id === productId)
+        if (!product || count <= 0) return []
+        const surcharge = getLunchPlateSurcharge(product)
+        return [{
+          product_id: productId,
+          product_name: product.name,
+          quantity: count,
+          unit_price: surcharge,
+          with_topping: false,
+        }]
+      })
+
       const res = await fetch('/api/orders', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           table_id: tableId,
           line_user_id: lineUserId ?? undefined,
-          items: cartItems.map((item) => ({
-            product_id: item.product.id,
-            product_name: item.product.name,
-            quantity: item.quantity,
-            unit_price: item.product.price,
-            with_topping: item.with_topping,
-          })),
+          items: [
+            ...cartItems.map((item) => ({
+              product_id: item.product.id,
+              product_name: item.product.name,
+              quantity: item.quantity,
+              unit_price: item.product.price,
+              with_topping: item.with_topping,
+            })),
+            ...lunchNigiriItems,
+          ],
         }),
       })
 
@@ -111,7 +156,7 @@ export default function OrderUI({ tableId, lineUserId, buildCompleteHref }: Prop
     } finally {
       setIsSubmitting(false)
     }
-  }, [cartItems, tableId, lineUserId, buildCompleteHref, router])
+  }, [cartItems, lunchNigiri, products, tableId, lineUserId, buildCompleteHref, router])
 
   const tableName = TABLE_NAMES[tableId] ?? tableId
 
@@ -187,6 +232,10 @@ export default function OrderUI({ tableId, lineUserId, buildCompleteHref }: Prop
         items={cartItems}
         onSubmit={handleSubmit}
         isSubmitting={isSubmitting}
+        allProducts={products}
+        lunchPlateCount={lunchPlateCount}
+        lunchNigiri={lunchNigiri}
+        onLunchNigiriChange={setLunchNigiri}
       />
     </div>
   )

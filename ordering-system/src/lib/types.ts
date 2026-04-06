@@ -20,6 +20,20 @@ export const ORDER_STATUS_LABELS: Record<OrderStatus, string> = {
 export const TOPPING_NAME = 'とろろ昆布'
 export const TOPPING_PRICE = 50
 
+/** ランチプレートの商品名（DBの name と一致させること） */
+export const LUNCH_PLATE_NAME = 'ランチプレート'
+
+/**
+ * ランチプレート選択時のおにぎり追加料金
+ * しゃけ筋子: +200円 / 筋子: +100円 / 450円以上: +50円 / その他: 0円
+ */
+export function getLunchPlateSurcharge(product: Product): number {
+  if (product.name === 'しゃけ筋子') return 200
+  if (product.name === '筋子') return 100
+  if (product.price >= 450) return 50
+  return 0
+}
+
 export interface Table {
   id: string
   name: string
