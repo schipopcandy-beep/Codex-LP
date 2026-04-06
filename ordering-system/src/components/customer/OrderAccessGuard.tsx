@@ -51,30 +51,46 @@ export default function OrderAccessGuard({ tableId, children, onUserIdReady }: P
     // Universal Link が効かない場合 → line.me へ遷移 → 戻るボタンで復帰 → sessionStorage で検知
   }, [])
 
-  // visibilitychange: LINEアプリまたは別タブから戻ってきたときに自動検知
+  // ─── 戻り検知ハンドラ群（マウント時に一度だけ設定）───────────────────
+  // Android Chrome の bfcache 復元時も確実に動作するよう
+  // status ではなく sessionStorage を直接確認する
+
+  // ① pageshow: bfcache からのページ復元（Android Chrome で最も確実）
+  useEffect(() => {
+    const onPageShow = () => {
+      if (sessionStorage.getItem(LINE_ADD_KEY)) {
+        sessionStorage.removeItem(LINE_ADD_KEY)
+        setStatus('ready')
+      }
+    }
+    window.addEventListener('pageshow', onPageShow)
+    return () => window.removeEventListener('pageshow', onPageShow)
+  }, [])
+
+  // ② visibilitychange: LINE アプリを閉じてブラウザタブに戻ったとき
   useEffect(() => {
     const onVisible = () => {
       if (document.visibilityState !== 'visible') return
-      if (status === 'waiting-return') {
+      if (sessionStorage.getItem(LINE_ADD_KEY)) {
         sessionStorage.removeItem(LINE_ADD_KEY)
         setStatus('ready')
       }
     }
     document.addEventListener('visibilitychange', onVisible)
     return () => document.removeEventListener('visibilitychange', onVisible)
-  }, [status])
+  }, [])
 
-  // focus: タブ切り替えで戻ってきたときのバックアップ検知
+  // ③ focus: タブ切り替えで戻ったときのバックアップ
   useEffect(() => {
     const onFocus = () => {
-      if (status === 'waiting-return') {
+      if (sessionStorage.getItem(LINE_ADD_KEY)) {
         sessionStorage.removeItem(LINE_ADD_KEY)
         setStatus('ready')
       }
     }
     window.addEventListener('focus', onFocus)
     return () => window.removeEventListener('focus', onFocus)
-  }, [status])
+  }, [])
 
   // 初期化ロジック
   useEffect(() => {

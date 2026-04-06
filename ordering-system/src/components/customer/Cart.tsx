@@ -1,19 +1,37 @@
 'use client'
 
 import { useState } from 'react'
-import type { CartItem } from '@/lib/types'
+import type { CartItem, Product } from '@/lib/types'
 import { calcCartTotal, TOPPING_NAME, TOPPING_PRICE } from '@/lib/types'
+import LunchPlateSelector from '@/components/customer/LunchPlateSelector'
 
 interface Props {
   items: CartItem[]
   onSubmit: () => Promise<void>
   isSubmitting: boolean
+  /** ランチプレート選択UI用 */
+  allProducts?: Product[]
+  lunchPlateCount?: number
+  lunchNigiri?: Map<string, number>
+  onLunchNigiriChange?: (next: Map<string, number>) => void
 }
 
-export default function Cart({ items, onSubmit, isSubmitting }: Props) {
+export default function Cart({
+  items,
+  onSubmit,
+  isSubmitting,
+  allProducts = [],
+  lunchPlateCount = 0,
+  lunchNigiri = new Map(),
+  onLunchNigiriChange,
+}: Props) {
   const [isOpen, setIsOpen] = useState(false)
   const total = calcCartTotal(items)
   const totalCount = items.reduce((s, i) => s + i.quantity, 0)
+
+  const requiredNigiri = lunchPlateCount * 2
+  const selectedNigiri = Array.from(lunchNigiri.values()).reduce((s, v) => s + v, 0)
+  const lunchPlateReady = lunchPlateCount === 0 || selectedNigiri >= requiredNigiri
 
   if (totalCount === 0) return null
 
@@ -32,6 +50,11 @@ export default function Cart({ items, onSubmit, isSubmitting }: Props) {
               </div>
             </div>
             <span className="font-bold text-lg">カートを見る</span>
+            {lunchPlateCount > 0 && !lunchPlateReady && (
+              <span className="text-xs bg-amber-400 text-brown-900 px-2 py-0.5 rounded-full font-semibold">
+                おにぎりを選んでください
+              </span>
+            )}
           </button>
           <span className="font-bold text-xl tabular-nums">
             ¥{total.toLocaleString()}
@@ -44,7 +67,7 @@ export default function Cart({ items, onSubmit, isSubmitting }: Props) {
         <div className="fixed inset-0 z-50 flex flex-col justify-end">
           <div className="absolute inset-0 bg-black/50" onClick={() => setIsOpen(false)} />
 
-          <div className="relative bg-cream-50 rounded-t-3xl max-h-[80dvh] flex flex-col shadow-2xl">
+          <div className="relative bg-cream-50 rounded-t-3xl max-h-[85dvh] flex flex-col shadow-2xl">
             <div className="flex justify-center pt-3 pb-1">
               <div className="w-10 h-1 bg-brown-300 rounded-full" />
             </div>
@@ -86,6 +109,16 @@ export default function Cart({ items, onSubmit, isSubmitting }: Props) {
                   </div>
                 )
               })}
+
+              {/* ランチプレート おにぎり選択 */}
+              {lunchPlateCount > 0 && onLunchNigiriChange && (
+                <LunchPlateSelector
+                  products={allProducts}
+                  selections={lunchNigiri}
+                  totalRequired={requiredNigiri}
+                  onChange={onLunchNigiriChange}
+                />
+              )}
             </div>
 
             <div className="px-4 py-4 border-t border-cream-300 space-y-3">
@@ -98,10 +131,15 @@ export default function Cart({ items, onSubmit, isSubmitting }: Props) {
               <p className="text-sm text-brown-400 text-center">
                 ※ お会計はレジにて対面でお願いします
               </p>
+              {lunchPlateCount > 0 && !lunchPlateReady && (
+                <p className="text-center text-sm text-amber-700 font-medium">
+                  ランチプレートのおにぎり（{requiredNigiri}つ）を選んでから注文できます
+                </p>
+              )}
               <button
                 onClick={async () => { await onSubmit(); setIsOpen(false) }}
-                disabled={isSubmitting}
-                className="btn-primary w-full text-xl py-4"
+                disabled={isSubmitting || !lunchPlateReady}
+                className="btn-primary w-full text-xl py-4 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {isSubmitting ? '送信中...' : '注文を確定する'}
               </button>
