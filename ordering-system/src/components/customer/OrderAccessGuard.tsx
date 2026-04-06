@@ -40,13 +40,15 @@ export default function OrderAccessGuard({ tableId, children, onUserIdReady }: P
     return data.isFriend as boolean
   }, [])
 
-  // 「友だち追加する」ボタンを押したときの処理
-  const handleFriendAdd = useCallback(() => {
-    // sessionStorageにフラグを立てる（ページが遷移した場合の復帰用）
+  // 「友だち追加する」リンクをタップしたときの処理
+  // ※ preventDefault しないことで iOS Universal Links が正常に動作する
+  //   （Universal Links = Safari を離れずに LINE アプリを直接開く仕組み）
+  const handleFriendAddClick = useCallback(() => {
     sessionStorage.setItem(LINE_ADD_KEY, '1')
     setStatus('waiting-return')
-    // LINE友だち追加ページを開く（ユーザー操作起点なのでポップアップブロック対象外）
-    window.open(ADD_FRIEND_URL, '_blank', 'noopener,noreferrer')
+    // ブラウザのデフォルト動作（リンク遷移）はそのまま実行される
+    // iOS/LINE インストール済み → Universal Link でLINEが開き Safari は残る → visibilitychange で検知
+    // Universal Link が効かない場合 → line.me へ遷移 → 戻るボタンで復帰 → sessionStorage で検知
   }, [])
 
   // visibilitychange: LINEアプリまたは別タブから戻ってきたときに自動検知
@@ -228,12 +230,13 @@ export default function OrderAccessGuard({ tableId, children, onUserIdReady }: P
           </div>
 
           <div className="space-y-3">
-            <button
-              onClick={handleFriendAdd}
-              className="w-full py-3 rounded-xl bg-[#06C755] text-white font-semibold text-base text-center active:opacity-80"
+            <a
+              href={ADD_FRIEND_URL}
+              onClick={handleFriendAddClick}
+              className="block w-full py-3 rounded-xl bg-[#06C755] text-white font-semibold text-base text-center active:opacity-80"
             >
               友だち追加する
-            </button>
+            </a>
             <button
               onClick={() => setStatus('ready')}
               className="w-full py-2 text-sm text-brown-400"
