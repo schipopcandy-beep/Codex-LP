@@ -29,7 +29,7 @@ export const LUNCH_PLATE_NAME = 'ランチプレート'
  */
 export function getLunchPlateSurcharge(product: Product): number {
   if (product.name === 'しゃけ筋子') return 200
-  if (product.name === '筋子') return 100
+  if (product.name.includes('筋子')) return 100   // 筋子・極み筋子など
   if (product.price >= 450) return 50
   return 0
 }
