@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import type { CartItem, Product } from '@/lib/types'
-import { calcCartTotal, TOPPING_NAME, TOPPING_PRICE } from '@/lib/types'
+import { calcCartTotal, TOPPING_NAME, TOPPING_PRICE, getLunchPlateSurcharge } from '@/lib/types'
 import LunchPlateSelector from '@/components/customer/LunchPlateSelector'
 
 interface Props {
@@ -26,7 +26,12 @@ export default function Cart({
   onLunchNigiriChange,
 }: Props) {
   const [isOpen, setIsOpen] = useState(false)
-  const total = calcCartTotal(items)
+  const baseTotal = calcCartTotal(items)
+  const lunchSurcharge = Array.from(lunchNigiri.entries()).reduce((sum, [productId, count]) => {
+    const product = allProducts.find((p) => p.id === productId)
+    return product ? sum + getLunchPlateSurcharge(product) * count : sum
+  }, 0)
+  const total = baseTotal + lunchSurcharge
   const totalCount = items.reduce((s, i) => s + i.quantity, 0)
 
   const requiredNigiri = lunchPlateCount * 2
@@ -122,6 +127,12 @@ export default function Cart({
             </div>
 
             <div className="px-4 py-4 border-t border-cream-300 space-y-3">
+              {lunchSurcharge > 0 && (
+                <div className="flex justify-between items-center text-sm text-amber-700">
+                  <span>ランチプレート追加料金</span>
+                  <span className="tabular-nums">+¥{lunchSurcharge.toLocaleString()}</span>
+                </div>
+              )}
               <div className="flex justify-between items-center">
                 <span className="text-xl font-bold text-brown-800">合計</span>
                 <span className="text-2xl font-bold text-brown-700 tabular-nums">
