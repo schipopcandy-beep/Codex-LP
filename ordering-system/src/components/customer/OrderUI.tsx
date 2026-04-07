@@ -21,9 +21,9 @@ interface Props {
   buildCompleteHref: (orderId: string) => string
 }
 
-/** カートのキー: おにぎり系は topping で区別、ドリンクは timing で区別 */
-const cartKey = (productId: string, withTopping: boolean, timing?: DrinkTiming) =>
-  timing ? `${productId}-drink-${timing}` : `${productId}-${withTopping}`
+/** カートのキー: おにぎり系は topping で区別、ドリンクは固定キー */
+const cartKey = (productId: string, withTopping: boolean) => `${productId}-${withTopping}`
+const drinkKey = (productId: string) => `${productId}-drink`
 
 export default function OrderUI({ tableId, lineUserId, buildCompleteHref }: Props) {
   const router = useRouter()
@@ -108,29 +108,39 @@ export default function OrderUI({ tableId, lineUserId, buildCompleteHref }: Prop
   }, [])
 
   /** ドリンク用 */
-  const handleAddDrink = useCallback((product: Product, timing: DrinkTiming) => {
+  const handleAddDrink = useCallback((product: Product) => {
     setCartMap((prev) => {
       const next = new Map(prev)
-      const key = cartKey(product.id, false, timing)
+      const key = drinkKey(product.id)
       const existing = next.get(key)
       if (existing) {
         next.set(key, { ...existing, quantity: existing.quantity + 1 })
       } else {
-        next.set(key, { product, quantity: 1, with_topping: false, timing })
+        next.set(key, { product, quantity: 1, with_topping: false, timing: undefined })
       }
       return next
     })
   }, [])
 
-  const handleRemoveDrink = useCallback((product: Product, timing: DrinkTiming) => {
+  const handleRemoveDrink = useCallback((product: Product) => {
     setCartMap((prev) => {
       const next = new Map(prev)
-      const key = cartKey(product.id, false, timing)
+      const key = drinkKey(product.id)
       const existing = next.get(key)
       if (existing) {
         if (existing.quantity > 1) next.set(key, { ...existing, quantity: existing.quantity - 1 })
         else next.delete(key)
       }
+      return next
+    })
+  }, [])
+
+  const handleDrinkTimingChange = useCallback((productId: string, timing: DrinkTiming) => {
+    setCartMap((prev) => {
+      const next = new Map(prev)
+      const key = drinkKey(productId)
+      const existing = next.get(key)
+      if (existing) next.set(key, { ...existing, timing })
       return next
     })
   }, [])
@@ -272,22 +282,15 @@ export default function OrderUI({ tableId, lineUserId, buildCompleteHref }: Prop
               <section>
                 <h2 className="section-title mb-3 px-1">ドリンク</h2>
                 <div className="space-y-2">
-                  {drinkProducts.map((product) => {
-                    const counts = new Map<DrinkTiming, number>()
-                    for (const timing of ['before', 'with', 'after'] as DrinkTiming[]) {
-                      const count = cartMap.get(cartKey(product.id, false, timing))?.quantity ?? 0
-                      if (count > 0) counts.set(timing, count)
-                    }
-                    return (
-                      <DrinkCard
-                        key={product.id}
-                        product={product}
-                        counts={counts}
-                        onAdd={(timing) => handleAddDrink(product, timing)}
-                        onRemove={(timing) => handleRemoveDrink(product, timing)}
-                      />
-                    )
-                  })}
+                  {drinkProducts.map((product) => (
+                    <DrinkCard
+                      key={product.id}
+                      product={product}
+                      quantity={cartMap.get(drinkKey(product.id))?.quantity ?? 0}
+                      onAdd={() => handleAddDrink(product)}
+                      onRemove={() => handleRemoveDrink(product)}
+                    />
+                  ))}
                 </div>
               </section>
             )}
@@ -328,6 +331,7 @@ export default function OrderUI({ tableId, lineUserId, buildCompleteHref }: Prop
         allProducts={products}
         lunchNigiriPerPlate={lunchNigiriPerPlate}
         onLunchNigiriChange={handleLunchNigiriChange}
+        onDrinkTimingChange={handleDrinkTimingChange}
       />
     </div>
   )
