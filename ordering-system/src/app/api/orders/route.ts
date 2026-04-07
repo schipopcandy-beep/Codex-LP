@@ -13,6 +13,7 @@ interface OrderRequestBody {
     unit_price: number
     with_topping: boolean
     timing?: string | null
+    lunch_plate_index?: number | null
   }>
 }
 
@@ -83,6 +84,7 @@ export async function POST(req: NextRequest) {
     unit_price: item.unit_price,
     with_topping: item.with_topping,
     ...(item.timing != null ? { timing: item.timing } : {}),
+    ...(item.lunch_plate_index != null ? { lunch_plate_index: item.lunch_plate_index } : {}),
   }))
 
   const { error: insertError } = await supabase

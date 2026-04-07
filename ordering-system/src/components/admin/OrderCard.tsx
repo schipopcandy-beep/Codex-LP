@@ -1,6 +1,6 @@
 import Link from 'next/link'
 import type { Order } from '@/lib/types'
-import { calcOrderTotal, TABLE_NAMES, TOPPING_NAME, TOPPING_PRICE } from '@/lib/types'
+import { calcOrderTotal, TABLE_NAMES, TOPPING_NAME, TOPPING_PRICE, DRINK_CATEGORY, DRINK_TIMING_LABELS } from '@/lib/types'
 import StatusBadge from './StatusBadge'
 
 interface Props {
@@ -28,20 +28,27 @@ export default function OrderCard({ order }: Props) {
         </div>
 
         <div className="space-y-1 mb-3">
-          {items.slice(0, 3).map((item) => (
-            <p key={item.id} className="text-sm text-brown-600 flex justify-between">
-              <span>
-                {item.product?.name ?? '不明'}
-                {item.with_topping && (
-                  <span className="text-brown-400 ml-1">+{TOPPING_NAME}</span>
-                )}
-                <span className="text-brown-400 ml-1">×{item.quantity}</span>
-              </span>
-              <span className="tabular-nums">
-                ¥{((item.unit_price + (item.with_topping ? TOPPING_PRICE : 0)) * item.quantity).toLocaleString()}
-              </span>
-            </p>
-          ))}
+          {items.filter((i) => i.lunch_plate_index == null).slice(0, 3).map((item) => {
+            const isDrink = item.product?.category === DRINK_CATEGORY
+            const timingLabel = isDrink && item.timing ? DRINK_TIMING_LABELS[item.timing] : null
+            return (
+              <p key={item.id} className="text-sm text-brown-600 flex justify-between">
+                <span>
+                  {item.product?.name ?? '不明'}
+                  {item.with_topping && (
+                    <span className="text-brown-400 ml-1">+{TOPPING_NAME}</span>
+                  )}
+                  {timingLabel && (
+                    <span className="text-blue-600 ml-1">（{timingLabel}）</span>
+                  )}
+                  <span className="text-brown-400 ml-1">×{item.quantity}</span>
+                </span>
+                <span className="tabular-nums">
+                  ¥{((item.unit_price + (item.with_topping ? TOPPING_PRICE : 0)) * item.quantity).toLocaleString()}
+                </span>
+              </p>
+            )
+          })}
           {items.length > 3 && (
             <p className="text-sm text-brown-400">
               他 {items.length - 3} 品…

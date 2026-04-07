@@ -7,5 +7,9 @@ VALUES
   ('100%オレンジジュース', 300, NULL, 'ドリンク', 330, false, false),
   ('100%アップルジュース', 300, NULL, 'ドリンク', 340, false, false);
 
--- ドリンク提供タイミング（food_before / with_food / food_after）を order_items に追加
+-- ドリンク提供タイミング（before / with / after）を order_items に追加
 ALTER TABLE order_items ADD COLUMN IF NOT EXISTS timing TEXT;
+
+-- ランチプレート内おにぎりのプレート番号（0始まり）を追加
+-- NULL = ランチプレート以外のアイテム
+ALTER TABLE order_items ADD COLUMN IF NOT EXISTS lunch_plate_index INTEGER;

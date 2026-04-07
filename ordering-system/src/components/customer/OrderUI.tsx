@@ -158,8 +158,8 @@ export default function OrderUI({ tableId, lineUserId, buildCompleteHref }: Prop
     setIsSubmitting(true)
 
     try {
-      // ランチプレートのおにぎり選択をアイテムに変換
-      const lunchNigiriItems = lunchNigiriPerPlate.flatMap((plateMap) =>
+      // ランチプレートのおにぎり選択をアイテムに変換（プレート番号を付与）
+      const lunchNigiriItems = lunchNigiriPerPlate.flatMap((plateMap, plateIndex) =>
         Array.from(plateMap.entries()).flatMap(([productId, count]) => {
           const product = products.find((p) => p.id === productId)
           if (!product || count <= 0) return []
@@ -170,6 +170,7 @@ export default function OrderUI({ tableId, lineUserId, buildCompleteHref }: Prop
             unit_price: getLunchPlateSurcharge(product),
             with_topping: false,
             timing: null,
+            lunch_plate_index: plateIndex,
           }]
         })
       )
