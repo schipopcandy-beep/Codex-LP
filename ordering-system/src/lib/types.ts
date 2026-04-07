@@ -79,6 +79,8 @@ export interface OrderItem {
   unit_price: number
   with_topping: boolean
   timing?: DrinkTiming | null
+  /** ランチプレート内おにぎりのプレート番号（0始まり）。null = 通常アイテム */
+  lunch_plate_index?: number | null
   created_at: string
   product?: Product
 }

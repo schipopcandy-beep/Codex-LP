@@ -3,13 +3,16 @@
 import { use, useEffect, useState, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import type { Order, OrderStatus } from '@/lib/types'
+import type { Order, OrderStatus, OrderItem } from '@/lib/types'
 import {
   calcOrderTotal,
   TABLE_NAMES,
   ORDER_STATUS_LABELS,
   TOPPING_NAME,
   TOPPING_PRICE,
+  DRINK_CATEGORY,
+  DRINK_TIMING_LABELS,
+  LUNCH_PLATE_NAME,
 } from '@/lib/types'
 import StatusBadge from '@/components/admin/StatusBadge'
 
@@ -88,6 +91,24 @@ export default function OrderDetailPage({ params }: Props) {
   const total = calcOrderTotal(items)
   const tableName = TABLE_NAMES[order.table_id] ?? order.table_id
 
+  // アイテムを種別ごとに分類
+  const regularItems = items.filter(
+    (i) => i.lunch_plate_index == null && i.product?.category !== DRINK_CATEGORY,
+  )
+  const lunchPlateBaseItems = regularItems.filter((i) => i.product?.name === LUNCH_PLATE_NAME)
+  const otherItems = regularItems.filter((i) => i.product?.name !== LUNCH_PLATE_NAME)
+  const lunchNigiriItems = items.filter((i) => i.lunch_plate_index != null)
+  const drinkItems = items.filter((i) => i.product?.category === DRINK_CATEGORY)
+
+  // ランチプレート内おにぎりをプレート番号でグループ化
+  const nigiriByPlate = new Map<number, OrderItem[]>()
+  for (const item of lunchNigiriItems) {
+    const idx = item.lunch_plate_index ?? 0
+    if (!nigiriByPlate.has(idx)) nigiriByPlate.set(idx, [])
+    nigiriByPlate.get(idx)!.push(item)
+  }
+  const plateCount = lunchPlateBaseItems.reduce((s, i) => s + i.quantity, 0)
+
   return (
     <div className="p-4 md:p-6 max-w-2xl mx-auto">
       {/* ナビゲーション */}
@@ -137,30 +158,89 @@ export default function OrderDetailPage({ params }: Props) {
         <h2 className="font-bold text-lg text-brown-700 mb-3 border-b border-cream-300 pb-2">
           注文明細
         </h2>
-        <div className="space-y-3">
-          {items.map((item) => {
-            const toppingCost = item.with_topping ? TOPPING_PRICE : 0
-            const subtotal = (item.unit_price + toppingCost) * item.quantity
+        <div className="space-y-4">
 
+          {/* 通常アイテム */}
+          {otherItems.map((item) => (
+            <ItemRow key={item.id} item={item} />
+          ))}
+
+          {/* ランチプレート */}
+          {lunchPlateBaseItems.map((item) => {
+            const subtotal = item.unit_price * item.quantity
             return (
-              <div key={item.id} className="flex justify-between items-start">
-                <div className="flex-1">
-                  <p className="text-base font-bold text-brown-800">
-                    {item.product?.name ?? '不明商品'}
-                  </p>
-                  {item.with_topping && (
-                    <p className="text-sm text-brown-400">＋{TOPPING_NAME}</p>
-                  )}
-                  <p className="text-sm text-brown-400">
-                    ¥{(item.unit_price + toppingCost).toLocaleString()} × {item.quantity}
+              <div key={item.id}>
+                <div className="flex justify-between items-start">
+                  <div className="flex-1">
+                    <p className="text-base font-bold text-brown-800">{item.product?.name ?? 'ランチプレート'}</p>
+                    <p className="text-sm text-brown-400">¥{item.unit_price.toLocaleString()} × {item.quantity}</p>
+                  </div>
+                  <p className="font-bold text-brown-700 text-base tabular-nums whitespace-nowrap pl-2">
+                    ¥{subtotal.toLocaleString()}
                   </p>
                 </div>
-                <p className="font-bold text-brown-700 text-base tabular-nums whitespace-nowrap pl-2">
-                  ¥{subtotal.toLocaleString()}
-                </p>
+
+                {/* プレート別おにぎり */}
+                {Array.from({ length: plateCount }, (_, i) => {
+                  const nigiri = nigiriByPlate.get(i) ?? []
+                  return (
+                    <div key={i} className="mt-2 ml-3 pl-3 border-l-2 border-amber-300">
+                      {plateCount > 1 && (
+                        <p className="text-xs font-bold text-amber-700 mb-1">{i + 1}枚目</p>
+                      )}
+                      {nigiri.length === 0 ? (
+                        <p className="text-xs text-brown-400">おにぎり未選択</p>
+                      ) : (
+                        nigiri.map((n) => {
+                          const surcharge = n.unit_price
+                          return (
+                            <p key={n.id} className="text-sm text-brown-600">
+                              {n.product?.name ?? '不明'}
+                              {surcharge > 0 && (
+                                <span className="text-amber-600 ml-1 text-xs">+¥{surcharge}</span>
+                              )}
+                              {n.quantity > 1 && (
+                                <span className="text-brown-400 ml-1">×{n.quantity}</span>
+                              )}
+                            </p>
+                          )
+                        })
+                      )}
+                    </div>
+                  )
+                })}
               </div>
             )
           })}
+
+          {/* ドリンク */}
+          {drinkItems.length > 0 && (
+            <div>
+              <p className="text-xs font-bold text-brown-500 mb-2 uppercase tracking-wide">ドリンク</p>
+              {drinkItems.map((item) => {
+                const subtotal = item.unit_price * item.quantity
+                const timingLabel = item.timing ? DRINK_TIMING_LABELS[item.timing] : null
+                return (
+                  <div key={item.id} className="flex justify-between items-start mb-2">
+                    <div className="flex-1">
+                      <p className="text-base font-bold text-brown-800">
+                        {item.product?.name ?? '不明商品'}
+                        {timingLabel && (
+                          <span className="ml-2 text-xs font-semibold px-2 py-0.5 rounded-full bg-blue-100 text-blue-700">
+                            {timingLabel}
+                          </span>
+                        )}
+                      </p>
+                      <p className="text-sm text-brown-400">¥{item.unit_price.toLocaleString()} × {item.quantity}</p>
+                    </div>
+                    <p className="font-bold text-brown-700 text-base tabular-nums whitespace-nowrap pl-2">
+                      ¥{subtotal.toLocaleString()}
+                    </p>
+                  </div>
+                )
+              })}
+            </div>
+          )}
         </div>
 
         <div className="flex justify-between items-center mt-4 pt-3 border-t border-cream-300">
@@ -187,6 +267,29 @@ export default function OrderDetailPage({ params }: Props) {
           この注文は会計済みです
         </div>
       )}
+    </div>
+  )
+}
+
+function ItemRow({ item }: { item: OrderItem }) {
+  const toppingCost = item.with_topping ? TOPPING_PRICE : 0
+  const subtotal = (item.unit_price + toppingCost) * item.quantity
+  return (
+    <div className="flex justify-between items-start">
+      <div className="flex-1">
+        <p className="text-base font-bold text-brown-800">
+          {item.product?.name ?? '不明商品'}
+        </p>
+        {item.with_topping && (
+          <p className="text-sm text-brown-400">＋{TOPPING_NAME}</p>
+        )}
+        <p className="text-sm text-brown-400">
+          ¥{(item.unit_price + toppingCost).toLocaleString()} × {item.quantity}
+        </p>
+      </div>
+      <p className="font-bold text-brown-700 text-base tabular-nums whitespace-nowrap pl-2">
+        ¥{subtotal.toLocaleString()}
+      </p>
     </div>
   )
 }
