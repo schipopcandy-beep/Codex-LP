@@ -13,7 +13,7 @@ interface Props {
 }
 
 export default function LunchPlateSelector({ products, selections, totalRequired, onChange }: Props) {
-  const nigiri = products.filter((p) => p.name !== LUNCH_PLATE_NAME && !p.is_sold_out)
+  const nigiri = products.filter((p) => p.category === 'おにぎり' && !p.is_sold_out)
   const totalSelected = Array.from(selections.values()).reduce((s, v) => s + v, 0)
   const remaining = totalRequired - totalSelected
 
