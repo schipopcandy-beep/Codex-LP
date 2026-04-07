@@ -4,19 +4,26 @@ import { useEffect, useState, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import Image from 'next/image'
 import ProductCard from '@/components/customer/ProductCard'
+import DrinkCard from '@/components/customer/DrinkCard'
 import Cart from '@/components/customer/Cart'
-import type { Product, CartItem } from '@/lib/types'
-import { TABLE_NAMES, storageUrl, LUNCH_PLATE_NAME, getLunchPlateSurcharge } from '@/lib/types'
+import type { Product, CartItem, DrinkTiming } from '@/lib/types'
+import {
+  TABLE_NAMES,
+  storageUrl,
+  LUNCH_PLATE_NAME,
+  getLunchPlateSurcharge,
+  DRINK_CATEGORY,
+} from '@/lib/types'
 
 interface Props {
   tableId: string
   lineUserId?: string | null
-  /** 注文完了後の遷移先URLを生成する関数 */
   buildCompleteHref: (orderId: string) => string
 }
 
-const cartKey = (productId: string, withTopping: boolean) =>
-  `${productId}-${withTopping}`
+/** カートのキー: おにぎり系は topping で区別、ドリンクは timing で区別 */
+const cartKey = (productId: string, withTopping: boolean, timing?: DrinkTiming) =>
+  timing ? `${productId}-drink-${timing}` : `${productId}-${withTopping}`
 
 export default function OrderUI({ tableId, lineUserId, buildCompleteHref }: Props) {
   const router = useRouter()
@@ -27,35 +34,32 @@ export default function OrderUI({ tableId, lineUserId, buildCompleteHref }: Prop
   const [cartMap, setCartMap] = useState<Map<string, CartItem>>(new Map())
   const [isSubmitting, setIsSubmitting] = useState(false)
 
-  /** ランチプレートのおにぎり選択: productId → 選択数 */
-  const [lunchNigiri, setLunchNigiri] = useState<Map<string, number>>(new Map())
+  /** ランチプレート1枚ごとのおにぎり選択: productId → 選択数 */
+  const [lunchNigiriPerPlate, setLunchNigiriPerPlate] = useState<Array<Map<string, number>>>([])
 
   const cartItems: CartItem[] = Array.from(cartMap.values())
+
+  const nigiriProducts = products.filter((p) => p.category === 'おにぎり')
+  const drinkProducts = products.filter((p) => p.category === DRINK_CATEGORY)
 
   /** カート内のランチプレート枚数 */
   const lunchPlateCount = cartItems
     .filter((item) => item.product.name === LUNCH_PLATE_NAME)
     .reduce((sum, item) => sum + item.quantity, 0)
 
-  // ランチプレート枚数が減ったとき、選択数をトリム
+  // ランチプレート枚数に合わせて配列長を同期
   useEffect(() => {
-    const required = lunchPlateCount * 2
-    const selected = Array.from(lunchNigiri.values()).reduce((s, v) => s + v, 0)
-    if (selected <= required) return
-
-    // 超過分を末尾のエントリから削除
-    let over = selected - required
-    const next = new Map(lunchNigiri)
-    for (const [id, cnt] of [...next.entries()].reverse()) {
-      if (over <= 0) break
-      const remove = Math.min(cnt, over)
-      const newCnt = cnt - remove
-      if (newCnt <= 0) next.delete(id)
-      else next.set(id, newCnt)
-      over -= remove
-    }
-    setLunchNigiri(next)
-  }, [lunchPlateCount]) // eslint-disable-line react-hooks/exhaustive-deps
+    setLunchNigiriPerPlate((prev) => {
+      if (prev.length === lunchPlateCount) return prev
+      if (prev.length < lunchPlateCount) {
+        return [
+          ...prev,
+          ...Array.from({ length: lunchPlateCount - prev.length }, () => new Map<string, number>()),
+        ]
+      }
+      return prev.slice(0, lunchPlateCount)
+    })
+  }, [lunchPlateCount])
 
   useEffect(() => {
     fetch('/api/products')
@@ -70,12 +74,12 @@ export default function OrderUI({ tableId, lineUserId, buildCompleteHref }: Prop
       })
   }, [])
 
+  /** おにぎり・ランチプレート用 */
   const handleAdd = useCallback((product: Product, withTopping: boolean) => {
     setCartMap((prev) => {
       const next = new Map(prev)
       const key = cartKey(product.id, withTopping)
       const existing = next.get(key)
-
       if (existing) {
         next.set(key, { ...existing, quantity: existing.quantity + 1, with_topping: withTopping })
       } else {
@@ -94,15 +98,48 @@ export default function OrderUI({ tableId, lineUserId, buildCompleteHref }: Prop
         const key = cartKey(product.id, withTopping)
         const existing = next.get(key)
         if (existing) {
-          if (existing.quantity > 1) {
-            next.set(key, { ...existing, quantity: existing.quantity - 1 })
-          } else {
-            next.delete(key)
-          }
+          if (existing.quantity > 1) next.set(key, { ...existing, quantity: existing.quantity - 1 })
+          else next.delete(key)
           break
         }
       }
       return next
+    })
+  }, [])
+
+  /** ドリンク用 */
+  const handleAddDrink = useCallback((product: Product, timing: DrinkTiming) => {
+    setCartMap((prev) => {
+      const next = new Map(prev)
+      const key = cartKey(product.id, false, timing)
+      const existing = next.get(key)
+      if (existing) {
+        next.set(key, { ...existing, quantity: existing.quantity + 1 })
+      } else {
+        next.set(key, { product, quantity: 1, with_topping: false, timing })
+      }
+      return next
+    })
+  }, [])
+
+  const handleRemoveDrink = useCallback((product: Product, timing: DrinkTiming) => {
+    setCartMap((prev) => {
+      const next = new Map(prev)
+      const key = cartKey(product.id, false, timing)
+      const existing = next.get(key)
+      if (existing) {
+        if (existing.quantity > 1) next.set(key, { ...existing, quantity: existing.quantity - 1 })
+        else next.delete(key)
+      }
+      return next
+    })
+  }, [])
+
+  const handleLunchNigiriChange = useCallback((index: number, next: Map<string, number>) => {
+    setLunchNigiriPerPlate((prev) => {
+      const arr = [...prev]
+      arr[index] = next
+      return arr
     })
   }, [])
 
@@ -111,19 +148,21 @@ export default function OrderUI({ tableId, lineUserId, buildCompleteHref }: Prop
     setIsSubmitting(true)
 
     try {
-      // ランチプレートのおにぎり選択をオーダーアイテムに変換
-      const lunchNigiriItems = Array.from(lunchNigiri.entries()).flatMap(([productId, count]) => {
-        const product = products.find((p) => p.id === productId)
-        if (!product || count <= 0) return []
-        const surcharge = getLunchPlateSurcharge(product)
-        return [{
-          product_id: productId,
-          product_name: product.name,
-          quantity: count,
-          unit_price: surcharge,
-          with_topping: false,
-        }]
-      })
+      // ランチプレートのおにぎり選択をアイテムに変換
+      const lunchNigiriItems = lunchNigiriPerPlate.flatMap((plateMap) =>
+        Array.from(plateMap.entries()).flatMap(([productId, count]) => {
+          const product = products.find((p) => p.id === productId)
+          if (!product || count <= 0) return []
+          return [{
+            product_id: productId,
+            product_name: product.name,
+            quantity: count,
+            unit_price: getLunchPlateSurcharge(product),
+            with_topping: false,
+            timing: null,
+          }]
+        })
+      )
 
       const res = await fetch('/api/orders', {
         method: 'POST',
@@ -138,6 +177,7 @@ export default function OrderUI({ tableId, lineUserId, buildCompleteHref }: Prop
               quantity: item.quantity,
               unit_price: item.product.price,
               with_topping: item.with_topping,
+              timing: item.timing ?? null,
             })),
             ...lunchNigiriItems,
           ],
@@ -156,7 +196,7 @@ export default function OrderUI({ tableId, lineUserId, buildCompleteHref }: Prop
     } finally {
       setIsSubmitting(false)
     }
-  }, [cartItems, lunchNigiri, products, tableId, lineUserId, buildCompleteHref, router])
+  }, [cartItems, lunchNigiriPerPlate, products, tableId, lineUserId, buildCompleteHref, router])
 
   const tableName = TABLE_NAMES[tableId] ?? tableId
 
@@ -197,33 +237,86 @@ export default function OrderUI({ tableId, lineUserId, buildCompleteHref }: Prop
         <div className="absolute inset-0 bg-brown-900/30" />
       </div>
 
-      <main className="max-w-2xl mx-auto px-3 py-4">
+      <main className="max-w-2xl mx-auto px-3 py-4 space-y-6">
         {loading ? (
           <div className="flex items-center justify-center py-20">
             <p className="text-brown-400 text-lg">メニューを読み込み中...</p>
           </div>
         ) : (
           <>
-            <h1 className="section-title mb-4 px-1">メニュー</h1>
-            <div className="grid grid-cols-2 gap-3">
-              {products.map((product) => {
-                const withTopping = cartMap.get(cartKey(product.id, true))?.with_topping ?? false
-                const quantity =
-                  (cartMap.get(cartKey(product.id, false))?.quantity ?? 0) +
-                  (cartMap.get(cartKey(product.id, true))?.quantity ?? 0)
+            {/* おにぎり */}
+            <section>
+              <h1 className="section-title mb-4 px-1">メニュー</h1>
+              <div className="grid grid-cols-2 gap-3">
+                {nigiriProducts.map((product) => {
+                  const withTopping = cartMap.get(cartKey(product.id, true))?.with_topping ?? false
+                  const quantity =
+                    (cartMap.get(cartKey(product.id, false))?.quantity ?? 0) +
+                    (cartMap.get(cartKey(product.id, true))?.quantity ?? 0)
+                  return (
+                    <ProductCard
+                      key={product.id}
+                      product={product}
+                      quantity={quantity}
+                      withTopping={withTopping}
+                      onAdd={handleAdd}
+                      onRemove={handleRemove}
+                    />
+                  )
+                })}
+              </div>
+            </section>
 
-                return (
-                  <ProductCard
-                    key={product.id}
-                    product={product}
-                    quantity={quantity}
-                    withTopping={withTopping}
-                    onAdd={handleAdd}
-                    onRemove={handleRemove}
-                  />
-                )
-              })}
-            </div>
+            {/* ドリンク */}
+            {drinkProducts.length > 0 && (
+              <section>
+                <h2 className="section-title mb-3 px-1">ドリンク</h2>
+                <div className="space-y-2">
+                  {drinkProducts.map((product) => {
+                    const counts = new Map<DrinkTiming, number>()
+                    for (const timing of ['before', 'with', 'after'] as DrinkTiming[]) {
+                      const count = cartMap.get(cartKey(product.id, false, timing))?.quantity ?? 0
+                      if (count > 0) counts.set(timing, count)
+                    }
+                    return (
+                      <DrinkCard
+                        key={product.id}
+                        product={product}
+                        counts={counts}
+                        onAdd={(timing) => handleAddDrink(product, timing)}
+                        onRemove={(timing) => handleRemoveDrink(product, timing)}
+                      />
+                    )
+                  })}
+                </div>
+              </section>
+            )}
+
+            {/* ランチプレート等その他 */}
+            {products.filter((p) => p.category !== 'おにぎり' && p.category !== DRINK_CATEGORY).length > 0 && (
+              <section>
+                <h2 className="section-title mb-3 px-1">セット</h2>
+                <div className="grid grid-cols-2 gap-3">
+                  {products
+                    .filter((p) => p.category !== 'おにぎり' && p.category !== DRINK_CATEGORY)
+                    .map((product) => {
+                      const quantity =
+                        (cartMap.get(cartKey(product.id, false))?.quantity ?? 0) +
+                        (cartMap.get(cartKey(product.id, true))?.quantity ?? 0)
+                      return (
+                        <ProductCard
+                          key={product.id}
+                          product={product}
+                          quantity={quantity}
+                          withTopping={false}
+                          onAdd={handleAdd}
+                          onRemove={handleRemove}
+                        />
+                      )
+                    })}
+                </div>
+              </section>
+            )}
           </>
         )}
       </main>
@@ -233,9 +326,8 @@ export default function OrderUI({ tableId, lineUserId, buildCompleteHref }: Prop
         onSubmit={handleSubmit}
         isSubmitting={isSubmitting}
         allProducts={products}
-        lunchPlateCount={lunchPlateCount}
-        lunchNigiri={lunchNigiri}
-        onLunchNigiriChange={setLunchNigiri}
+        lunchNigiriPerPlate={lunchNigiriPerPlate}
+        onLunchNigiriChange={handleLunchNigiriChange}
       />
     </div>
   )

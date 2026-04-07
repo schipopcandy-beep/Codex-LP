@@ -12,6 +12,7 @@ interface OrderRequestBody {
     quantity: number
     unit_price: number
     with_topping: boolean
+    timing?: string | null
   }>
 }
 
@@ -81,6 +82,7 @@ export async function POST(req: NextRequest) {
     quantity: item.quantity,
     unit_price: item.unit_price,
     with_topping: item.with_topping,
+    ...(item.timing != null ? { timing: item.timing } : {}),
   }))
 
   const { error: insertError } = await supabase

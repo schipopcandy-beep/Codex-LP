@@ -20,6 +20,15 @@ export const ORDER_STATUS_LABELS: Record<OrderStatus, string> = {
 export const TOPPING_NAME = 'とろろ昆布'
 export const TOPPING_PRICE = 50
 
+export const DRINK_CATEGORY = 'ドリンク'
+
+export type DrinkTiming = 'before' | 'with' | 'after'
+export const DRINK_TIMING_LABELS: Record<DrinkTiming, string> = {
+  before: '食前',
+  with: '同時',
+  after: '食後',
+}
+
 /** ランチプレートの商品名（DBの name と一致させること） */
 export const LUNCH_PLATE_NAME = 'ランチプレート'
 
@@ -69,6 +78,7 @@ export interface OrderItem {
   quantity: number
   unit_price: number
   with_topping: boolean
+  timing?: DrinkTiming | null
   created_at: string
   product?: Product
 }
@@ -77,6 +87,7 @@ export interface CartItem {
   product: Product
   quantity: number
   with_topping: boolean
+  timing?: DrinkTiming   // ドリンクのみ
 }
 
 export function calcCartTotal(items: CartItem[]): number {

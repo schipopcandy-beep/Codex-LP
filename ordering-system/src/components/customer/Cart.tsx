@@ -2,7 +2,14 @@
 
 import { useState } from 'react'
 import type { CartItem, Product } from '@/lib/types'
-import { calcCartTotal, TOPPING_NAME, TOPPING_PRICE, getLunchPlateSurcharge } from '@/lib/types'
+import {
+  calcCartTotal,
+  TOPPING_NAME,
+  TOPPING_PRICE,
+  DRINK_TIMING_LABELS,
+  DRINK_CATEGORY,
+  getLunchPlateSurcharge,
+} from '@/lib/types'
 import LunchPlateSelector from '@/components/customer/LunchPlateSelector'
 
 interface Props {
@@ -11,9 +18,9 @@ interface Props {
   isSubmitting: boolean
   /** ランチプレート選択UI用 */
   allProducts?: Product[]
-  lunchPlateCount?: number
-  lunchNigiri?: Map<string, number>
-  onLunchNigiriChange?: (next: Map<string, number>) => void
+  /** ランチプレート1枚ごとのおにぎり選択（配列長 = ランチプレート枚数） */
+  lunchNigiriPerPlate?: Array<Map<string, number>>
+  onLunchNigiriChange?: (index: number, next: Map<string, number>) => void
 }
 
 export default function Cart({
@@ -21,22 +28,28 @@ export default function Cart({
   onSubmit,
   isSubmitting,
   allProducts = [],
-  lunchPlateCount = 0,
-  lunchNigiri = new Map(),
+  lunchNigiriPerPlate = [],
   onLunchNigiriChange,
 }: Props) {
   const [isOpen, setIsOpen] = useState(false)
+
   const baseTotal = calcCartTotal(items)
-  const lunchSurcharge = Array.from(lunchNigiri.entries()).reduce((sum, [productId, count]) => {
-    const product = allProducts.find((p) => p.id === productId)
-    return product ? sum + getLunchPlateSurcharge(product) * count : sum
-  }, 0)
+  const lunchSurcharge = lunchNigiriPerPlate.flatMap((plateMap) =>
+    Array.from(plateMap.entries()).map(([productId, count]) => {
+      const product = allProducts.find((p) => p.id === productId)
+      return product ? getLunchPlateSurcharge(product) * count : 0
+    })
+  ).reduce((s, v) => s + v, 0)
   const total = baseTotal + lunchSurcharge
+
   const totalCount = items.reduce((s, i) => s + i.quantity, 0)
 
-  const requiredNigiri = lunchPlateCount * 2
-  const selectedNigiri = Array.from(lunchNigiri.values()).reduce((s, v) => s + v, 0)
-  const lunchPlateReady = lunchPlateCount === 0 || selectedNigiri >= requiredNigiri
+  const lunchPlateCount = lunchNigiriPerPlate.length
+  const lunchPlateReady =
+    lunchPlateCount === 0 ||
+    lunchNigiriPerPlate.every(
+      (map) => Array.from(map.values()).reduce((s, v) => s + v, 0) >= 2
+    )
 
   if (totalCount === 0) return null
 
@@ -49,10 +62,8 @@ export default function Cart({
             onClick={() => setIsOpen(true)}
             className="flex items-center gap-3 flex-1"
           >
-            <div className="relative">
-              <div className="w-7 h-7 rounded-full bg-white/20 flex items-center justify-center">
-                <span className="text-white font-bold text-sm">{totalCount}</span>
-              </div>
+            <div className="w-7 h-7 rounded-full bg-white/20 flex items-center justify-center">
+              <span className="text-white font-bold text-sm">{totalCount}</span>
             </div>
             <span className="font-bold text-lg">カートを見る</span>
             {lunchPlateCount > 0 && !lunchPlateReady && (
@@ -92,15 +103,25 @@ export default function Cart({
               {items.map((item) => {
                 const toppingCost = item.with_topping ? TOPPING_PRICE : 0
                 const subtotal = (item.product.price + toppingCost) * item.quantity
+                const isDrink = item.product.category === DRINK_CATEGORY
+                const timingLabel = item.timing ? DRINK_TIMING_LABELS[item.timing] : null
 
                 return (
-                  <div key={`${item.product.id}-${item.with_topping}`} className="flex justify-between items-start gap-2">
+                  <div
+                    key={`${item.product.id}-${item.with_topping}-${item.timing ?? ''}`}
+                    className="flex justify-between items-start gap-2"
+                  >
                     <div className="flex-1">
                       <p className="font-bold text-base text-brown-800">
                         {item.product.name}
                         {item.with_topping && (
                           <span className="ml-1 text-sm text-brown-500 font-normal">
                             ＋{TOPPING_NAME}
+                          </span>
+                        )}
+                        {isDrink && timingLabel && (
+                          <span className="ml-1 text-sm text-brown-500 font-normal">
+                            （{timingLabel}）
                           </span>
                         )}
                       </p>
@@ -115,15 +136,18 @@ export default function Cart({
                 )
               })}
 
-              {/* ランチプレート おにぎり選択 */}
-              {lunchPlateCount > 0 && onLunchNigiriChange && (
-                <LunchPlateSelector
-                  products={allProducts}
-                  selections={lunchNigiri}
-                  totalRequired={requiredNigiri}
-                  onChange={onLunchNigiriChange}
-                />
-              )}
+              {/* ランチプレート おにぎり選択（プレート別） */}
+              {lunchPlateCount > 0 && onLunchNigiriChange &&
+                lunchNigiriPerPlate.map((plateMap, i) => (
+                  <LunchPlateSelector
+                    key={i}
+                    products={allProducts}
+                    selections={plateMap}
+                    plateLabel={lunchPlateCount > 1 ? `${i + 1}枚目` : undefined}
+                    onChange={(next) => onLunchNigiriChange(i, next)}
+                  />
+                ))
+              }
             </div>
 
             <div className="px-4 py-4 border-t border-cream-300 space-y-3">
@@ -144,7 +168,7 @@ export default function Cart({
               </p>
               {lunchPlateCount > 0 && !lunchPlateReady && (
                 <p className="text-center text-sm text-amber-700 font-medium">
-                  ランチプレートのおにぎり（{requiredNigiri}つ）を選んでから注文できます
+                  ランチプレートのおにぎり（各2つ）を選んでから注文できます
                 </p>
               )}
               <button

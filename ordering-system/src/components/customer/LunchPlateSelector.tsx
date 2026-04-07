@@ -7,15 +7,17 @@ interface Props {
   products: Product[]
   /** productId → 選択数 */
   selections: Map<string, number>
-  /** ランチプレート枚数 × 2 */
-  totalRequired: number
   onChange: (next: Map<string, number>) => void
+  /** 複数枚時のラベル（例: "1枚目"） */
+  plateLabel?: string
 }
 
-export default function LunchPlateSelector({ products, selections, totalRequired, onChange }: Props) {
+const TOTAL_REQUIRED = 2
+
+export default function LunchPlateSelector({ products, selections, onChange, plateLabel }: Props) {
   const nigiri = products.filter((p) => p.category === 'おにぎり' && !p.is_sold_out)
   const totalSelected = Array.from(selections.values()).reduce((s, v) => s + v, 0)
-  const remaining = totalRequired - totalSelected
+  const remaining = TOTAL_REQUIRED - totalSelected
 
   const handleDelta = (productId: string, delta: number) => {
     const next = new Map(selections)
@@ -30,7 +32,7 @@ export default function LunchPlateSelector({ products, selections, totalRequired
     <div className="mt-3 p-3 bg-amber-50 rounded-xl border border-amber-200 space-y-2">
       <div className="flex items-center justify-between">
         <p className="font-bold text-brown-800 text-sm">
-          おにぎりを {totalRequired} つ選んでください
+          {plateLabel ? `${plateLabel}：` : ''}おにぎりを {TOTAL_REQUIRED} つ選んでください
         </p>
         {remaining > 0 ? (
           <span className="text-xs text-amber-700 font-medium">
