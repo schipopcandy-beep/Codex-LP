@@ -3,11 +3,15 @@
 import { useEffect, useState, useCallback } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import type { Order } from '@/lib/types'
+import { TAKEOUT_TABLE_ID } from '@/lib/types'
 import OrderCard from '@/components/admin/OrderCard'
+
+type Tab = 'all' | 'eatin' | 'takeout'
 
 export default function AdminDashboard() {
   const [orders, setOrders] = useState<Order[]>([])
   const [loading, setLoading] = useState(true)
+  const [tab, setTab] = useState<Tab>('all')
 
   const fetchOrders = useCallback(async () => {
     const res = await fetch('/api/admin/orders')
@@ -31,15 +35,22 @@ export default function AdminDashboard() {
     return () => { supabase.removeChannel(channel) }
   }, [fetchOrders])
 
-  const newCount = orders.filter((o) => o.status === 'new').length
-  const preparingCount = orders.filter((o) => o.status === 'preparing').length
+  const filteredOrders = orders.filter((o) => {
+    if (tab === 'takeout') return o.table_id === TAKEOUT_TABLE_ID
+    if (tab === 'eatin') return o.table_id !== TAKEOUT_TABLE_ID
+    return true
+  })
+
+  const newCount = filteredOrders.filter((o) => o.status === 'new').length
+  const preparingCount = filteredOrders.filter((o) => o.status === 'preparing').length
+  const takeoutCount = orders.filter((o) => o.table_id === TAKEOUT_TABLE_ID).length
 
   return (
     <div className="p-4 md:p-6">
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
         <SummaryCard label="新規" count={newCount} color="text-amber-700 bg-amber-50 border-amber-200" />
         <SummaryCard label="調理中" count={preparingCount} color="text-blue-700 bg-blue-50 border-blue-200" />
-        <SummaryCard label="未会計 合計" count={orders.length} color="text-brown-700 bg-cream-100 border-cream-300" />
+        <SummaryCard label="テイクアウト" count={takeoutCount} color="text-green-700 bg-green-50 border-green-200" />
         <div className="card p-3 flex items-center justify-center">
           <button
             onClick={fetchOrders}
@@ -53,19 +64,36 @@ export default function AdminDashboard() {
         </div>
       </div>
 
+      {/* タブ */}
+      <div className="flex gap-1 mb-4 bg-cream-200 rounded-xl p-1 w-fit">
+        {([['all', 'すべて'], ['eatin', 'イートイン'], ['takeout', 'テイクアウト']] as const).map(([key, label]) => (
+          <button
+            key={key}
+            onClick={() => setTab(key)}
+            className={`px-4 py-1.5 rounded-lg text-sm font-semibold transition-colors ${
+              tab === key
+                ? 'bg-white text-brown-800 shadow-sm'
+                : 'text-brown-500 hover:text-brown-700'
+            }`}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+
       <h1 className="section-title mb-4">未会計の注文</h1>
 
       {loading ? (
         <div className="text-center py-16 text-brown-400">
           <p className="text-lg">読み込み中...</p>
         </div>
-      ) : orders.length === 0 ? (
+      ) : filteredOrders.length === 0 ? (
         <div className="text-center py-16 text-brown-400">
           <p className="text-xl">現在、未会計の注文はありません</p>
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {orders.map((order) => (
+          {filteredOrders.map((order) => (
             <OrderCard key={order.id} order={order} />
           ))}
         </div>
