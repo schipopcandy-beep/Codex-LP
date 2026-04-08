@@ -7,6 +7,10 @@ export type TableId =
   | 'counter-2'
   | 'counter-3'
   | 'counter-4'
+  | 'takeout'
+
+/** テイクアウト注文の table_id 定数 */
+export const TAKEOUT_TABLE_ID = 'takeout'
 
 export type OrderStatus = 'new' | 'preparing' | 'served' | 'paid'
 
@@ -118,6 +122,7 @@ export const TABLE_NAMES: Record<string, string> = {
   'counter-2': 'カウンター 2',
   'counter-3': 'カウンター 3',
   'counter-4': 'カウンター 4',
+  'takeout': 'テイクアウト',
 }
 
 /** QRコードの seat パラメータ → 内部 tableId 変換マップ
