@@ -24,6 +24,9 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           <Link href="/admin" className="text-cream-200 hover:text-white text-base font-medium transition-colors">
             注文一覧
           </Link>
+          <Link href="/admin/takeout-schedule" className="text-cream-200 hover:text-white text-base font-medium transition-colors">
+            受取日時
+          </Link>
           <Link href="/admin/products" className="text-cream-200 hover:text-white text-base font-medium transition-colors">
             商品管理
           </Link>

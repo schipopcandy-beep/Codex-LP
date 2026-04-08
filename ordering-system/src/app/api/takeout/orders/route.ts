@@ -13,6 +13,7 @@ interface TakeoutOrderItem {
 interface TakeoutOrderRequestBody {
   table_id: string
   line_user_id?: string
+  pickup_at?: string  // "YYYY-MM-DD HH:MM"
   items: TakeoutOrderItem[]
 }
 
@@ -38,6 +39,7 @@ async function sendLineMessage(lineUserId: string, text: string): Promise<void> 
 function buildOrderMessage(
   orderId: string,
   items: TakeoutOrderItem[],
+  pickupAt?: string,
 ): string {
   const lines: string[] = []
   lines.push('【織はや テイクアウトご注文確認】')
@@ -56,8 +58,16 @@ function buildOrderMessage(
 
   lines.push('')
   lines.push(`合計：¥${total.toLocaleString()}`)
+
+  if (pickupAt) {
+    const [datePart, timePart] = pickupAt.split(' ')
+    const [y, m, d] = datePart.split('-').map(Number)
+    lines.push('')
+    lines.push(`受取日時：${m}月${d}日 ${timePart}`)
+  }
+
   lines.push('')
-  lines.push('まもなくご用意いたします。')
+  lines.push('ご来店をお待ちしております。')
   lines.push('お受け取りの際はレジにてお声がけください。')
   lines.push(`（注文番号: ${orderId.slice(0, 8)}）`)
 
@@ -66,7 +76,7 @@ function buildOrderMessage(
 
 export async function POST(req: NextRequest) {
   const body: TakeoutOrderRequestBody = await req.json()
-  const { table_id, line_user_id, items } = body
+  const { table_id, line_user_id, pickup_at, items } = body
 
   if (!table_id || !items || items.length === 0) {
     return NextResponse.json(
@@ -77,9 +87,9 @@ export async function POST(req: NextRequest) {
 
   const supabase = createServiceRoleClient()
 
-  // テイクアウトは常に新規伝票を作成（同じ人が複数回注文可）
   const newOrderData: Record<string, unknown> = { table_id, status: 'new' }
   if (line_user_id) newOrderData.line_user_id = line_user_id
+  if (pickup_at) newOrderData.pickup_at = pickup_at
 
   const { data: newOrder, error: createError } = await supabase
     .from('orders')
@@ -96,7 +106,6 @@ export async function POST(req: NextRequest) {
 
   const orderId = newOrder.id
 
-  // 明細を挿入
   const orderItems = items.map((item) => ({
     order_id: orderId,
     product_id: item.product_id,
@@ -115,7 +124,7 @@ export async function POST(req: NextRequest) {
 
   // LINE プッシュメッセージ送信（失敗しても注文自体は成功）
   if (line_user_id) {
-    const message = buildOrderMessage(orderId, items)
+    const message = buildOrderMessage(orderId, items, pickup_at)
     await sendLineMessage(line_user_id, message).catch((err) =>
       console.error('LINE push message failed:', err),
     )

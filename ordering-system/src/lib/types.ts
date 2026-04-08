@@ -12,6 +12,55 @@ export type TableId =
 /** テイクアウト注文の table_id 定数 */
 export const TAKEOUT_TABLE_ID = 'takeout'
 
+// ─────────────────────────────────────────
+// テイクアウト 受取日時スケジュール
+// ─────────────────────────────────────────
+
+export const TAKEOUT_DEFAULT_OPEN = '07:30'
+export const TAKEOUT_DEFAULT_CLOSE = '14:00'
+/** 受取スロットの間隔（分） */
+export const TAKEOUT_SLOT_MINUTES = 30
+
+export interface TakeoutSchedule {
+  date: string       // YYYY-MM-DD
+  is_open: boolean
+  open_time: string  // HH:MM
+  close_time: string // HH:MM
+}
+
+/** 曜日ラベル */
+const WEEKDAY_LABELS = ['日', '月', '火', '水', '木', '金', '土']
+
+/** YYYY-MM-DD → "4月10日（木）" 形式 */
+export function formatScheduleDate(dateStr: string): string {
+  const [y, m, d] = dateStr.split('-').map(Number)
+  const dt = new Date(y, m - 1, d)
+  return `${m}月${d}日（${WEEKDAY_LABELS[dt.getDay()]}）`
+}
+
+/** open_time〜close_time を TAKEOUT_SLOT_MINUTES 刻みで生成 */
+export function generatePickupSlots(openTime: string, closeTime: string): string[] {
+  const [oh, om] = openTime.split(':').map(Number)
+  const [ch, cm] = closeTime.split(':').map(Number)
+  const slots: string[] = []
+  let total = oh * 60 + om
+  const end = ch * 60 + cm
+  while (total <= end) {
+    const h = Math.floor(total / 60)
+    const mn = total % 60
+    slots.push(`${String(h).padStart(2, '0')}:${String(mn).padStart(2, '0')}`)
+    total += TAKEOUT_SLOT_MINUTES
+  }
+  return slots
+}
+
+/** 公開スケジュールAPIのレスポンス型 */
+export interface AvailableDay {
+  date: string   // YYYY-MM-DD
+  label: string  // "4月10日（木）"
+  slots: string[] // ["07:30", "08:00", ...]
+}
+
 export type OrderStatus = 'new' | 'preparing' | 'served' | 'paid'
 
 export const ORDER_STATUS_LABELS: Record<OrderStatus, string> = {

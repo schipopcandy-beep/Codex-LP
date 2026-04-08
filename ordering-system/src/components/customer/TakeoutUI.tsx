@@ -24,6 +24,13 @@ export default function TakeoutUI({ lineUserId }: Props) {
   const [error, setError] = useState<string | null>(null)
   const [cartMap, setCartMap] = useState<Map<string, CartItem>>(new Map())
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [pickupDate, setPickupDate] = useState<string | null>(null)
+  const [pickupTime, setPickupTime] = useState<string | null>(null)
+
+  const handlePickupSelect = useCallback((date: string, time: string) => {
+    setPickupDate(date)
+    setPickupTime(time)
+  }, [])
 
   const cartItems: CartItem[] = Array.from(cartMap.values())
 
@@ -124,6 +131,7 @@ export default function TakeoutUI({ lineUserId }: Props) {
         body: JSON.stringify({
           table_id: TAKEOUT_TABLE_ID,
           line_user_id: lineUserId ?? undefined,
+          pickup_at: pickupDate && pickupTime ? `${pickupDate} ${pickupTime}` : undefined,
           items: cartItems.map((item) => ({
             product_id: item.product.id,
             product_name: item.product.name,
@@ -146,7 +154,7 @@ export default function TakeoutUI({ lineUserId }: Props) {
     } finally {
       setIsSubmitting(false)
     }
-  }, [cartItems, lineUserId, router])
+  }, [cartItems, lineUserId, pickupDate, pickupTime, router])
 
   if (error) {
     return (
@@ -245,6 +253,9 @@ export default function TakeoutUI({ lineUserId }: Props) {
         items={cartItems}
         onSubmit={handleSubmit}
         isSubmitting={isSubmitting}
+        pickupDate={pickupDate}
+        pickupTime={pickupTime}
+        onPickupSelect={handlePickupSelect}
       />
     </div>
   )

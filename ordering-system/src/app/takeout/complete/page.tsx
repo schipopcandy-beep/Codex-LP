@@ -5,7 +5,7 @@ import Link from 'next/link'
 import Image from 'next/image'
 import { useSearchParams } from 'next/navigation'
 import type { Order } from '@/lib/types'
-import { calcOrderTotal, TOPPING_NAME, TOPPING_PRICE, storageUrl } from '@/lib/types'
+import { calcOrderTotal, TOPPING_NAME, TOPPING_PRICE, storageUrl, formatScheduleDate } from '@/lib/types'
 
 function TakeoutCompleteContent() {
   const searchParams = useSearchParams()
@@ -25,6 +25,15 @@ function TakeoutCompleteContent() {
 
   const items = order?.order_items ?? []
   const total = calcOrderTotal(items)
+
+  // pickup_at: "YYYY-MM-DD HH:MM" 形式
+  const pickupAt = (order as (Order & { pickup_at?: string }) | null)?.pickup_at
+  const pickupLabel = pickupAt
+    ? (() => {
+        const [datePart, timePart] = pickupAt.split(' ')
+        return `${formatScheduleDate(datePart)} ${timePart}`
+      })()
+    : null
 
   return (
     <div className="min-h-dvh bg-cream-50 flex flex-col">
@@ -51,6 +60,14 @@ function TakeoutCompleteContent() {
           </h1>
           <p className="text-brown-500 text-sm">テイクアウト</p>
         </div>
+
+        {/* 受取日時 */}
+        {pickupLabel && (
+          <div className="card p-4 bg-brown-50 border-brown-200 text-center space-y-1">
+            <p className="text-sm text-brown-500 font-medium">受取予定日時</p>
+            <p className="text-2xl font-bold text-brown-800">{pickupLabel}</p>
+          </div>
+        )}
 
         {/* LINE通知のお知らせ */}
         <div className="card p-4 bg-[#06C755]/10 border-[#06C755]/30 flex items-start gap-3">
