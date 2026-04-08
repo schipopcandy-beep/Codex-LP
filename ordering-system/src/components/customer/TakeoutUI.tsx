@@ -35,8 +35,15 @@ export default function TakeoutUI({ lineUserId }: Props) {
     fetch('/api/products')
       .then((r) => r.json())
       .then((data: Product[]) => {
-        // ランチプレートを除外
-        setProducts(data.filter((p) => p.name !== LUNCH_PLATE_NAME))
+        // ランチプレートを除外し、同名商品の重複を除去（DB重複対策）
+        const seen = new Set<string>()
+        const unique = data.filter((p) => {
+          if (p.name === LUNCH_PLATE_NAME) return false
+          if (seen.has(p.name)) return false
+          seen.add(p.name)
+          return true
+        })
+        setProducts(unique)
         setLoading(false)
       })
       .catch(() => {
