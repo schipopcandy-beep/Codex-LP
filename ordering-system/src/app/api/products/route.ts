@@ -13,5 +13,14 @@ export async function GET() {
     return NextResponse.json({ error: error.message }, { status: 500 })
   }
 
-  return NextResponse.json(data)
+  // 同名・同カテゴリの重複行を除去（DBに重複がある場合の安全策）
+  const seen = new Set<string>()
+  const unique = (data ?? []).filter((p) => {
+    const key = `${p.category}||${p.name}`
+    if (seen.has(key)) return false
+    seen.add(key)
+    return true
+  })
+
+  return NextResponse.json(unique)
 }
