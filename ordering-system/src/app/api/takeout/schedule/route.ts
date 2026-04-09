@@ -73,9 +73,9 @@ export async function GET() {
 
     let slots = generatePickupSlots(openTime, closeTime)
 
-    // 今日の場合: 現在時刻 + 30分 以降のスロットのみ
+    // 今日の場合: 現在時刻 + 60分 以降のスロットのみ
     if (date === today) {
-      const minSlotMin = toMin(nowTime) + 30
+      const minSlotMin = toMin(nowTime) + 60
       slots = slots.filter((s) => toMin(s) >= minSlotMin)
     }
 
