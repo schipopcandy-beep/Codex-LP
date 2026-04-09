@@ -99,11 +99,22 @@ export default function AdminDashboard() {
     }
   }
 
-  const filteredOrders = orders.filter((o) => {
-    if (tab === 'takeout') return o.table_id === TAKEOUT_TABLE_ID
-    if (tab === 'eatin') return o.table_id !== TAKEOUT_TABLE_ID
-    return true
-  })
+  const filteredOrders = (() => {
+    const base = orders.filter((o) => {
+      if (tab === 'takeout') return o.table_id === TAKEOUT_TABLE_ID
+      if (tab === 'eatin') return o.table_id !== TAKEOUT_TABLE_ID
+      return true
+    })
+    if (tab === 'takeout') {
+      return [...base].sort((a, b) => {
+        if (!a.pickup_at && !b.pickup_at) return 0
+        if (!a.pickup_at) return 1
+        if (!b.pickup_at) return -1
+        return a.pickup_at.localeCompare(b.pickup_at)
+      })
+    }
+    return base
+  })()
 
   const newCount = filteredOrders.filter((o) => o.status === 'new').length
   const preparingCount = filteredOrders.filter((o) => o.status === 'preparing').length
