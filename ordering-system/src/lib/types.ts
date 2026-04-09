@@ -70,6 +70,27 @@ export const ORDER_STATUS_LABELS: Record<OrderStatus, string> = {
   paid: '会計済み',
 }
 
+/** テイクアウト用ステータスラベル（提供済み → 準備済み） */
+export const TAKEOUT_STATUS_LABELS: Record<OrderStatus, string> = {
+  new: '新規',
+  preparing: '調理中',
+  served: '準備済み',
+  paid: '会計済み',
+}
+
+/** table_id に応じた正しいステータスラベルを返す */
+export function getStatusLabel(status: OrderStatus, tableId?: string): string {
+  return tableId === TAKEOUT_TABLE_ID
+    ? TAKEOUT_STATUS_LABELS[status]
+    : ORDER_STATUS_LABELS[status]
+}
+
+/** UUID → 4桁注文番号（0000〜9999） */
+export function orderShortId(orderId: string): string {
+  return (parseInt(orderId.replace(/-/g, '').slice(0, 8), 16) % 10000)
+    .toString().padStart(4, '0')
+}
+
 export const TOPPING_NAME = 'とろろ昆布'
 export const TOPPING_PRICE = 50
 
@@ -120,6 +141,7 @@ export interface Order {
   status: OrderStatus
   created_at: string
   updated_at: string
+  pickup_at?: string | null  // "YYYY-MM-DD HH:MM"（テイクアウトのみ）
   table?: Table
   order_items?: OrderItem[]
 }

@@ -13,6 +13,10 @@ import {
   DRINK_CATEGORY,
   DRINK_TIMING_LABELS,
   LUNCH_PLATE_NAME,
+  TAKEOUT_TABLE_ID,
+  getStatusLabel,
+  orderShortId,
+  formatScheduleDate,
 } from '@/lib/types'
 import StatusBadge from '@/components/admin/StatusBadge'
 
@@ -90,6 +94,12 @@ export default function OrderDetailPage({ params }: Props) {
   const items = order.order_items ?? []
   const total = calcOrderTotal(items)
   const tableName = TABLE_NAMES[order.table_id] ?? order.table_id
+  const isTakeout = order.table_id === TAKEOUT_TABLE_ID
+  const pickupLabel = (() => {
+    if (!order.pickup_at) return null
+    const [datePart, timePart] = order.pickup_at.split(' ')
+    return `${formatScheduleDate(datePart)} ${timePart}`
+  })()
 
   // アイテムを種別ごとに分類
   const regularItems = items.filter(
@@ -119,6 +129,21 @@ export default function OrderDetailPage({ params }: Props) {
         ← 一覧に戻る
       </Link>
 
+      {/* テイクアウト：受取日時・注文番号バナー */}
+      {isTakeout && (
+        <div className="mb-4 p-3 bg-amber-50 border border-amber-200 rounded-xl space-y-0.5">
+          <div className="flex items-center justify-between">
+            <p className="text-xs font-semibold text-amber-700 uppercase tracking-wide">テイクアウト</p>
+            <p className="text-sm font-bold text-amber-800">No. {orderShortId(order.id)}</p>
+          </div>
+          {pickupLabel ? (
+            <p className="text-xl font-bold text-amber-900">{pickupLabel} 受取</p>
+          ) : (
+            <p className="text-sm text-amber-600">受取日時 未設定</p>
+          )}
+        </div>
+      )}
+
       {/* タイトル */}
       <div className="flex items-center justify-between mb-4">
         <div>
@@ -127,7 +152,7 @@ export default function OrderDetailPage({ params }: Props) {
             {new Date(order.created_at).toLocaleString('ja-JP')}
           </p>
         </div>
-        <StatusBadge status={order.status} size="md" />
+        <StatusBadge status={order.status} size="md" tableId={order.table_id} />
       </div>
 
       {/* ステータス変更 */}
@@ -146,7 +171,7 @@ export default function OrderDetailPage({ params }: Props) {
                     : 'bg-cream-100 text-brown-700 border-cream-300 hover:bg-cream-200'
                 } disabled:opacity-50`}
               >
-                {ORDER_STATUS_LABELS[status]}
+                {getStatusLabel(status, order.table_id)}
               </button>
             ))}
           </div>
