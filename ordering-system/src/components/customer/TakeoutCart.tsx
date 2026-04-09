@@ -23,10 +23,12 @@ export default function TakeoutCart({
   onPickupSelect,
 }: Props) {
   const [isOpen, setIsOpen] = useState(false)
+  const [confirmed, setConfirmed] = useState(false)
 
   const total = calcCartTotal(items)
   const totalCount = items.reduce((s, i) => s + i.quantity, 0)
   const pickupReady = !!(pickupDate && pickupTime)
+  const canSubmit = pickupReady && confirmed
 
   if (totalCount === 0) return null
 
@@ -58,7 +60,7 @@ export default function TakeoutCart({
       {/* カートドロワー */}
       {isOpen && (
         <div className="fixed inset-0 z-50 flex flex-col justify-end">
-          <div className="absolute inset-0 bg-black/50" onClick={() => setIsOpen(false)} />
+          <div className="absolute inset-0 bg-black/50" onClick={() => { setIsOpen(false); setConfirmed(false) }} />
 
           <div className="relative bg-cream-50 rounded-t-3xl max-h-[90dvh] flex flex-col shadow-2xl">
             <div className="flex justify-center pt-3 pb-1">
@@ -68,7 +70,7 @@ export default function TakeoutCart({
             <div className="px-4 py-2 flex items-center justify-between border-b border-cream-300">
               <h2 className="section-title text-xl">ご注文内容</h2>
               <button
-                onClick={() => setIsOpen(false)}
+                onClick={() => { setIsOpen(false); setConfirmed(false) }}
                 className="text-brown-400 text-3xl leading-none p-1"
                 aria-label="閉じる"
               >
@@ -137,9 +139,24 @@ export default function TakeoutCart({
                   受取日時を選んでから注文できます
                 </p>
               )}
+
+              {/* 注文確認チェックボックス */}
+              <div className="border border-cream-300 rounded-xl p-3 bg-white space-y-2">
+                <p className="text-sm font-semibold text-brown-700">ご注文にお間違えはありませんか？</p>
+                <label className="flex items-center gap-3 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={confirmed}
+                    onChange={(e) => setConfirmed(e.target.checked)}
+                    className="w-5 h-5 accent-brown-600 cursor-pointer"
+                  />
+                  <span className="text-sm text-brown-800 font-medium">はい、間違いありません。</span>
+                </label>
+              </div>
+
               <button
-                onClick={async () => { await onSubmit(); setIsOpen(false) }}
-                disabled={isSubmitting || !pickupReady}
+                onClick={async () => { await onSubmit(); setIsOpen(false); setConfirmed(false) }}
+                disabled={isSubmitting || !canSubmit}
                 className="btn-primary w-full text-xl py-4 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {isSubmitting ? '送信中...' : '注文を確定する'}
