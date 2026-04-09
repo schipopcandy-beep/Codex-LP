@@ -69,7 +69,9 @@ function buildOrderMessage(
   lines.push('')
   lines.push('ご来店をお待ちしております。')
   lines.push('お受け取りの際はレジにてお声がけください。')
-  lines.push(`（注文番号: ${orderId.slice(0, 8)}）`)
+  const orderNum = (parseInt(orderId.replace(/-/g, '').slice(0, 8), 16) % 10000)
+    .toString().padStart(4, '0')
+  lines.push(`（注文番号: ${orderNum}）`)
 
   return lines.join('\n')
 }
