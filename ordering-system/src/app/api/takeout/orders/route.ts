@@ -87,6 +87,17 @@ export async function POST(req: NextRequest) {
 
   const supabase = createServiceRoleClient()
 
+  // line_user_id が提供された場合、line_users に存在しなければ先に登録する
+  // （orders.line_user_id の外部キー制約対策）
+  if (line_user_id) {
+    await supabase
+      .from('line_users')
+      .upsert(
+        { user_id: line_user_id, is_friend: false, updated_at: new Date().toISOString() },
+        { onConflict: 'user_id', ignoreDuplicates: true },
+      )
+  }
+
   const newOrderData: Record<string, unknown> = { table_id, status: 'new' }
   if (line_user_id) newOrderData.line_user_id = line_user_id
   if (pickup_at) newOrderData.pickup_at = pickup_at
