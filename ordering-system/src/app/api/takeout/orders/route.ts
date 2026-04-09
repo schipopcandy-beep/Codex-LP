@@ -42,7 +42,7 @@ function buildOrderMessage(
   pickupAt?: string,
 ): string {
   const lines: string[] = []
-  lines.push('【織はや テイクアウトご注文確認】')
+  lines.push('■ 織はや テイクアウトご注文確認 ■')
   lines.push('')
 
   let total = 0
@@ -61,17 +61,21 @@ function buildOrderMessage(
 
   if (pickupAt) {
     const [datePart, timePart] = pickupAt.split(' ')
-    const [y, m, d] = datePart.split('-').map(Number)
+    const [, m, d] = datePart.split('-').map(Number)
     lines.push('')
     lines.push(`受取日時：${m}月${d}日 ${timePart}`)
   }
 
-  lines.push('')
-  lines.push('ご来店をお待ちしております。')
-  lines.push('お受け取りの際はレジにてお声がけください。')
   const orderNum = (parseInt(orderId.replace(/-/g, '').slice(0, 8), 16) % 10000)
     .toString().padStart(4, '0')
+
+  lines.push('')
+  lines.push('ご注文ありがとうございます✨')
+  lines.push('お気をつけてお越しください🙂‍↕️')
+  lines.push('お受け取りの際はレジにてお声がけください🌟')
   lines.push(`（注文番号: ${orderNum}）`)
+  lines.push('ーーーーーーーーーーーーー')
+  lines.push('＼QRコード読み取りで来店スタンプGET！／')
 
   return lines.join('\n')
 }
