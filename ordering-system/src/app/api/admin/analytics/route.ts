@@ -35,6 +35,7 @@ export async function GET(req: NextRequest) {
       id,
       created_at,
       table_id,
+      party_size,
       order_items (
         id,
         unit_price,
@@ -56,6 +57,7 @@ export async function GET(req: NextRequest) {
   const TOPPING_PRICE = 50
   let totalRevenue = 0
   let orderCount = orders.length
+  let totalPartySize = 0
 
   const productMap = new Map<string, { name: string; category: string; quantity: number; revenue: number }>()
   const timeMap = new Map<string, { revenue: number; orders: number }>()
@@ -83,6 +85,7 @@ export async function GET(req: NextRequest) {
     }
 
     totalRevenue += orderRevenue
+    totalPartySize += (order as { party_size?: number | null }).party_size ?? 0
 
     // 時間帯別（JSTに変換して集計）
     const createdJst = new Date(new Date(order.created_at).getTime() + jstOffset)
@@ -118,7 +121,9 @@ export async function GET(req: NextRequest) {
     summary: {
       total_revenue: totalRevenue,
       order_count: orderCount,
-      avg_order_value: orderCount > 0 ? Math.round(totalRevenue / orderCount) : 0,
+      total_party_size: totalPartySize,
+      avg_per_order: orderCount > 0 ? Math.round(totalRevenue / orderCount) : 0,
+      avg_per_person: totalPartySize > 0 ? Math.round(totalRevenue / totalPartySize) : null,
     },
     by_time: byTime,
     by_product: byProduct,

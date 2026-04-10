@@ -22,7 +22,12 @@ export default function OrderCard({ order }: Props) {
         <div className="flex items-start justify-between mb-3">
           <div>
             <p className="text-xl font-bold text-brown-800">{tableName}</p>
-            <p className="text-sm text-brown-400">{createdAt} 〜</p>
+            <p className="text-sm text-brown-400 flex items-center gap-2">
+              {createdAt} 〜
+              {order.party_size && (
+                <span className="text-brown-500 font-medium">{order.party_size}名</span>
+              )}
+            </p>
           </div>
           <StatusBadge status={order.status} />
         </div>

@@ -123,8 +123,13 @@ export default function OrderDetailPage({ params }: Props) {
       <div className="flex items-center justify-between mb-4">
         <div>
           <h1 className="font-serif text-3xl font-bold text-brown-700">{tableName}</h1>
-          <p className="text-sm text-brown-400">
+          <p className="text-sm text-brown-400 flex items-center gap-2">
             {new Date(order.created_at).toLocaleString('ja-JP')}
+            {order.party_size && (
+              <span className="font-medium text-brown-600 bg-cream-200 px-2 py-0.5 rounded-full text-xs">
+                {order.party_size}名
+              </span>
+            )}
           </p>
         </div>
         <StatusBadge status={order.status} size="md" />
