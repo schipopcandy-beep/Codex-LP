@@ -242,10 +242,14 @@ export default function OrderAccessGuard({ tableId, children, onUserIdReady, onP
             <h1 className="text-xl font-bold text-brown-800">
               LINE公式アカウントのご登録
             </h1>
-            <p className="text-sm text-brown-500 leading-relaxed">
-              友だち追加でお得な情報をお届けします。<br />
-              追加後は自動で注文画面へ移動します。
-            </p>
+            <div className="text-sm text-brown-500 leading-relaxed space-y-1">
+              <p>友だち追加でお得な情報をお届けします。</p>
+              <p className="font-bold text-brown-800 text-base">
+                追加後は戻るボタンを押してください。
+              </p>
+              <p>注文画面に移動します。</p>
+              <p className="text-xs text-brown-400">※トーク画面では注文できません</p>
+            </div>
           </div>
 
           <div className="space-y-3">
