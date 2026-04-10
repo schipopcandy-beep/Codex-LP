@@ -6,6 +6,7 @@ import { TOPPING_PRICE } from '@/lib/types'
 interface OrderRequestBody {
   table_id: string
   line_user_id?: string
+  party_size?: number
   items: Array<{
     product_id: string
     product_name: string
@@ -19,7 +20,7 @@ interface OrderRequestBody {
 
 export async function POST(req: NextRequest) {
   const body: OrderRequestBody = await req.json()
-  const { table_id, line_user_id, items } = body
+  const { table_id, line_user_id, party_size, items } = body
 
   if (!table_id || !items || items.length === 0) {
     return NextResponse.json(
@@ -59,6 +60,7 @@ export async function POST(req: NextRequest) {
     // 新しい伝票を作成
     const newOrderData: Record<string, unknown> = { table_id, status: 'new' }
     if (line_user_id) newOrderData.line_user_id = line_user_id
+    if (party_size) newOrderData.party_size = party_size
 
     const { data: newOrder, error: createError } = await supabase
       .from('orders')

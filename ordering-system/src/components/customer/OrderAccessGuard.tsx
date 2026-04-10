@@ -6,6 +6,7 @@ interface Props {
   tableId: string
   children: React.ReactNode
   onUserIdReady?: (userId: string) => void
+  onPartySizeReady?: (size: number) => void
 }
 
 type GuardStatus =
@@ -15,6 +16,7 @@ type GuardStatus =
   | 'friend-add'        // 友だち追加ボタン表示
   | 'waiting-return'    // LINEアプリ起動中・戻り待ち
   | 'not-friend'        // LINEアプリ内・友だち未追加（検証済み）
+  | 'party-size'        // 人数選択
   | 'ready'
   | 'error-no-seat'
 
@@ -24,10 +26,11 @@ const ADD_FRIEND_URL = process.env.NEXT_PUBLIC_LINE_ADD_FRIEND_URL ?? ''
 /** sessionStorage キー: LINE友だち追加ボタンを押したフラグ（ページ遷移後の復帰用） */
 const LINE_ADD_KEY = 'orihaya-line-add'
 
-export default function OrderAccessGuard({ tableId, children, onUserIdReady }: Props) {
+export default function OrderAccessGuard({ tableId, children, onUserIdReady, onPartySizeReady }: Props) {
   const [status, setStatus] = useState<GuardStatus>('initializing')
   const [userId, setUserId] = useState<string | null>(null)
   const [recheckError, setRecheckError] = useState<string | null>(null)
+  const [selectedPartySize, setSelectedPartySize] = useState<number | null>(null)
 
   const checkFriend = useCallback(async (uid: string): Promise<boolean> => {
     const res = await fetch('/api/line/friend-status', {
@@ -60,7 +63,7 @@ export default function OrderAccessGuard({ tableId, children, onUserIdReady }: P
     const onPageShow = () => {
       if (sessionStorage.getItem(LINE_ADD_KEY)) {
         sessionStorage.removeItem(LINE_ADD_KEY)
-        setStatus('ready')
+        setStatus('party-size')
       }
     }
     window.addEventListener('pageshow', onPageShow)
@@ -73,7 +76,7 @@ export default function OrderAccessGuard({ tableId, children, onUserIdReady }: P
       if (document.visibilityState !== 'visible') return
       if (sessionStorage.getItem(LINE_ADD_KEY)) {
         sessionStorage.removeItem(LINE_ADD_KEY)
-        setStatus('ready')
+        setStatus('party-size')
       }
     }
     document.addEventListener('visibilitychange', onVisible)
@@ -85,7 +88,7 @@ export default function OrderAccessGuard({ tableId, children, onUserIdReady }: P
     const onFocus = () => {
       if (sessionStorage.getItem(LINE_ADD_KEY)) {
         sessionStorage.removeItem(LINE_ADD_KEY)
-        setStatus('ready')
+        setStatus('party-size')
       }
     }
     window.addEventListener('focus', onFocus)
@@ -102,13 +105,13 @@ export default function OrderAccessGuard({ tableId, children, onUserIdReady }: P
     // ページ遷移後に戻ってきた場合（sessionStorageフラグ）
     if (sessionStorage.getItem(LINE_ADD_KEY)) {
       sessionStorage.removeItem(LINE_ADD_KEY)
-      setStatus('ready')
+      setStatus('party-size')
       return
     }
 
     // LIFF_ID 未設定 → 通常Web動作
     if (!LIFF_ID) {
-      setStatus(ADD_FRIEND_URL ? 'friend-add' : 'ready')
+      setStatus(ADD_FRIEND_URL ? 'friend-add' : 'party-size')
       return
     }
 
@@ -123,7 +126,7 @@ export default function OrderAccessGuard({ tableId, children, onUserIdReady }: P
 
         // LINEアプリ外（通常ブラウザ）→ 友だち追加ボタン画面へ
         if (!liff.isInClient()) {
-          setStatus(ADD_FRIEND_URL ? 'friend-add' : 'ready')
+          setStatus(ADD_FRIEND_URL ? 'friend-add' : 'party-size')
           return
         }
 
@@ -145,11 +148,11 @@ export default function OrderAccessGuard({ tableId, children, onUserIdReady }: P
         const isFriend = await checkFriend(uid)
         if (cancelled) return
 
-        setStatus(isFriend ? 'ready' : 'not-friend')
+        setStatus(isFriend ? 'party-size' : 'not-friend')
       } catch {
         if (cancelled) return
         // LIFF失敗 → 友だち追加ボタン画面（またはそのまま）
-        setStatus(ADD_FRIEND_URL ? 'friend-add' : 'ready')
+        setStatus(ADD_FRIEND_URL ? 'friend-add' : 'party-size')
       }
     }
 
@@ -163,7 +166,7 @@ export default function OrderAccessGuard({ tableId, children, onUserIdReady }: P
     setStatus('checking-friend')
     try {
       const isFriend = await checkFriend(userId)
-      setStatus(isFriend ? 'ready' : 'not-friend')
+      setStatus(isFriend ? 'party-size' : 'not-friend')
     } catch {
       setStatus('not-friend')
       setRecheckError('確認に失敗しました。もう一度お試しください。')
@@ -220,7 +223,7 @@ export default function OrderAccessGuard({ tableId, children, onUserIdReady }: P
           友だち追加後、このページに戻ってください。
         </p>
         <button
-          onClick={() => { sessionStorage.removeItem(LINE_ADD_KEY); setStatus('ready') }}
+          onClick={() => { sessionStorage.removeItem(LINE_ADD_KEY); setStatus('party-size') }}
           className="mt-2 px-6 py-3 rounded-xl border-2 border-brown-400 text-brown-600 text-sm"
         >
           注文へ進む
@@ -254,7 +257,7 @@ export default function OrderAccessGuard({ tableId, children, onUserIdReady }: P
               友だち追加する
             </a>
             <button
-              onClick={() => setStatus('ready')}
+              onClick={() => setStatus('party-size')}
               className="w-full py-2 text-sm text-brown-400"
             >
               すでに追加済みの方はこちら →
@@ -301,6 +304,51 @@ export default function OrderAccessGuard({ tableId, children, onUserIdReady }: P
               追加後、注文へ進む
             </button>
           </div>
+        </div>
+      </div>
+    )
+  }
+
+  // --- 人数選択 ---
+  if (status === 'party-size') {
+    return (
+      <div className="min-h-dvh flex flex-col items-center justify-center p-6 bg-cream-50">
+        <div className="w-full max-w-sm bg-white rounded-2xl shadow-md p-6 space-y-6">
+          <div className="text-center space-y-1">
+            <p className="text-3xl">🍙</p>
+            <h1 className="text-xl font-bold text-brown-800">何名様でしょうか？</h1>
+            <p className="text-sm text-brown-400">人数を選択してください</p>
+          </div>
+
+          <div className="grid grid-cols-5 gap-2">
+            {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((n) => (
+              <button
+                key={n}
+                type="button"
+                onClick={() => setSelectedPartySize(n)}
+                className={`h-14 rounded-xl text-lg font-bold border-2 transition-colors ${
+                  selectedPartySize === n
+                    ? 'bg-brown-600 text-white border-brown-600'
+                    : 'bg-cream-50 text-brown-700 border-cream-300 active:bg-cream-200'
+                }`}
+              >
+                {n}
+              </button>
+            ))}
+          </div>
+
+          <button
+            type="button"
+            onClick={() => {
+              if (!selectedPartySize) return
+              onPartySizeReady?.(selectedPartySize)
+              setStatus('ready')
+            }}
+            disabled={!selectedPartySize}
+            className="w-full py-4 rounded-xl bg-brown-600 text-white font-bold text-lg disabled:opacity-40 active:bg-brown-700"
+          >
+            注文へ進む
+          </button>
         </div>
       </div>
     )

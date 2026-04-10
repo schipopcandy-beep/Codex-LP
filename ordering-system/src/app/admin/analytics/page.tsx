@@ -8,7 +8,9 @@ type Range = 'today' | 'week' | 'month'
 interface Summary {
   total_revenue: number
   order_count: number
-  avg_order_value: number
+  total_party_size: number
+  avg_per_order: number
+  avg_per_person: number | null
 }
 
 interface TimeEntry {
@@ -93,20 +95,25 @@ export default function AnalyticsPage() {
         <div className="space-y-5">
 
           {/* サマリーカード */}
-          <div className="grid grid-cols-3 gap-3">
+          <div className="grid grid-cols-2 gap-3">
             <SummaryCard
               label="総売上"
               value={`¥${data.summary.total_revenue.toLocaleString()}`}
               color="text-brown-700 bg-cream-100 border-cream-300"
             />
             <SummaryCard
-              label="注文数"
-              value={`${data.summary.order_count}件`}
+              label="注文数 / 来客数"
+              value={`${data.summary.order_count}件 / ${data.summary.total_party_size}名`}
               color="text-blue-700 bg-blue-50 border-blue-200"
             />
             <SummaryCard
-              label="客単価"
-              value={`¥${data.summary.avg_order_value.toLocaleString()}`}
+              label="客単価（1注文あたり）"
+              value={`¥${data.summary.avg_per_order.toLocaleString()}`}
+              color="text-amber-700 bg-amber-50 border-amber-200"
+            />
+            <SummaryCard
+              label="客単価（1人あたり）"
+              value={data.summary.avg_per_person != null ? `¥${data.summary.avg_per_person.toLocaleString()}` : '—'}
               color="text-matcha-700 bg-matcha-50 border-matcha-200"
             />
           </div>

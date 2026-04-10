@@ -139,6 +139,7 @@ export interface Order {
   id: string
   table_id: string
   status: OrderStatus
+  party_size?: number | null
   created_at: string
   updated_at: string
   pickup_at?: string | null  // "YYYY-MM-DD HH:MM"（テイクアウトのみ）

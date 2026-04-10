@@ -18,6 +18,7 @@ import {
 interface Props {
   tableId: string
   lineUserId?: string | null
+  partySize?: number | null
   buildCompleteHref: (orderId: string) => string
 }
 
@@ -25,7 +26,7 @@ interface Props {
 const cartKey = (productId: string, withTopping: boolean) => `${productId}-${withTopping}`
 const drinkKey = (productId: string) => `${productId}-drink`
 
-export default function OrderUI({ tableId, lineUserId, buildCompleteHref }: Props) {
+export default function OrderUI({ tableId, lineUserId, partySize, buildCompleteHref }: Props) {
   const router = useRouter()
 
   const [products, setProducts] = useState<Product[]>([])
@@ -181,6 +182,7 @@ export default function OrderUI({ tableId, lineUserId, buildCompleteHref }: Prop
         body: JSON.stringify({
           table_id: tableId,
           line_user_id: lineUserId ?? undefined,
+          party_size: partySize ?? undefined,
           items: [
             ...cartItems.map((item) => ({
               product_id: item.product.id,

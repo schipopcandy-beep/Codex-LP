@@ -12,6 +12,7 @@ function OrderPageContent() {
   const tableId = seatToTableId(seat)
 
   const [lineUserId, setLineUserId] = useState<string | null>(null)
+  const [partySize, setPartySize] = useState<number | null>(null)
 
   // seat が未知・未指定の場合は Guard 側のエラー表示に任せる
   // tableId が null のとき空文字を渡すと Guard が error-no-seat を表示する
@@ -21,10 +22,12 @@ function OrderPageContent() {
     <OrderAccessGuard
       tableId={resolvedTableId}
       onUserIdReady={setLineUserId}
+      onPartySizeReady={setPartySize}
     >
       <OrderUI
         tableId={resolvedTableId}
         lineUserId={lineUserId}
+        partySize={partySize}
         buildCompleteHref={(orderId) =>
           `/order/complete?seat=${encodeURIComponent(seat)}&orderId=${encodeURIComponent(orderId)}`
         }
