@@ -58,7 +58,8 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: usersError.message }, { status: 500 })
   }
 
-  type RawUserTag = { assigned_at: string; line_tags: { name: string } | null }
+  // Supabase はネストされたリレーションを配列で返す
+  type RawUserTag = { assigned_at: string; line_tags: { name: string }[] }
   type RawUser = {
     user_id: string
     is_friend: boolean
@@ -67,14 +68,13 @@ export async function GET(req: NextRequest) {
     line_user_tags: RawUserTag[]
   }
 
-  let formattedUsers = (users as RawUser[] ?? []).map((u) => ({
+  let formattedUsers = (users as unknown as RawUser[]).map((u) => ({
     user_id: u.user_id,
     is_friend: u.is_friend,
     followed_at: u.followed_at,
     updated_at: u.updated_at,
     tags: u.line_user_tags
-      .map((ut) => ut.line_tags?.name)
-      .filter((n): n is string => !!n)
+      .flatMap((ut) => ut.line_tags.map((t) => t.name))
       .sort(),
   }))
 
