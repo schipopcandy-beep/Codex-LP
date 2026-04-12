@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createHmac } from 'crypto'
 import { createServiceRoleClient } from '@/lib/supabase/server'
+import { onFriendAdded } from '@/lib/line-tags'
 
 // LINE Harness 送信Webhookのペイロード型
 // イベントタイプ: "friend.added" / "friend.removed" (Harness独自形式)
@@ -11,6 +12,7 @@ interface HarnessEvent {
   data?: {
     userId?: string
     lineUserId?: string
+    source?: string   // 流入元: "qr_table" | "qr_takeout" | "instagram"
     [key: string]: unknown
   }
   source?: { userId?: string }
@@ -83,12 +85,17 @@ export async function POST(req: NextRequest) {
     const eventType = ev.event ?? ev.type ?? ''
 
     if (eventType === 'friend.added' || eventType === 'follow') {
+      // line_users を upsert
       await supabase
         .from('line_users')
         .upsert(
           { user_id: userId, is_friend: true, followed_at: now, updated_at: now },
           { onConflict: 'user_id' },
         )
+
+      // 【自動化①】status_new タグを付与
+      await onFriendAdded(supabase, userId)
+
     } else if (eventType === 'friend.removed' || eventType === 'unfollow') {
       await supabase
         .from('line_users')
