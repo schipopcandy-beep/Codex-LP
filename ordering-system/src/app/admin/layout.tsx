@@ -30,6 +30,9 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           <Link href="/admin/products" className="text-cream-200 hover:text-white text-base font-medium transition-colors">
             商品管理
           </Link>
+          <Link href="/admin/line-tags" className="text-cream-200 hover:text-white text-base font-medium transition-colors">
+            LINEタグ
+          </Link>
         </div>
       </nav>
 
