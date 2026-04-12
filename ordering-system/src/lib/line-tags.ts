@@ -166,8 +166,14 @@ export async function getUserTags(
 
   if (error) throw new Error(`getUserTags failed: ${error.message}`)
 
+  // Supabase はネストされたリレーションを配列で返す
   return (data ?? [])
-    .map((row: { line_tags: { name: string } | null }) => row.line_tags?.name)
+    .flatMap((row) => {
+      const tags = row.line_tags
+      if (!tags) return []
+      if (Array.isArray(tags)) return (tags as { name: string }[]).map((t) => t.name)
+      return [(tags as { name: string }).name]
+    })
     .filter((name): name is TagName => !!name)
 }
 
