@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServiceRoleClient } from '@/lib/supabase/server'
 import { TOPPING_NAME, TOPPING_PRICE } from '@/lib/types'
+import { sendLineMessage } from '@/lib/line-message'
 
 interface TakeoutOrderItem {
   product_id: string
@@ -15,24 +16,6 @@ interface TakeoutOrderRequestBody {
   line_user_id?: string
   pickup_at?: string  // "YYYY-MM-DD HH:MM"
   items: TakeoutOrderItem[]
-}
-
-/** LINE Messaging API でプッシュメッセージを送信する */
-async function sendLineMessage(lineUserId: string, text: string): Promise<void> {
-  const token = process.env.LINE_CHANNEL_ACCESS_TOKEN
-  if (!token) return
-
-  await fetch('https://api.line.me/v2/bot/message/push', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${token}`,
-    },
-    body: JSON.stringify({
-      to: lineUserId,
-      messages: [{ type: 'text', text }],
-    }),
-  })
 }
 
 /** 注文確認メッセージ本文を生成する */
