@@ -2,6 +2,7 @@ import type { Metadata } from 'next'
 import Link from 'next/link'
 import Image from 'next/image'
 import { storageUrl } from '@/lib/types'
+import LogoutButton from './LogoutButton'
 
 export const metadata: Metadata = {
   title: '管理画面 | 織はや',
@@ -20,7 +21,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             className="object-contain h-9 w-auto brightness-0 invert"
           />
         </Link>
-        <div className="flex gap-4">
+        <div className="flex items-center gap-4">
           <Link href="/admin" className="text-cream-200 hover:text-white text-base font-medium transition-colors">
             注文一覧
           </Link>
@@ -30,6 +31,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           <Link href="/admin/products" className="text-cream-200 hover:text-white text-base font-medium transition-colors">
             商品管理
           </Link>
+          <LogoutButton />
         </div>
       </nav>
 
