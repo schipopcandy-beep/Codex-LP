@@ -97,7 +97,7 @@ export async function POST(req: NextRequest) {
       // 【自動化①】status_new タグを付与
       await onFriendAdded(supabase, userId)
 
-      // 【ウェルカムメッセージ】注文ボタン付きメッセージを送信（失敗しても続行）
+      // 【ウェルカムメッセージ】友だち追加・ブロック解除後の再登録どちらも follow で来る
       await sendWelcomeMessage(userId).catch((err) =>
         console.error('Welcome message failed:', err),
       )
