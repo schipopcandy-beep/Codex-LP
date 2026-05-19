@@ -28,16 +28,19 @@ export async function sendLineMessage(lineUserId: string, text: string): Promise
 }
 
 /**
- * 友だち追加時のウェルカムメッセージを送信する
+ * 友だち追加・ブロック解除後の再登録時にウェルカムメッセージを送信する
+ *
+ * LINEの follow イベントは「友だち追加」「ブロック後の再登録」両方で発火するため、
+ * どちらのケースでも同じメッセージが届く。
  *
  * 送信内容:
- *   ① テキストメッセージ（挨拶）
- *   ② ボタンテンプレート（LIFFへの誘導）
+ *   ① テキストメッセージ（自己紹介・できることの案内）
+ *   ② ボタンテンプレート（注文・テイクアウトへの導線）
  *
  * 環境変数:
- *   NEXT_PUBLIC_LIFF_ID      - LIFF ID（必須）
+ *   NEXT_PUBLIC_LIFF_ID       - LIFF ID（必須）
  *   LINE_CHANNEL_ACCESS_TOKEN - アクセストークン（必須）
- *   NEXT_PUBLIC_APP_URL      - アプリのURL（例: https://codex-lp-k187.vercel.app）
+ *   NEXT_PUBLIC_APP_URL       - アプリのURL（例: https://codex-lp-k187.vercel.app）
  */
 export async function sendWelcomeMessage(lineUserId: string): Promise<void> {
   const token = process.env.LINE_CHANNEL_ACCESS_TOKEN
@@ -46,7 +49,6 @@ export async function sendWelcomeMessage(lineUserId: string): Promise<void> {
 
   if (!token || !liffId) return
 
-  // LIFF URL: テーブル選択ページ（/order）を開く
   // liff.state でパスを指定するとLIFF起動後に該当ページへ遷移する
   const liffUrl = `https://liff.line.me/${liffId}?liff.state=${encodeURIComponent('/order')}`
 
@@ -59,22 +61,36 @@ export async function sendWelcomeMessage(lineUserId: string): Promise<void> {
     body: JSON.stringify({
       to: lineUserId,
       messages: [
-        // ① 挨拶テキスト
+        // ① 自己紹介テキスト
         {
           type: 'text',
-          text: '友だち追加ありがとうございます！\n織はや公式アカウントです🍙\n\nご来店の際は下のボタンから注文画面を開いてください。',
+          text: [
+            '織はや公式LINEへようこそ！🍙',
+            '',
+            '仙台のおにぎり専門店「織はや」です。',
+            '東北のブランド米・金印海苔・こだわりの味噌など、',
+            '素材にこだわったおにぎりをご用意してお待ちしております。',
+            '',
+            'このアカウントでは',
+            '・新商品・季節のおすすめ情報',
+            '・イベント・お知らせ',
+            'などをお届けします🌸',
+            '',
+            'ご来店の際は下のボタンからご注文いただけます。',
+            'またのお越しをお待ちしております😊',
+          ].join('\n'),
         },
-        // ② ボタンテンプレート（注文ボタン）
+        // ② 注文導線ボタン
         {
           type: 'template',
-          altText: '注文はこちらから',
+          altText: '席での注文・テイクアウトはこちらから',
           template: {
             type: 'buttons',
-            text: 'テーブルのボタンから席を選んで注文できます',
+            text: 'ご注文はこちらから承ります',
             actions: [
               {
                 type: 'uri',
-                label: '🍙 席で注文する',
+                label: '🍙 席で注文する（イートイン）',
                 uri: liffUrl,
               },
               {
