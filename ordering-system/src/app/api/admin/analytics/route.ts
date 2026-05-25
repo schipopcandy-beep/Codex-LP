@@ -1,16 +1,21 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServiceRoleClient } from '@/lib/supabase/server'
 
+function toJstTime(isoStr: string): string {
+  const d = new Date(new Date(isoStr).getTime() + 9 * 60 * 60 * 1000)
+  return `${String(d.getUTCHours()).padStart(2, '0')}:${String(d.getUTCMinutes()).padStart(2, '0')}`
+}
+
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url)
   const range = searchParams.get('range') ?? 'today' // today | week | month
 
   const supabase = createServiceRoleClient()
 
-  // 期間の開始日時を計算（JST: UTC+9）
-  const now = new Date()
   const jstOffset = 9 * 60 * 60 * 1000
+  const now = new Date()
   const nowJst = new Date(now.getTime() + jstOffset)
+  const todayJst = nowJst.toISOString().slice(0, 10)
 
   let fromDate: Date
   if (range === 'week') {
@@ -20,43 +25,58 @@ export async function GET(req: NextRequest) {
   } else if (range === 'month') {
     fromDate = new Date(nowJst.getFullYear(), nowJst.getMonth(), 1)
   } else {
-    // today
     fromDate = new Date(nowJst)
     fromDate.setHours(0, 0, 0, 0)
   }
 
-  // JSTからUTCに戻す
   const fromUtc = new Date(fromDate.getTime() - jstOffset).toISOString()
+  const fromDateJst = fromDate.toISOString().slice(0, 10)
 
-  // 会計済み注文のみ集計
-  const { data: orders, error } = await supabase
-    .from('orders')
-    .select(`
-      id,
-      created_at,
-      table_id,
-      party_size,
-      order_items (
+  // 会計済み注文・売り切れログ・天気ログを並行取得
+  const [ordersResult, soldoutResult, weatherResult] = await Promise.all([
+    supabase
+      .from('orders')
+      .select(`
         id,
-        unit_price,
-        quantity,
-        with_topping,
-        lunch_plate_index,
-        product:products ( id, name, category )
-      )
-    `)
-    .eq('status', 'paid')
-    .gte('created_at', fromUtc)
-    .order('created_at', { ascending: true })
+        created_at,
+        table_id,
+        party_size,
+        order_items (
+          id,
+          unit_price,
+          quantity,
+          with_topping,
+          lunch_plate_index,
+          product:products ( id, name, category )
+        )
+      `)
+      .eq('status', 'paid')
+      .gte('created_at', fromUtc)
+      .order('created_at', { ascending: true }),
 
-  if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 })
+    supabase
+      .from('product_soldout_log')
+      .select('product_id, product_name, sold_out_at, date')
+      .gte('date', fromDateJst)
+      .lte('date', todayJst)
+      .order('sold_out_at', { ascending: true }),
+
+    supabase
+      .from('weather_log')
+      .select('date, temp_max, temp_min, temp_avg, weather_main, weather_desc, icon, precipitation')
+      .gte('date', fromDateJst)
+      .lte('date', todayJst)
+      .order('date', { ascending: true }),
+  ])
+
+  if (ordersResult.error) {
+    return NextResponse.json({ error: ordersResult.error.message }, { status: 500 })
   }
 
-  // ---- サマリー集計 ----
+  const orders = ordersResult.data
   const TOPPING_PRICE = 50
   let totalRevenue = 0
-  let orderCount = orders.length
+  const orderCount = orders.length
   let totalPartySize = 0
 
   const productMap = new Map<string, { name: string; category: string; quantity: number; revenue: number }>()
@@ -70,7 +90,6 @@ export async function GET(req: NextRequest) {
       const itemRevenue = (item.unit_price + toppingCost) * item.quantity
       orderRevenue += itemRevenue
 
-      // ランチプレート内おにぎり（unit_priceが追加料金）は商品単位で集計
       const productName = (item.product as { name?: string })?.name ?? '不明'
       const category = (item.product as { category?: string })?.category ?? ''
       const productId = (item.product as { id?: string })?.id ?? item.id
@@ -87,15 +106,12 @@ export async function GET(req: NextRequest) {
     totalRevenue += orderRevenue
     totalPartySize += (order as { party_size?: number | null }).party_size ?? 0
 
-    // 時間帯別（JSTに変換して集計）
     const createdJst = new Date(new Date(order.created_at).getTime() + jstOffset)
     let periodKey: string
     if (range === 'today') {
-      // 1時間単位
-      periodKey = `${String(createdJst.getHours()).padStart(2, '0')}:00`
+      periodKey = `${String(createdJst.getUTCHours()).padStart(2, '0')}:00`
     } else {
-      // 1日単位
-      periodKey = `${createdJst.getMonth() + 1}/${createdJst.getDate()}`
+      periodKey = `${createdJst.getUTCMonth() + 1}/${createdJst.getUTCDate()}`
     }
 
     const existing = timeMap.get(periodKey)
@@ -107,15 +123,18 @@ export async function GET(req: NextRequest) {
     }
   }
 
-  // 商品ランキング（売上順）
   const byProduct = Array.from(productMap.entries())
     .map(([id, v]) => ({ id, ...v }))
     .sort((a, b) => b.revenue - a.revenue)
 
-  // 時系列データ（キー昇順）
   const byTime = Array.from(timeMap.entries())
     .sort(([a], [b]) => a.localeCompare(b))
     .map(([period, v]) => ({ period, ...v }))
+
+  const soldoutLogs = (soldoutResult.data ?? []).map((entry) => ({
+    ...entry,
+    time: toJstTime(entry.sold_out_at),
+  }))
 
   return NextResponse.json({
     summary: {
@@ -127,5 +146,7 @@ export async function GET(req: NextRequest) {
     },
     by_time: byTime,
     by_product: byProduct,
+    soldout_logs: soldoutLogs,
+    weather: weatherResult.data ?? [],
   })
 }

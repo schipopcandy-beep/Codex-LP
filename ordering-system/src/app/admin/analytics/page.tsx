@@ -27,16 +27,53 @@ interface ProductEntry {
   revenue: number
 }
 
+interface SoldoutEntry {
+  product_id: string
+  product_name: string
+  sold_out_at: string
+  date: string
+  time: string
+}
+
+interface WeatherEntry {
+  date: string
+  temp_max: number | null
+  temp_min: number | null
+  temp_avg: number | null
+  weather_main: string | null
+  weather_desc: string | null
+  icon: string | null
+  precipitation: number
+}
+
 interface AnalyticsData {
   summary: Summary
   by_time: TimeEntry[]
   by_product: ProductEntry[]
+  soldout_logs: SoldoutEntry[]
+  weather: WeatherEntry[]
 }
 
 const RANGE_LABELS: Record<Range, string> = {
   today: '今日',
   week: '直近7日',
   month: '今月',
+}
+
+const WEATHER_EMOJI: Record<string, string> = {
+  Clear: '☀️',
+  Clouds: '☁️',
+  Rain: '🌧️',
+  Drizzle: '🌦️',
+  Snow: '❄️',
+  Thunderstorm: '⛈️',
+  Mist: '🌫️',
+  Fog: '🌫️',
+  Haze: '🌫️',
+}
+
+function weatherEmoji(main: string | null): string {
+  return main ? (WEATHER_EMOJI[main] ?? '🌤️') : '—'
 }
 
 export default function AnalyticsPage() {
@@ -47,18 +84,24 @@ export default function AnalyticsPage() {
   const fetchData = useCallback(async (r: Range) => {
     setLoading(true)
     const res = await fetch(`/api/admin/analytics?range=${r}`)
-    if (res.ok) {
-      const json = await res.json()
-      setData(json)
-    }
+    if (res.ok) setData(await res.json())
     setLoading(false)
   }, [])
 
-  useEffect(() => {
-    fetchData(range)
-  }, [range, fetchData])
+  useEffect(() => { fetchData(range) }, [range, fetchData])
 
   const maxRevenue = data ? Math.max(...data.by_time.map((t) => t.revenue), 1) : 1
+
+  // 天気マップ: period key ("M/DD") → WeatherEntry（week/month用）
+  const weatherByPeriod = new Map<string, WeatherEntry>()
+  if (data) {
+    for (const w of data.weather) {
+      const [, m, d] = w.date.split('-')
+      weatherByPeriod.set(`${parseInt(m)}/${parseInt(d)}`, w)
+    }
+  }
+
+  const todayWeather = data?.weather.at(-1) ?? null
 
   return (
     <div className="p-4 md:p-6 max-w-3xl mx-auto">
@@ -93,6 +136,11 @@ export default function AnalyticsPage() {
         <div className="text-center py-20 text-brown-400">データを取得できませんでした</div>
       ) : (
         <div className="space-y-5">
+
+          {/* 天気カード（今日） */}
+          {range === 'today' && (
+            <WeatherCard weather={todayWeather} />
+          )}
 
           {/* サマリーカード */}
           <div className="grid grid-cols-2 gap-3">
@@ -130,11 +178,17 @@ export default function AnalyticsPage() {
               <div className="space-y-2">
                 {data.by_time.map((entry) => {
                   const barWidth = Math.round((entry.revenue / maxRevenue) * 100)
+                  const w = range !== 'today' ? weatherByPeriod.get(entry.period) : null
                   return (
                     <div key={entry.period} className="flex items-center gap-2">
                       <span className="text-xs text-brown-500 w-12 shrink-0 text-right tabular-nums">
                         {entry.period}
                       </span>
+                      {range !== 'today' && (
+                        <span className="text-sm w-6 shrink-0 text-center" title={w?.weather_desc ?? ''}>
+                          {weatherEmoji(w?.weather_main ?? null)}
+                        </span>
+                      )}
                       <div className="flex-1 bg-cream-200 rounded-full h-6 overflow-hidden">
                         <div
                           className="h-full bg-brown-500 rounded-full flex items-center px-2 transition-all duration-500"
@@ -154,6 +208,11 @@ export default function AnalyticsPage() {
             )}
           </div>
 
+          {/* 売り切れ時刻（今日のみ） */}
+          {range === 'today' && (
+            <SoldoutSection logs={data.soldout_logs} />
+          )}
+
           {/* 商品別売上ランキング */}
           <div className="card p-4">
             <h2 className="font-bold text-brown-700 mb-4">商品別売上</h2>
@@ -165,6 +224,9 @@ export default function AnalyticsPage() {
                 {data.by_product.map((product, i) => {
                   const maxProdRevenue = data.by_product[0].revenue
                   const barWidth = Math.round((product.revenue / Math.max(maxProdRevenue, 1)) * 100)
+                  const soldout = range === 'today'
+                    ? data.soldout_logs.find((s) => s.product_id === product.id)
+                    : null
                   return (
                     <div key={product.id} className="flex items-center gap-2">
                       <span className="text-xs font-bold text-brown-400 w-5 shrink-0 text-center tabular-nums">
@@ -174,6 +236,11 @@ export default function AnalyticsPage() {
                         <div className="flex items-baseline gap-1 mb-1">
                           <span className="text-sm font-bold text-brown-800 truncate">{product.name}</span>
                           <span className="text-xs text-brown-400 shrink-0">{product.quantity}個</span>
+                          {soldout && (
+                            <span className="text-xs bg-red-100 text-red-600 px-1.5 py-0.5 rounded-full shrink-0">
+                              売切 {soldout.time}
+                            </span>
+                          )}
                         </div>
                         <div className="bg-cream-200 rounded-full h-2 overflow-hidden">
                           <div
@@ -192,8 +259,88 @@ export default function AnalyticsPage() {
             )}
           </div>
 
+          {/* 天気履歴（week/month） */}
+          {range !== 'today' && data.weather.length > 0 && (
+            <WeatherHistory weather={data.weather} />
+          )}
+
         </div>
       )}
+    </div>
+  )
+}
+
+function WeatherCard({ weather }: { weather: WeatherEntry | null }) {
+  return (
+    <div className="card p-4 border border-blue-100 bg-blue-50">
+      <h2 className="font-bold text-blue-700 mb-2 text-sm">🌤️ 仙台の天気（今日）</h2>
+      {weather ? (
+        <div className="flex items-center gap-4">
+          <span className="text-3xl">{weatherEmoji(weather.weather_main)}</span>
+          <div>
+            <p className="text-sm font-bold text-blue-800">{weather.weather_desc ?? weather.weather_main}</p>
+            <p className="text-xs text-blue-600 tabular-nums">
+              最高 {weather.temp_max != null ? `${Math.round(weather.temp_max)}°C` : '—'}
+              {' / '}
+              最低 {weather.temp_min != null ? `${Math.round(weather.temp_min)}°C` : '—'}
+              {weather.precipitation > 0 && `　降水量 ${weather.precipitation}mm`}
+            </p>
+          </div>
+        </div>
+      ) : (
+        <p className="text-xs text-blue-400">
+          天気データなし。OPENWEATHERMAP_API_KEY を設定するか、しばらく待ってください。
+        </p>
+      )}
+    </div>
+  )
+}
+
+function SoldoutSection({ logs }: { logs: SoldoutEntry[] }) {
+  return (
+    <div className="card p-4">
+      <h2 className="font-bold text-brown-700 mb-3">本日の売り切れ時刻</h2>
+      {logs.length === 0 ? (
+        <p className="text-sm text-brown-400">まだ売り切れた商品はありません</p>
+      ) : (
+        <div className="space-y-1.5">
+          {logs.map((entry) => (
+            <div key={`${entry.product_id}-${entry.sold_out_at}`} className="flex items-center gap-3">
+              <span className="text-red-500">🚫</span>
+              <span className="text-sm text-brown-800 flex-1">{entry.product_name}</span>
+              <span className="text-sm font-bold tabular-nums text-red-600">{entry.time}</span>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function WeatherHistory({ weather }: { weather: WeatherEntry[] }) {
+  return (
+    <div className="card p-4">
+      <h2 className="font-bold text-brown-700 mb-3">天気履歴</h2>
+      <div className="space-y-1.5">
+        {weather.map((w) => {
+          const [, m, d] = w.date.split('-')
+          return (
+            <div key={w.date} className="flex items-center gap-3 text-sm">
+              <span className="text-brown-500 w-10 tabular-nums shrink-0">{`${parseInt(m)}/${parseInt(d)}`}</span>
+              <span className="text-base w-6 shrink-0">{weatherEmoji(w.weather_main)}</span>
+              <span className="text-brown-600 flex-1 truncate">{w.weather_desc ?? w.weather_main ?? '—'}</span>
+              <span className="text-brown-500 tabular-nums shrink-0 text-xs">
+                {w.temp_max != null ? `${Math.round(w.temp_max)}°` : '—'}
+                /
+                {w.temp_min != null ? `${Math.round(w.temp_min)}°` : '—'}
+              </span>
+              {w.precipitation > 0 && (
+                <span className="text-blue-500 text-xs tabular-nums shrink-0">{w.precipitation}mm</span>
+              )}
+            </div>
+          )
+        })}
+      </div>
     </div>
   )
 }
