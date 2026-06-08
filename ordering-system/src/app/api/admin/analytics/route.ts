@@ -32,8 +32,23 @@ export async function GET(req: NextRequest) {
   const fromUtc = new Date(fromDate.getTime() - jstOffset).toISOString()
   const fromDateJst = fromDate.toISOString().slice(0, 10)
 
-  // 会計済み注文・売り切れログ・天気ログを並行取得
-  const [ordersResult, soldoutResult, weatherResult] = await Promise.all([
+  // 前期の範囲（today→同時刻昨日、week/month→同期間ひとつ前）
+  let prevFromUtc: string
+  let prevToUtc: string
+  if (range === 'today') {
+    const oneDayMs = 24 * 60 * 60 * 1000
+    prevFromUtc = new Date(new Date(fromUtc).getTime() - oneDayMs).toISOString()
+    prevToUtc = new Date(now.getTime() - oneDayMs).toISOString()
+  } else {
+    const currentFromMs = new Date(fromUtc).getTime()
+    const periodDurationMs = now.getTime() - currentFromMs
+    prevFromUtc = new Date(currentFromMs - periodDurationMs).toISOString()
+    prevToUtc = fromUtc
+  }
+
+  const TOPPING_PRICE = 50
+
+  const [ordersResult, soldoutResult, weatherResult, prevOrdersResult] = await Promise.all([
     supabase
       .from('orders')
       .select(`
@@ -67,6 +82,13 @@ export async function GET(req: NextRequest) {
       .gte('date', fromDateJst)
       .lte('date', todayJst)
       .order('date', { ascending: true }),
+
+    supabase
+      .from('orders')
+      .select('id, party_size, order_items(unit_price, quantity, with_topping)')
+      .eq('status', 'paid')
+      .gte('created_at', prevFromUtc)
+      .lt('created_at', prevToUtc),
   ])
 
   if (ordersResult.error) {
@@ -74,7 +96,6 @@ export async function GET(req: NextRequest) {
   }
 
   const orders = ordersResult.data
-  const TOPPING_PRICE = 50
   let totalRevenue = 0
   const orderCount = orders.length
   let totalPartySize = 0
@@ -123,6 +144,43 @@ export async function GET(req: NextRequest) {
     }
   }
 
+  // 前期サマリー
+  let prevRevenue = 0
+  let prevOrderCount = 0
+  for (const order of prevOrdersResult.data ?? []) {
+    prevOrderCount++
+    for (const item of (order as { order_items?: { unit_price: number; quantity: number; with_topping: boolean }[] }).order_items ?? []) {
+      const tc = item.with_topping ? TOPPING_PRICE : 0
+      prevRevenue += (item.unit_price + tc) * item.quantity
+    }
+  }
+
+  // 天気×売上相関（week/month のみ）
+  const weatherCorrMap = new Map<string, { totalRevenue: number; days: number; label: string }>()
+  if (range !== 'today') {
+    for (const w of weatherResult.data ?? []) {
+      if (!w.weather_main) continue
+      const [, m, d] = w.date.split('-')
+      const key = `${parseInt(m)}/${parseInt(d)}`
+      const dayRevenue = timeMap.get(key)?.revenue ?? 0
+      const ex = weatherCorrMap.get(w.weather_main)
+      if (ex) {
+        ex.totalRevenue += dayRevenue
+        ex.days++
+      } else {
+        weatherCorrMap.set(w.weather_main, { totalRevenue: dayRevenue, days: 1, label: w.weather_desc ?? w.weather_main })
+      }
+    }
+  }
+  const weatherCorrelation = Array.from(weatherCorrMap.entries())
+    .map(([main, v]) => ({
+      weather_main: main,
+      label: v.label,
+      avg_revenue: Math.round(v.totalRevenue / v.days),
+      days: v.days,
+    }))
+    .sort((a, b) => b.avg_revenue - a.avg_revenue)
+
   const byProduct = Array.from(productMap.entries())
     .map(([id, v]) => ({ id, ...v }))
     .sort((a, b) => b.revenue - a.revenue)
@@ -144,9 +202,15 @@ export async function GET(req: NextRequest) {
       avg_per_order: orderCount > 0 ? Math.round(totalRevenue / orderCount) : 0,
       avg_per_person: totalPartySize > 0 ? Math.round(totalRevenue / totalPartySize) : null,
     },
+    prev_summary: {
+      total_revenue: prevRevenue,
+      order_count: prevOrderCount,
+      avg_per_order: prevOrderCount > 0 ? Math.round(prevRevenue / prevOrderCount) : 0,
+    },
     by_time: byTime,
     by_product: byProduct,
     soldout_logs: soldoutLogs,
     weather: weatherResult.data ?? [],
+    weather_correlation: weatherCorrelation,
   })
 }
