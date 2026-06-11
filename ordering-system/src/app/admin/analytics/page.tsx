@@ -3,7 +3,7 @@
 import { useEffect, useState, useCallback } from 'react'
 import Link from 'next/link'
 
-type Range = 'today' | 'week' | 'month'
+type Range = 'today' | 'week' | 'history'
 
 interface Summary {
   total_revenue: number
@@ -69,18 +69,6 @@ interface AnalyticsData {
   weather_correlation: WeatherCorrEntry[]
 }
 
-const RANGE_LABELS: Record<Range, string> = {
-  today: '今日',
-  week: '直近7日',
-  month: '今月',
-}
-
-const CHANGE_LABELS: Record<Range, string> = {
-  today: '前日比',
-  week: '前週比',
-  month: '前月比',
-}
-
 const WEATHER_EMOJI: Record<string, string> = {
   Clear: '☀️',
   Clouds: '☁️',
@@ -103,21 +91,44 @@ function pctChange(curr: number, prev: number): number | null {
 }
 
 export default function AnalyticsPage() {
-  const [range, setRange] = useState<Range>('today')
-  const [data, setData] = useState<AnalyticsData | null>(null)
-  const [loading, setLoading] = useState(true)
+  const nowDate   = new Date()
+  const nowYear   = nowDate.getFullYear()
+  const nowMonth  = nowDate.getMonth() + 1 // 1-12
 
-  const fetchData = useCallback(async (r: Range) => {
+  const [range, setRange]       = useState<Range>('today')
+  const [histYear, setHistYear]   = useState(nowYear)
+  const [histMonth, setHistMonth] = useState(nowMonth)
+  const [data, setData]           = useState<AnalyticsData | null>(null)
+  const [loading, setLoading]     = useState(true)
+
+  const fetchData = useCallback(async (r: Range, year: number, month: number) => {
     setLoading(true)
-    const res = await fetch(`/api/admin/analytics?range=${r}`)
+    const params = r === 'history' ? `&year=${year}&month=${month}` : ''
+    const res = await fetch(`/api/admin/analytics?range=${r}${params}`)
     if (res.ok) setData(await res.json())
     setLoading(false)
   }, [])
 
-  useEffect(() => { fetchData(range) }, [range, fetchData])
+  useEffect(() => {
+    fetchData(range, histYear, histMonth)
+  }, [range, histYear, histMonth, fetchData])
 
-  const maxRevenue = data ? Math.max(...data.by_time.map((t) => t.revenue), 1) : 1
-  const peakPeriod = data?.by_time.reduce((peak, e) => e.revenue > peak.revenue ? e : peak, data.by_time[0])?.period ?? null
+  const canGoNext = histYear < nowYear || (histYear === nowYear && histMonth < nowMonth)
+
+  function goPrevMonth() {
+    if (histMonth === 1) { setHistYear(y => y - 1); setHistMonth(12) }
+    else { setHistMonth(m => m - 1) }
+  }
+  function goNextMonth() {
+    if (!canGoNext) return
+    if (histMonth === 12) { setHistYear(y => y + 1); setHistMonth(1) }
+    else { setHistMonth(m => m + 1) }
+  }
+
+  const maxRevenue  = data ? Math.max(...data.by_time.map((t) => t.revenue), 1) : 1
+  const peakPeriod  = data?.by_time.length
+    ? data.by_time.reduce((p, e) => e.revenue > p.revenue ? e : p).period
+    : null
 
   const weatherByPeriod = new Map<string, WeatherEntry>()
   if (data) {
@@ -128,7 +139,16 @@ export default function AnalyticsPage() {
   }
 
   const todayWeather = data?.weather.at(-1) ?? null
-  const changeLabel = CHANGE_LABELS[range]
+
+  const changeLabel =
+    range === 'today'   ? '前日比' :
+    range === 'week'    ? '前週比' : '前月比'
+
+  const TABS: { key: Range; label: string }[] = [
+    { key: 'today',   label: '今日' },
+    { key: 'week',    label: '直近7日' },
+    { key: 'history', label: '履歴' },
+  ]
 
   return (
     <div className="p-4 md:p-6 max-w-3xl mx-auto">
@@ -139,21 +159,48 @@ export default function AnalyticsPage() {
         <h1 className="section-title text-2xl">売上分析</h1>
       </div>
 
-      <div className="flex gap-2 mb-6">
-        {(['today', 'week', 'month'] as Range[]).map((r) => (
+      {/* 期間タブ */}
+      <div className="flex gap-2 mb-4">
+        {TABS.map(({ key, label }) => (
           <button
-            key={r}
-            onClick={() => setRange(r)}
+            key={key}
+            onClick={() => setRange(key)}
             className={`px-4 py-2 rounded-xl font-bold text-sm border transition-colors ${
-              range === r
+              range === key
                 ? 'bg-brown-600 text-white border-brown-600'
                 : 'bg-cream-100 text-brown-700 border-cream-300 hover:bg-cream-200'
             }`}
           >
-            {RANGE_LABELS[r]}
+            {label}
           </button>
         ))}
       </div>
+
+      {/* 履歴：月ナビゲーション */}
+      {range === 'history' && (
+        <div className="flex items-center justify-between mb-5 px-1">
+          <button
+            onClick={goPrevMonth}
+            className="w-9 h-9 flex items-center justify-center rounded-full bg-cream-200 hover:bg-cream-300 text-brown-600 font-bold transition-colors"
+          >
+            ◀
+          </button>
+          <span className="font-bold text-brown-700 text-lg tabular-nums">
+            {histYear}年{histMonth}月
+          </span>
+          <button
+            onClick={goNextMonth}
+            disabled={!canGoNext}
+            className={`w-9 h-9 flex items-center justify-center rounded-full font-bold transition-colors ${
+              canGoNext
+                ? 'bg-cream-200 hover:bg-cream-300 text-brown-600'
+                : 'bg-cream-100 text-brown-300 cursor-not-allowed'
+            }`}
+          >
+            ▶
+          </button>
+        </div>
+      )}
 
       {loading ? (
         <div className="text-center py-20 text-brown-400 text-lg">読み込み中...</div>
@@ -162,11 +209,12 @@ export default function AnalyticsPage() {
       ) : (
         <div className="space-y-5">
 
+          {/* 天気カード（今日のみ） */}
           {range === 'today' && (
             <WeatherCard weather={todayWeather} />
           )}
 
-          {/* サマリーカード（前期比付き） */}
+          {/* サマリーカード */}
           <div className="grid grid-cols-2 gap-3">
             <SummaryCard
               label="総売上"
@@ -191,17 +239,18 @@ export default function AnalyticsPage() {
             />
             <SummaryCard
               label="客単価（1人あたり）"
-              value={data.summary.avg_per_person != null ? `¥${data.summary.avg_per_person.toLocaleString()}` : '—'}
+              value={data.summary.avg_per_person != null
+                ? `¥${data.summary.avg_per_person.toLocaleString()}`
+                : '—'}
               color="text-matcha-700 bg-matcha-50 border-matcha-200"
             />
           </div>
 
-          {/* 時間別・日別グラフ */}
+          {/* 時間帯別・日別グラフ */}
           <div className="card p-4">
             <h2 className="font-bold text-brown-700 mb-4">
               {range === 'today' ? '時間帯別売上' : '日別売上'}
             </h2>
-
             {data.by_time.length === 0 ? (
               <p className="text-center text-brown-400 py-6">データなし</p>
             ) : (
@@ -222,7 +271,7 @@ export default function AnalyticsPage() {
                       )}
                       <div className="flex-1 bg-cream-200 rounded-full h-6 overflow-hidden">
                         <div
-                          className={`h-full rounded-full flex items-center px-2 transition-all duration-500 ${
+                          className={`h-full rounded-full transition-all duration-500 ${
                             isPeak ? 'bg-amber-500' : 'bg-brown-500'
                           }`}
                           style={{ width: `${Math.max(barWidth, 2)}%` }}
@@ -241,6 +290,7 @@ export default function AnalyticsPage() {
             )}
           </div>
 
+          {/* 売り切れ時刻（今日のみ） */}
           {range === 'today' && (
             <SoldoutSection logs={data.soldout_logs} />
           )}
@@ -248,15 +298,14 @@ export default function AnalyticsPage() {
           {/* 商品別売上ランキング */}
           <div className="card p-4">
             <h2 className="font-bold text-brown-700 mb-4">商品別売上</h2>
-
             {data.by_product.length === 0 ? (
               <p className="text-center text-brown-400 py-6">データなし</p>
             ) : (
               <div className="space-y-2">
                 {data.by_product.map((product, i) => {
-                  const maxProdRevenue = data.by_product[0].revenue
-                  const barWidth = Math.round((product.revenue / Math.max(maxProdRevenue, 1)) * 100)
-                  const soldout = range === 'today'
+                  const maxProd   = data.by_product[0].revenue
+                  const barWidth  = Math.round((product.revenue / Math.max(maxProd, 1)) * 100)
+                  const soldout   = range === 'today'
                     ? data.soldout_logs.find((s) => s.product_id === product.id)
                     : null
                   return (
@@ -291,12 +340,12 @@ export default function AnalyticsPage() {
             )}
           </div>
 
-          {/* 天気×売上相関（week/month） */}
+          {/* 天気別平均日商（week / history） */}
           {range !== 'today' && data.weather_correlation.length > 0 && (
             <WeatherCorrelation data={data.weather_correlation} />
           )}
 
-          {/* 天気履歴（week/month） */}
+          {/* 天気履歴（week / history） */}
           {range !== 'today' && data.weather.length > 0 && (
             <WeatherHistory weather={data.weather} />
           )}
@@ -306,6 +355,8 @@ export default function AnalyticsPage() {
     </div>
   )
 }
+
+// ─── サブコンポーネント ─────────────────────────────────────
 
 function WeatherCard({ weather }: { weather: WeatherEntry | null }) {
   return (

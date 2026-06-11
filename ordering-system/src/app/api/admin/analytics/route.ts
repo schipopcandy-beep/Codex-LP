@@ -8,7 +8,7 @@ function toJstTime(isoStr: string): string {
 
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url)
-  const range = searchParams.get('range') ?? 'today' // today | week | month
+  const range = searchParams.get('range') ?? 'today' // today | week | history
 
   const supabase = createServiceRoleClient()
 
@@ -18,77 +18,103 @@ export async function GET(req: NextRequest) {
   const todayJst = nowJst.toISOString().slice(0, 10)
 
   let fromDate: Date
+  let toDate: Date | null = null // history のみセット（exclusive upper bound）
+
   if (range === 'week') {
     fromDate = new Date(nowJst)
     fromDate.setDate(nowJst.getDate() - 6)
     fromDate.setHours(0, 0, 0, 0)
-  } else if (range === 'month') {
-    fromDate = new Date(nowJst.getFullYear(), nowJst.getMonth(), 1)
+  } else if (range === 'history') {
+    const histYear  = parseInt(searchParams.get('year')  ?? String(nowJst.getFullYear()))
+    const histMonth = parseInt(searchParams.get('month') ?? String(nowJst.getMonth() + 1))
+    fromDate = new Date(histYear, histMonth - 1, 1)
+    toDate   = new Date(histYear, histMonth, 1) // 翌月1日 0:00 JST（exclusive）
   } else {
+    // today
     fromDate = new Date(nowJst)
     fromDate.setHours(0, 0, 0, 0)
   }
 
-  const fromUtc = new Date(fromDate.getTime() - jstOffset).toISOString()
+  const fromUtc     = new Date(fromDate.getTime() - jstOffset).toISOString()
+  const toUtc       = toDate ? new Date(toDate.getTime() - jstOffset).toISOString() : null
   const fromDateJst = fromDate.toISOString().slice(0, 10)
+  const toDateJst   = toDate
+    ? new Date(toDate.getTime() - 24 * 60 * 60 * 1000).toISOString().slice(0, 10)
+    : todayJst
 
-  // 前期の範囲（today→同時刻昨日、week/month→同期間ひとつ前）
+  // 前期の範囲
   let prevFromUtc: string
   let prevToUtc: string
   if (range === 'today') {
     const oneDayMs = 24 * 60 * 60 * 1000
     prevFromUtc = new Date(new Date(fromUtc).getTime() - oneDayMs).toISOString()
-    prevToUtc = new Date(now.getTime() - oneDayMs).toISOString()
+    prevToUtc   = new Date(now.getTime() - oneDayMs).toISOString()
+  } else if (range === 'history') {
+    // 前月
+    const histYear  = parseInt(searchParams.get('year')  ?? String(nowJst.getFullYear()))
+    const histMonth = parseInt(searchParams.get('month') ?? String(nowJst.getMonth() + 1))
+    const prevMonthDate = new Date(histYear, histMonth - 2, 1) // 前月1日
+    const prevMonthEnd  = new Date(histYear, histMonth - 1, 1) // 当月1日（exclusive）
+    prevFromUtc = new Date(prevMonthDate.getTime() - jstOffset).toISOString()
+    prevToUtc   = new Date(prevMonthEnd.getTime()  - jstOffset).toISOString()
   } else {
-    const currentFromMs = new Date(fromUtc).getTime()
+    // week: 前の7日間
+    const currentFromMs   = new Date(fromUtc).getTime()
     const periodDurationMs = now.getTime() - currentFromMs
     prevFromUtc = new Date(currentFromMs - periodDurationMs).toISOString()
-    prevToUtc = fromUtc
+    prevToUtc   = fromUtc
   }
 
   const TOPPING_PRICE = 50
 
-  const [ordersResult, soldoutResult, weatherResult, prevOrdersResult] = await Promise.all([
-    supabase
-      .from('orders')
-      .select(`
+  // クエリを組み立て（history は上限日時も指定）
+  let ordersQuery = supabase
+    .from('orders')
+    .select(`
+      id,
+      created_at,
+      table_id,
+      party_size,
+      order_items (
         id,
-        created_at,
-        table_id,
-        party_size,
-        order_items (
-          id,
-          unit_price,
-          quantity,
-          with_topping,
-          lunch_plate_index,
-          product:products ( id, name, category )
-        )
-      `)
-      .eq('status', 'paid')
-      .gte('created_at', fromUtc)
-      .order('created_at', { ascending: true }),
+        unit_price,
+        quantity,
+        with_topping,
+        lunch_plate_index,
+        product:products ( id, name, category )
+      )
+    `)
+    .eq('status', 'paid')
+    .gte('created_at', fromUtc)
+    .order('created_at', { ascending: true })
+  if (toUtc) ordersQuery = ordersQuery.lt('created_at', toUtc)
 
-    supabase
-      .from('product_soldout_log')
-      .select('product_id, product_name, sold_out_at, date')
-      .gte('date', fromDateJst)
-      .lte('date', todayJst)
-      .order('sold_out_at', { ascending: true }),
+  let soldoutQuery = supabase
+    .from('product_soldout_log')
+    .select('product_id, product_name, sold_out_at, date')
+    .gte('date', fromDateJst)
+    .lte('date', toDateJst)
+    .order('sold_out_at', { ascending: true })
 
-    supabase
-      .from('weather_log')
-      .select('date, temp_max, temp_min, temp_avg, weather_main, weather_desc, icon, precipitation')
-      .gte('date', fromDateJst)
-      .lte('date', todayJst)
-      .order('date', { ascending: true }),
+  let weatherQuery = supabase
+    .from('weather_log')
+    .select('date, temp_max, temp_min, temp_avg, weather_main, weather_desc, icon, precipitation')
+    .gte('date', fromDateJst)
+    .lte('date', toDateJst)
+    .order('date', { ascending: true })
 
-    supabase
-      .from('orders')
-      .select('id, party_size, order_items(unit_price, quantity, with_topping)')
-      .eq('status', 'paid')
-      .gte('created_at', prevFromUtc)
-      .lt('created_at', prevToUtc),
+  let prevQuery = supabase
+    .from('orders')
+    .select('id, party_size, order_items(unit_price, quantity, with_topping)')
+    .eq('status', 'paid')
+    .gte('created_at', prevFromUtc)
+    .lt('created_at', prevToUtc)
+
+  const [ordersResult, soldoutResult, weatherResult, prevOrdersResult] = await Promise.all([
+    ordersQuery,
+    soldoutQuery,
+    weatherQuery,
+    prevQuery,
   ])
 
   if (ordersResult.error) {
@@ -101,7 +127,7 @@ export async function GET(req: NextRequest) {
   let totalPartySize = 0
 
   const productMap = new Map<string, { name: string; category: string; quantity: number; revenue: number }>()
-  const timeMap = new Map<string, { revenue: number; orders: number }>()
+  const timeMap    = new Map<string, { revenue: number; orders: number }>()
 
   for (const order of orders) {
     let orderRevenue = 0
@@ -112,40 +138,37 @@ export async function GET(req: NextRequest) {
       orderRevenue += itemRevenue
 
       const productName = (item.product as { name?: string })?.name ?? '不明'
-      const category = (item.product as { category?: string })?.category ?? ''
-      const productId = (item.product as { id?: string })?.id ?? item.id
+      const category    = (item.product as { category?: string })?.category ?? ''
+      const productId   = (item.product as { id?: string })?.id ?? item.id
 
       const existing = productMap.get(productId)
       if (existing) {
         existing.quantity += item.quantity
-        existing.revenue += itemRevenue
+        existing.revenue  += itemRevenue
       } else {
         productMap.set(productId, { name: productName, category, quantity: item.quantity, revenue: itemRevenue })
       }
     }
 
-    totalRevenue += orderRevenue
+    totalRevenue  += orderRevenue
     totalPartySize += (order as { party_size?: number | null }).party_size ?? 0
 
     const createdJst = new Date(new Date(order.created_at).getTime() + jstOffset)
-    let periodKey: string
-    if (range === 'today') {
-      periodKey = `${String(createdJst.getUTCHours()).padStart(2, '0')}:00`
-    } else {
-      periodKey = `${createdJst.getUTCMonth() + 1}/${createdJst.getUTCDate()}`
-    }
+    const periodKey  = range === 'today'
+      ? `${String(createdJst.getUTCHours()).padStart(2, '0')}:00`
+      : `${createdJst.getUTCMonth() + 1}/${createdJst.getUTCDate()}`
 
     const existing = timeMap.get(periodKey)
     if (existing) {
       existing.revenue += orderRevenue
-      existing.orders += 1
+      existing.orders  += 1
     } else {
       timeMap.set(periodKey, { revenue: orderRevenue, orders: 1 })
     }
   }
 
   // 前期サマリー
-  let prevRevenue = 0
+  let prevRevenue    = 0
   let prevOrderCount = 0
   for (const order of prevOrdersResult.data ?? []) {
     prevOrderCount++
@@ -155,7 +178,7 @@ export async function GET(req: NextRequest) {
     }
   }
 
-  // 天気×売上相関（week/month のみ）
+  // 天気×売上相関（today 以外）
   const weatherCorrMap = new Map<string, { totalRevenue: number; days: number; label: string }>()
   if (range !== 'today') {
     for (const w of weatherResult.data ?? []) {
@@ -196,21 +219,21 @@ export async function GET(req: NextRequest) {
 
   return NextResponse.json({
     summary: {
-      total_revenue: totalRevenue,
-      order_count: orderCount,
+      total_revenue:   totalRevenue,
+      order_count:     orderCount,
       total_party_size: totalPartySize,
-      avg_per_order: orderCount > 0 ? Math.round(totalRevenue / orderCount) : 0,
-      avg_per_person: totalPartySize > 0 ? Math.round(totalRevenue / totalPartySize) : null,
+      avg_per_order:   orderCount > 0 ? Math.round(totalRevenue / orderCount) : 0,
+      avg_per_person:  totalPartySize > 0 ? Math.round(totalRevenue / totalPartySize) : null,
     },
     prev_summary: {
       total_revenue: prevRevenue,
-      order_count: prevOrderCount,
+      order_count:   prevOrderCount,
       avg_per_order: prevOrderCount > 0 ? Math.round(prevRevenue / prevOrderCount) : 0,
     },
-    by_time: byTime,
-    by_product: byProduct,
-    soldout_logs: soldoutLogs,
-    weather: weatherResult.data ?? [],
+    by_time:             byTime,
+    by_product:          byProduct,
+    soldout_logs:        soldoutLogs,
+    weather:             weatherResult.data ?? [],
     weather_correlation: weatherCorrelation,
   })
 }
