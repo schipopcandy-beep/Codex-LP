@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createHmac } from 'crypto'
 import { createServiceRoleClient } from '@/lib/supabase/server'
-import { onFriendAdded } from '@/lib/line-tags'
 import { sendWelcomeMessage } from '@/lib/line-message'
 
 // LINE Harness 送信Webhookのペイロード型
@@ -93,9 +92,6 @@ export async function POST(req: NextRequest) {
           { user_id: userId, is_friend: true, followed_at: now, updated_at: now },
           { onConflict: 'user_id' },
         )
-
-      // 【自動化①】status_new タグを付与
-      await onFriendAdded(supabase, userId)
 
       // 【ウェルカムメッセージ】友だち追加・ブロック解除後の再登録どちらも follow で来る
       await sendWelcomeMessage(userId).catch((err) =>
