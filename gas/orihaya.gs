@@ -40,10 +40,10 @@ function supabaseGet(table, params) {
 
   // params はオブジェクトまたは [[key, value], ...] 配列（同キー複数対応）
   const entries = Array.isArray(params) ? params : Object.entries(params)
-  const queryParts = entries.map(([k, v]) =>
-    k === 'select' ? `select=${encodeURIComponent(v)}` : `${k}=${v}`
-  )
+  const queryParts = entries.map(([k, v]) => `${k}=${v}`)
   const url = `${base}/rest/v1/${table}?${queryParts.join('&')}`
+
+  console.log('Supabase URL:', url) // デバッグ用：実行ログで確認可能
 
   const res = UrlFetchApp.fetch(url, {
     headers: {
@@ -100,6 +100,19 @@ function styleHeader(sheet, numCols) {
 function getOrCreateSheet(name) {
   const ss = SpreadsheetApp.getActiveSpreadsheet()
   return ss.getSheetByName(name) || ss.insertSheet(name)
+}
+
+// ─── 接続テスト ──────────────────────────────────────────────────
+
+function testConnection() {
+  try {
+    const data = supabaseGet('orders', { limit: 1, select: 'id,status' })
+    console.log('接続OK:', JSON.stringify(data))
+    SpreadsheetApp.getActiveSpreadsheet().toast('Supabase 接続OK', '成功', 3)
+  } catch (e) {
+    console.error('接続エラー:', e.message)
+    SpreadsheetApp.getActiveSpreadsheet().toast(`エラー: ${e.message}`, '失敗', 10)
+  }
 }
 
 // ─── 1. テイクアウト履歴 ─────────────────────────────────────────
