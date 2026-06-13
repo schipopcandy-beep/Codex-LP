@@ -34,9 +34,18 @@ function getProps() {
 
 // ─── Supabase ヘルパー ───────────────────────────────────────────
 
-function supabaseGet(path) {
+function supabaseGet(table, params) {
   const { supabaseUrl, supabaseKey } = getProps()
-  const res = UrlFetchApp.fetch(`${supabaseUrl}/rest/v1/${path}`, {
+  const base = supabaseUrl.replace(/\/+$/, '') // 末尾スラッシュを除去
+
+  // params はオブジェクトまたは [[key, value], ...] 配列（同キー複数対応）
+  const entries = Array.isArray(params) ? params : Object.entries(params)
+  const queryParts = entries.map(([k, v]) =>
+    k === 'select' ? `select=${encodeURIComponent(v)}` : `${k}=${v}`
+  )
+  const url = `${base}/rest/v1/${table}?${queryParts.join('&')}`
+
+  const res = UrlFetchApp.fetch(url, {
     headers: {
       apikey:        supabaseKey,
       Authorization: `Bearer ${supabaseKey}`,
@@ -96,10 +105,13 @@ function getOrCreateSheet(name) {
 // ─── 1. テイクアウト履歴 ─────────────────────────────────────────
 
 function exportTakeoutHistory() {
-  const data = supabaseGet(
-    `orders?select=id,created_at,pickup_at,order_items(unit_price,quantity,with_topping,product:products(name))` +
-    `&table_id=eq.takeout&status=eq.paid&order=created_at.desc&limit=${CONFIG.TAKEOUT_LIMIT}`
-  )
+  const data = supabaseGet('orders', {
+    select:    'id,created_at,pickup_at,order_items(unit_price,quantity,with_topping,products(name))',
+    table_id:  'eq.takeout',
+    status:    'eq.paid',
+    order:     'created_at.desc',
+    limit:     CONFIG.TAKEOUT_LIMIT,
+  })
 
   const sheet = getOrCreateSheet('テイクアウト履歴')
   sheet.clearContents()
@@ -122,7 +134,7 @@ function exportTakeoutHistory() {
       rows.push([
         dateStr,
         pickupStr,
-        item.product?.name ?? '不明',
+        item.products?.name ?? '不明',
         item.quantity,
         unitPrice,
         unitPrice * item.quantity,
@@ -143,10 +155,12 @@ function exportDailySales() {
   const fromJst = nDaysAgoJst(CONFIG.SALES_DAYS - 1)
   const { start: fromUtc } = utcRangeForJstDay(fromJst)
 
-  const data = supabaseGet(
-    `orders?select=created_at,order_items(quantity,product:products(name,category))` +
-    `&status=eq.paid&created_at=gte.${fromUtc}&order=created_at.asc`
-  )
+  const data = supabaseGet('orders', {
+    select:       'created_at,order_items(quantity,products(name,category))',
+    status:       'eq.paid',
+    'created_at': `gte.${fromUtc}`,
+    order:        'created_at.asc',
+  })
 
   // 日付一覧と商品一覧を収集
   const dateSet    = new Set()
@@ -159,7 +173,7 @@ function exportDailySales() {
     const ds = jstDateStr(toJstDate(order.created_at))
     dateSet.add(ds)
     for (const item of order.order_items || []) {
-      const name = item.product?.name ?? '不明'
+      const name = item.products?.name ?? '不明'
       productSet.add(name)
       if (!matrix[name]) matrix[name] = {}
       matrix[name][ds] = (matrix[name][ds] ?? 0) + item.quantity
@@ -195,10 +209,12 @@ function exportSoldoutLogs() {
   const fromJst = nDaysAgoJst(CONFIG.SALES_DAYS - 1)
   const fromStr = Utilities.formatDate(fromJst, 'Asia/Tokyo', 'yyyy-MM-dd')
 
-  const data = supabaseGet(
-    `product_soldout_log?select=product_name,sold_out_at,date` +
-    `&date=gte.${fromStr}&order=date.desc,sold_out_at.asc&limit=300`
-  )
+  const data = supabaseGet('product_soldout_log', {
+    select: 'product_name,sold_out_at,date',
+    date:   `gte.${fromStr}`,
+    order:  'date.desc,sold_out_at.asc',
+    limit:  300,
+  })
 
   const sheet = getOrCreateSheet('売切時刻')
   sheet.clearContents()
@@ -239,11 +255,13 @@ function sendWeeklyFollowUp() {
   const { start: fromUtc, end: toUtc } = utcRangeForJstDay(targetDay)
   const targetDateStr = Utilities.formatDate(targetDay, 'Asia/Tokyo', 'yyyy/MM/dd')
 
-  const orders = supabaseGet(
-    `orders?select=line_user_id&status=eq.paid` +
-    `&created_at=gte.${fromUtc}&created_at=lt.${toUtc}` +
-    `&line_user_id=not.is.null`
-  )
+  const orders = supabaseGet('orders', [
+    ['select',       'line_user_id'],
+    ['status',       'eq.paid'],
+    ['created_at',   `gte.${fromUtc}`],
+    ['created_at',   `lt.${toUtc}`],
+    ['line_user_id', 'not.is.null'],
+  ])
 
   // LINE ユーザーIDを重複排除
   const userIds = [...new Set(orders.map(o => o.line_user_id).filter(Boolean))]
