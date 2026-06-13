@@ -18,7 +18,7 @@ export async function GET(req: NextRequest) {
   const todayJst = nowJst.toISOString().slice(0, 10)
 
   let fromDate: Date
-  let toDate: Date | null = null // history のみセット（exclusive upper bound）
+  let toDate: Date | null = null
 
   if (range === 'week') {
     fromDate = new Date(nowJst)
@@ -28,9 +28,8 @@ export async function GET(req: NextRequest) {
     const histYear  = parseInt(searchParams.get('year')  ?? String(nowJst.getFullYear()))
     const histMonth = parseInt(searchParams.get('month') ?? String(nowJst.getMonth() + 1))
     fromDate = new Date(histYear, histMonth - 1, 1)
-    toDate   = new Date(histYear, histMonth, 1) // 翌月1日 0:00 JST（exclusive）
+    toDate   = new Date(histYear, histMonth, 1)
   } else {
-    // today
     fromDate = new Date(nowJst)
     fromDate.setHours(0, 0, 0, 0)
   }
@@ -50,16 +49,12 @@ export async function GET(req: NextRequest) {
     prevFromUtc = new Date(new Date(fromUtc).getTime() - oneDayMs).toISOString()
     prevToUtc   = new Date(now.getTime() - oneDayMs).toISOString()
   } else if (range === 'history') {
-    // 前月
     const histYear  = parseInt(searchParams.get('year')  ?? String(nowJst.getFullYear()))
     const histMonth = parseInt(searchParams.get('month') ?? String(nowJst.getMonth() + 1))
-    const prevMonthDate = new Date(histYear, histMonth - 2, 1) // 前月1日
-    const prevMonthEnd  = new Date(histYear, histMonth - 1, 1) // 当月1日（exclusive）
-    prevFromUtc = new Date(prevMonthDate.getTime() - jstOffset).toISOString()
-    prevToUtc   = new Date(prevMonthEnd.getTime()  - jstOffset).toISOString()
+    prevFromUtc = new Date(new Date(histYear, histMonth - 2, 1).getTime() - jstOffset).toISOString()
+    prevToUtc   = new Date(new Date(histYear, histMonth - 1, 1).getTime() - jstOffset).toISOString()
   } else {
-    // week: 前の7日間
-    const currentFromMs   = new Date(fromUtc).getTime()
+    const currentFromMs    = new Date(fromUtc).getTime()
     const periodDurationMs = now.getTime() - currentFromMs
     prevFromUtc = new Date(currentFromMs - periodDurationMs).toISOString()
     prevToUtc   = fromUtc
@@ -67,7 +62,6 @@ export async function GET(req: NextRequest) {
 
   const TOPPING_PRICE = 50
 
-  // クエリを組み立て（history は上限日時も指定）
   let ordersQuery = supabase
     .from('orders')
     .select(`
@@ -103,18 +97,22 @@ export async function GET(req: NextRequest) {
     .lte('date', toDateJst)
     .order('date', { ascending: true })
 
-  let prevQuery = supabase
-    .from('orders')
-    .select('id, party_size, order_items(unit_price, quantity, with_topping)')
-    .eq('status', 'paid')
-    .gte('created_at', prevFromUtc)
-    .lt('created_at', prevToUtc)
-
-  const [ordersResult, soldoutResult, weatherResult, prevOrdersResult] = await Promise.all([
+  const [
+    ordersResult, soldoutResult, weatherResult, prevOrdersResult,
+    shopsResult, statusOverridesResult, eventsResult,
+  ] = await Promise.all([
     ordersQuery,
     soldoutQuery,
     weatherQuery,
-    prevQuery,
+    supabase
+      .from('orders')
+      .select('id, party_size, order_items(unit_price, quantity, with_topping)')
+      .eq('status', 'paid')
+      .gte('created_at', prevFromUtc)
+      .lt('created_at', prevToUtc),
+    supabase.from('competitor_shops').select('id, name, open_weekdays').eq('is_active', true).order('created_at'),
+    supabase.from('competitor_status_log').select('shop_id, date, is_open').gte('date', fromDateJst).lte('date', toDateJst),
+    supabase.from('sendai_events').select('id, name, date, end_date, location, scale').gte('date', fromDateJst).lte('date', toDateJst).order('date'),
   ])
 
   if (ordersResult.error) {
@@ -128,6 +126,7 @@ export async function GET(req: NextRequest) {
 
   const productMap = new Map<string, { name: string; category: string; quantity: number; revenue: number }>()
   const timeMap    = new Map<string, { revenue: number; orders: number }>()
+  const dateMap    = new Map<string, string>() // period → "YYYY-MM-DD"
 
   for (const order of orders) {
     let orderRevenue = 0
@@ -157,6 +156,8 @@ export async function GET(req: NextRequest) {
     const periodKey  = range === 'today'
       ? `${String(createdJst.getUTCHours()).padStart(2, '0')}:00`
       : `${createdJst.getUTCMonth() + 1}/${createdJst.getUTCDate()}`
+    const fullDate = `${createdJst.getUTCFullYear()}-${String(createdJst.getUTCMonth() + 1).padStart(2, '0')}-${String(createdJst.getUTCDate()).padStart(2, '0')}`
+    dateMap.set(periodKey, fullDate)
 
     const existing = timeMap.get(periodKey)
     if (existing) {
@@ -178,7 +179,7 @@ export async function GET(req: NextRequest) {
     }
   }
 
-  // 天気×売上相関（today 以外）
+  // 天気×売上相関
   const weatherCorrMap = new Map<string, { totalRevenue: number; days: number; label: string }>()
   if (range !== 'today') {
     for (const w of weatherResult.data ?? []) {
@@ -187,22 +188,100 @@ export async function GET(req: NextRequest) {
       const key = `${parseInt(m)}/${parseInt(d)}`
       const dayRevenue = timeMap.get(key)?.revenue ?? 0
       const ex = weatherCorrMap.get(w.weather_main)
-      if (ex) {
-        ex.totalRevenue += dayRevenue
-        ex.days++
-      } else {
-        weatherCorrMap.set(w.weather_main, { totalRevenue: dayRevenue, days: 1, label: w.weather_desc ?? w.weather_main })
-      }
+      if (ex) { ex.totalRevenue += dayRevenue; ex.days++ }
+      else weatherCorrMap.set(w.weather_main, { totalRevenue: dayRevenue, days: 1, label: w.weather_desc ?? w.weather_main })
     }
   }
   const weatherCorrelation = Array.from(weatherCorrMap.entries())
-    .map(([main, v]) => ({
-      weather_main: main,
-      label: v.label,
-      avg_revenue: Math.round(v.totalRevenue / v.days),
-      days: v.days,
-    }))
+    .map(([main, v]) => ({ weather_main: main, label: v.label, avg_revenue: Math.round(v.totalRevenue / v.days), days: v.days }))
     .sort((a, b) => b.avg_revenue - a.avg_revenue)
+
+  // 曜日別平均（today 以外）
+  const DOW_JP = ['日', '月', '火', '水', '木', '金', '土']
+  const weekdayMap = new Map<number, { total: number; days: number }>()
+  if (range !== 'today') {
+    for (const [period, v] of timeMap.entries()) {
+      const fullDate = dateMap.get(period)
+      if (!fullDate) continue
+      const dow = new Date(fullDate).getUTCDay()
+      const ex = weekdayMap.get(dow)
+      if (ex) { ex.total += v.revenue; ex.days++ }
+      else weekdayMap.set(dow, { total: v.revenue, days: 1 })
+    }
+  }
+  const byWeekday = [0, 1, 2, 3, 4, 5, 6].map((dow) => {
+    const v = weekdayMap.get(dow)
+    return { dow, label: DOW_JP[dow], count: v?.days ?? 0, avg_revenue: v ? Math.round(v.total / v.days) : 0 }
+  })
+
+  // 競合店ステータス計算
+  const shops = shopsResult.data ?? []
+  const overrideByShopDate = new Map<string, Map<string, boolean>>()
+  for (const o of statusOverridesResult.data ?? []) {
+    if (!overrideByShopDate.has(o.shop_id)) overrideByShopDate.set(o.shop_id, new Map())
+    overrideByShopDate.get(o.shop_id)!.set(o.date as string, o.is_open)
+  }
+
+  const getShopStatus = (dateStr: string) => {
+    const dow = new Date(dateStr).getUTCDay()
+    let openCount = 0
+    let reducedCompetition = false
+    const closedNames: string[] = []
+    for (const shop of shops) {
+      const defaultOpen = (shop.open_weekdays as number[]).includes(dow)
+      const override    = overrideByShopDate.get(shop.id)?.get(dateStr)
+      const isOpen      = override !== undefined ? override : defaultOpen
+      if (isOpen) openCount++
+      else closedNames.push(shop.name)
+      if (defaultOpen && !isOpen) reducedCompetition = true
+    }
+    return { openCount, total: shops.length, reducedCompetition, closedNames }
+  }
+
+  // today_competitors (today のみ)
+  const todayCompetitors = range === 'today'
+    ? shops.map((shop) => {
+        const dow = new Date(fromDateJst).getUTCDay()
+        const defaultOpen = (shop.open_weekdays as number[]).includes(dow)
+        const override    = overrideByShopDate.get(shop.id)?.get(fromDateJst)
+        return {
+          id: shop.id,
+          name: shop.name,
+          is_open: override !== undefined ? override : defaultOpen,
+          is_override: override !== undefined,
+        }
+      })
+    : []
+
+  // イベントマップ
+  const eventsByDate = new Map<string, Array<{ name: string; scale: number }>>()
+  for (const e of eventsResult.data ?? []) {
+    if (!eventsByDate.has(e.date)) eventsByDate.set(e.date, [])
+    eventsByDate.get(e.date)!.push({ name: e.name, scale: e.scale })
+  }
+
+  // day_context（全期間の日次コンテキスト）
+  const dayContext: Record<string, { event_count: number; event_names: string[]; open_count: number; total: number; reduced_competition: boolean }> = {}
+  const datesForContext = new Set<string>()
+  if (range === 'today') {
+    datesForContext.add(fromDateJst)
+  } else {
+    for (const fullDate of dateMap.values()) datesForContext.add(fullDate)
+    for (const w of weatherResult.data ?? []) datesForContext.add(w.date)
+  }
+  for (const dateStr of datesForContext) {
+    const { openCount, total, reducedCompetition } = getShopStatus(dateStr)
+    const events = eventsByDate.get(dateStr) ?? []
+    const [, m, d] = dateStr.split('-')
+    const periodKey = range === 'today' ? 'today' : `${parseInt(m)}/${parseInt(d)}`
+    dayContext[periodKey] = {
+      event_count: events.length,
+      event_names: events.map((e) => e.name),
+      open_count: openCount,
+      total,
+      reduced_competition: reducedCompetition,
+    }
+  }
 
   const byProduct = Array.from(productMap.entries())
     .map(([id, v]) => ({ id, ...v }))
@@ -219,11 +298,11 @@ export async function GET(req: NextRequest) {
 
   return NextResponse.json({
     summary: {
-      total_revenue:   totalRevenue,
-      order_count:     orderCount,
+      total_revenue:    totalRevenue,
+      order_count:      orderCount,
       total_party_size: totalPartySize,
-      avg_per_order:   orderCount > 0 ? Math.round(totalRevenue / orderCount) : 0,
-      avg_per_person:  totalPartySize > 0 ? Math.round(totalRevenue / totalPartySize) : null,
+      avg_per_order:    orderCount > 0 ? Math.round(totalRevenue / orderCount) : 0,
+      avg_per_person:   totalPartySize > 0 ? Math.round(totalRevenue / totalPartySize) : null,
     },
     prev_summary: {
       total_revenue: prevRevenue,
@@ -235,5 +314,9 @@ export async function GET(req: NextRequest) {
     soldout_logs:        soldoutLogs,
     weather:             weatherResult.data ?? [],
     weather_correlation: weatherCorrelation,
+    by_weekday:          byWeekday,
+    today_competitors:   todayCompetitors,
+    events_in_range:     eventsResult.data ?? [],
+    day_context:         dayContext,
   })
 }
