@@ -362,61 +362,81 @@ function exportEatinHistory() {
 // ─── 7. 売上分析（日付・曜日・天気・競合・イベント・売上）────────
 
 function exportSalesAnalysis() {
-  const fromJst = nDaysAgoJst(CONFIG.SALES_DAYS - 1)
+  const fromJst   = nDaysAgoJst(CONFIG.SALES_DAYS - 1)
+  const todayJst  = nDaysAgoJst(0)
   const { start: fromUtc } = utcRangeForJstDay(fromJst)
-  const fromStr = Utilities.formatDate(fromJst, 'Asia/Tokyo', 'yyyy-MM-dd')
+  const fromStr   = Utilities.formatDate(fromJst, 'Asia/Tokyo', 'yyyy-MM-dd')
+  const todayStr  = Utilities.formatDate(todayJst, 'Asia/Tokyo', 'yyyy-MM-dd')
 
   // 日次売上
   const orders = supabaseGet('orders', [
     ['select',     'created_at,order_items(unit_price,quantity,with_topping)'],
     ['status',     'eq.paid'],
-    ['created_at', `gte.${fromUtc}`],
+    ['created_at', 'gte.' + fromUtc],
     ['order',      'created_at.asc'],
   ])
 
   const dailyRev = {}
-  for (const order of orders) {
-    const ds = jstDateStr(toJstDate(order.created_at))
-    for (const item of order.order_items || []) {
+  for (let oi = 0; oi < orders.length; oi++) {
+    const order = orders[oi]
+    const ds    = jstDateStr(toJstDate(order.created_at))
+    const items = order.order_items || []
+    for (let ii = 0; ii < items.length; ii++) {
+      const item  = items[ii]
       const price = item.unit_price + (item.with_topping ? CONFIG.TOPPING_PRICE : 0)
-      dailyRev[ds] = (dailyRev[ds] ?? 0) + price * item.quantity
+      dailyRev[ds] = (dailyRev[ds] || 0) + price * item.quantity
     }
   }
 
   // 天気ログ
   const weatherLogs = supabaseGet('weather_log', [
     ['select', 'date,weather_main'],
-    ['date',   `gte.${fromStr}`],
+    ['date',   'gte.' + fromStr],
     ['order',  'date.asc'],
   ])
   const weatherMap = {}
-  for (const w of weatherLogs) {
+  for (let wi = 0; wi < weatherLogs.length; wi++) {
+    const w = weatherLogs[wi]
     weatherMap[w.date.replace(/-/g, '/')] = w.weather_main
   }
 
-  // 競合店一覧
-  const shops = supabaseGet('competitor_shops', { select: 'id,name,open_weekdays', order: 'name.asc' })
+  // 競合店一覧（is_active=true のみ ⑤）
+  const shops = supabaseGet('competitor_shops', [
+    ['select',    'id,name,open_weekdays'],
+    ['is_active', 'eq.true'],
+    ['order',     'name.asc'],
+  ])
 
   // 競合ステータスオーバーライド
   const statusLogs = supabaseGet('competitor_status_log', [
     ['select', 'shop_id,date,is_open'],
-    ['date',   `gte.${fromStr}`],
+    ['date',   'gte.' + fromStr],
   ])
   const statusMap = {}
-  for (const s of statusLogs) {
+  for (let si = 0; si < statusLogs.length; si++) {
+    const s = statusLogs[si]
     if (!statusMap[s.shop_id]) statusMap[s.shop_id] = {}
     statusMap[s.shop_id][s.date.replace(/-/g, '/')] = s.is_open
   }
 
-  // イベント
-  const events = supabaseGet('sendai_events', [
-    ['select', 'date,name'],
-    ['date',   `gte.${fromStr}`],
+  // イベント（複数日対応: 2週間前から取得して end_date まで展開 ④）
+  const evFromStr = Utilities.formatDate(nDaysAgoJst(CONFIG.SALES_DAYS + 13), 'Asia/Tokyo', 'yyyy-MM-dd')
+  const rawEvents = supabaseGet('sendai_events', [
+    ['select', 'date,end_date,name'],
+    ['date',   'gte.' + evFromStr],
+    ['date',   'lte.' + todayStr],
   ])
   const eventMap = {}
-  for (const ev of events) {
-    const ds = ev.date.replace(/-/g, '/')
-    eventMap[ds] = eventMap[ds] ? `${eventMap[ds]} / ${ev.name}` : ev.name
+  for (let ei = 0; ei < rawEvents.length; ei++) {
+    const ev    = rawEvents[ei]
+    const start = new Date(ev.date + 'T12:00:00+09:00')
+    const end   = ev.end_date ? new Date(ev.end_date + 'T12:00:00+09:00') : new Date(start)
+    const cur   = new Date(start)
+    while (cur <= end) {
+      const ds = Utilities.formatDate(cur, 'Asia/Tokyo', 'yyyy/MM/dd')
+      eventMap[ds] = eventMap[ds] ? eventMap[ds] + ' / ' + ev.name : ev.name
+      cur.setDate(cur.getDate() + 1)
+    }
   }
 
   const DOW_NAMES = ['日', '月', '火', '水', '木', '金', '土']
@@ -427,7 +447,8 @@ function exportSalesAnalysis() {
     dates.push(Utilities.formatDate(d, 'Asia/Tokyo', 'yyyy/MM/dd'))
   }
 
-  const shopNames = shops.map(function(s) { return s.name })
+  const shopNames = []
+  for (let si = 0; si < shops.length; si++) shopNames.push(shops[si].name)
   const headers = ['日付', '曜日', '天気'].concat(shopNames).concat(['イベント情報', '売上'])
   const rows = [headers]
 
@@ -436,13 +457,15 @@ function exportSalesAnalysis() {
     const d   = new Date(ds.replace(/\//g, '-') + 'T12:00:00+09:00')
     const dow = d.getDay()
 
-    const shopStatuses = shops.map(function(shop) {
-      const shopOverrides = statusMap[shop.id] || {}
-      const override = shopOverrides[ds]
-      if (override !== undefined) return override ? '営業' : '休業'
-      const openDays = Array.isArray(shop.open_weekdays) ? shop.open_weekdays : []
-      return openDays.indexOf(dow) !== -1 ? '営業' : '休業'
-    })
+    const shopStatuses = []
+    for (let si = 0; si < shops.length; si++) {
+      const shop      = shops[si]
+      const overrides = statusMap[shop.id] || {}
+      const override  = overrides[ds]
+      const openDays  = Array.isArray(shop.open_weekdays) ? shop.open_weekdays : []
+      const isOpen    = override !== undefined ? override : openDays.indexOf(dow) !== -1
+      shopStatuses.push(isOpen ? '営業' : '休業')
+    }
 
     const row = [ds, DOW_NAMES[dow], weatherMap[ds] || '—']
     for (let si = 0; si < shopStatuses.length; si++) row.push(shopStatuses[si])
@@ -456,77 +479,145 @@ function exportSalesAnalysis() {
   sheet.getRange(1, 1, rows.length, headers.length).setValues(rows)
   styleHeader(sheet, headers.length)
   sheet.autoResizeColumns(1, headers.length)
-  SpreadsheetApp.getActiveSpreadsheet().toast(`売上分析: ${rows.length - 1}日分を更新しました`, '完了', 3)
+  SpreadsheetApp.getActiveSpreadsheet().toast('売上分析: ' + (rows.length - 1) + '日分を更新しました', '完了', 3)
 }
 
-// ─── 8. 売上予測（今後1か月）────────────────────────────────────
+// ─── 8. 売上予測（今後1か月）─── 管理画面と同一ロジック ──────────
 
 function exportSalesForecast() {
-  const HIST_DAYS      = 90
-  const FORECAST_DAYS  = 30
-  const WEATHER_FACTORS = { Clear: 1.08, Clouds: 1.0, Rain: 0.82, Drizzle: 0.88, Snow: 0.75, Thunderstorm: 0.70 }
-  const EVENT_FACTORS   = [1.0, 1.03, 1.07, 1.12, 1.20, 1.30] // scale 0〜5
-  const COMP_CLOSED_FACTOR = 1.12
+  const HIST_DAYS     = 180  // ③ 6か月（管理画面と同じ）
+  const FORECAST_DAYS = 30
+  const EVENT_FACTORS = [1.0, 1.03, 1.07, 1.12, 1.20, 1.30] // scale 0〜5
+  const COMP_FACTOR   = 1.12 // ② 休業1店でも一律×1.12（管理画面と同じ）
 
-  // ─ 過去売上 → 曜日平均
+  // ─ 過去売上 → 曜日平均 ③
   const histFromJst = nDaysAgoJst(HIST_DAYS - 1)
+  const histFromStr = Utilities.formatDate(histFromJst, 'Asia/Tokyo', 'yyyy-MM-dd')
   const { start: histFromUtc } = utcRangeForJstDay(histFromJst)
 
   const histOrders = supabaseGet('orders', [
     ['select',     'created_at,order_items(unit_price,quantity,with_topping)'],
     ['status',     'eq.paid'],
-    ['created_at', `gte.${histFromUtc}`],
+    ['created_at', 'gte.' + histFromUtc],
   ])
 
   const histDailyRev = {}
-  for (const order of histOrders) {
-    const ds = jstDateStr(toJstDate(order.created_at))
-    for (const item of order.order_items || []) {
+  for (let oi = 0; oi < histOrders.length; oi++) {
+    const order = histOrders[oi]
+    const ds    = jstDateStr(toJstDate(order.created_at))
+    const items = order.order_items || []
+    for (let ii = 0; ii < items.length; ii++) {
+      const item  = items[ii]
       const price = item.unit_price + (item.with_topping ? CONFIG.TOPPING_PRICE : 0)
-      histDailyRev[ds] = (histDailyRev[ds] ?? 0) + price * item.quantity
+      histDailyRev[ds] = (histDailyRev[ds] || 0) + price * item.quantity
     }
   }
 
+  // 曜日平均
   const dowBuckets = [[], [], [], [], [], [], []]
-  for (const [ds, rev] of Object.entries(histDailyRev)) {
+  const histDsList = Object.keys(histDailyRev)
+  for (let i = 0; i < histDsList.length; i++) {
+    const ds  = histDsList[i]
     const dow = new Date(ds.replace(/\//g, '-') + 'T12:00:00+09:00').getDay()
-    dowBuckets[dow].push(rev)
+    dowBuckets[dow].push(histDailyRev[ds])
   }
-  const dowAvg = dowBuckets.map(revs =>
-    revs.length ? Math.round(revs.reduce((a, b) => a + b, 0) / revs.length) : 0
-  )
+  const dowAvg = []
+  for (let d = 0; d < 7; d++) {
+    const revs = dowBuckets[d]
+    if (revs.length > 0) {
+      let sum = 0
+      for (let i = 0; i < revs.length; i++) sum += revs[i]
+      dowAvg.push(Math.round(sum / revs.length))
+    } else {
+      dowAvg.push(0)
+    }
+  }
 
-  // ─ 競合店
-  const shops = supabaseGet('competitor_shops', { select: 'id,name,open_weekdays', order: 'name.asc' })
+  // ─ ① 天気係数を過去データの相関から動的算出（管理画面と同一ロジック）
+  const histWeatherLogs = supabaseGet('weather_log', [
+    ['select', 'date,weather_main'],
+    ['date',   'gte.' + histFromStr],
+  ])
+  const histWeatherMap = {}
+  for (let wi = 0; wi < histWeatherLogs.length; wi++) {
+    const w = histWeatherLogs[wi]
+    if (w.weather_main) histWeatherMap[w.date.replace(/-/g, '/')] = w.weather_main
+  }
 
-  // ─ 競合ステータスオーバーライド（今後1か月）
+  // 全体平均売上
+  let totalRevSum = 0, totalRevCnt = 0
+  for (let i = 0; i < histDsList.length; i++) {
+    totalRevSum += histDailyRev[histDsList[i]]
+    totalRevCnt++
+  }
+  const overallAvg = totalRevCnt > 0 ? totalRevSum / totalRevCnt : 0
+
+  // 天気カテゴリごとの平均売上 → 係数
+  const wBuckets = {}
+  for (let i = 0; i < histDsList.length; i++) {
+    const ds = histDsList[i]
+    const w  = histWeatherMap[ds]
+    if (!w) continue
+    if (!wBuckets[w]) wBuckets[w] = { total: 0, count: 0 }
+    wBuckets[w].total += histDailyRev[ds]
+    wBuckets[w].count++
+  }
+  const dynamicWeatherFactors = {}
+  if (overallAvg > 0) {
+    const wKeys = Object.keys(wBuckets)
+    for (let wi = 0; wi < wKeys.length; wi++) {
+      const w = wKeys[wi]
+      const b = wBuckets[w]
+      dynamicWeatherFactors[w] = b.count > 0
+        ? Math.round(b.total / b.count / overallAvg * 100) / 100
+        : 1.0
+    }
+  }
+
+  // ─ 競合店（is_active=true のみ ⑤）
+  const shops = supabaseGet('competitor_shops', [
+    ['select',    'id,name,open_weekdays'],
+    ['is_active', 'eq.true'],
+    ['order',     'name.asc'],
+  ])
+
   const todayJst = nDaysAgoJst(0)
   const todayStr = Utilities.formatDate(todayJst, 'Asia/Tokyo', 'yyyy-MM-dd')
   const endJst   = nDaysAgoJst(-FORECAST_DAYS)
   const endStr   = Utilities.formatDate(endJst, 'Asia/Tokyo', 'yyyy-MM-dd')
 
+  // ─ 競合ステータスオーバーライド（今後1か月）
   const statusLogs = supabaseGet('competitor_status_log', [
     ['select', 'shop_id,date,is_open'],
-    ['date',   `gte.${todayStr}`],
-    ['date',   `lte.${endStr}`],
+    ['date',   'gte.' + todayStr],
+    ['date',   'lte.' + endStr],
   ])
   const statusMap = {}
-  for (const s of statusLogs) {
+  for (let si = 0; si < statusLogs.length; si++) {
+    const s = statusLogs[si]
     if (!statusMap[s.shop_id]) statusMap[s.shop_id] = {}
     statusMap[s.shop_id][s.date.replace(/-/g, '/')] = s.is_open
   }
 
-  // ─ イベント（今後1か月）
-  const events = supabaseGet('sendai_events', [
-    ['select', 'date,name,scale'],
-    ['date',   `gte.${todayStr}`],
-    ['date',   `lte.${endStr}`],
+  // ─ イベント（複数日対応: 2週間前から取得して end_date まで展開 ④）
+  const evPastStr = Utilities.formatDate(nDaysAgoJst(14), 'Asia/Tokyo', 'yyyy-MM-dd')
+  const rawEvents = supabaseGet('sendai_events', [
+    ['select', 'date,end_date,name,scale'],
+    ['date',   'gte.' + evPastStr],
+    ['date',   'lte.' + endStr],
   ])
   const eventMap = {}
-  for (const ev of events) {
-    const ds = ev.date.replace(/-/g, '/')
-    if (!eventMap[ds] || ev.scale > eventMap[ds].scale) {
-      eventMap[ds] = { name: ev.name, scale: ev.scale }
+  for (let ei = 0; ei < rawEvents.length; ei++) {
+    const ev    = rawEvents[ei]
+    const start = new Date(ev.date + 'T12:00:00+09:00')
+    const evEnd = ev.end_date ? new Date(ev.end_date + 'T12:00:00+09:00') : new Date(start)
+    const cur   = new Date(start)
+    while (cur <= evEnd) {
+      const ds = Utilities.formatDate(cur, 'Asia/Tokyo', 'yyyy/MM/dd')
+      if (!eventMap[ds] || ev.scale > eventMap[ds].scale) {
+        eventMap[ds] = { name: ev.name, scale: ev.scale }
+      }
+      cur.setDate(cur.getDate() + 1)
     }
   }
 
@@ -536,20 +627,31 @@ function exportSalesForecast() {
   if (weatherApiKey) {
     try {
       const wRes = UrlFetchApp.fetch(
-        `https://api.openweathermap.org/data/2.5/forecast?q=Sendai,JP&appid=${weatherApiKey}&units=metric&cnt=40`,
+        'https://api.openweathermap.org/data/2.5/forecast?q=Sendai,JP&appid=' + weatherApiKey + '&units=metric&cnt=40',
         { muteHttpExceptions: true }
       )
       if (wRes.getResponseCode() === 200) {
-        const wData = JSON.parse(wRes.getContentText())
+        const wData  = JSON.parse(wRes.getContentText())
         const counts = {}
-        for (const item of wData.list || []) {
+        const wList  = wData.list || []
+        for (let wi = 0; wi < wList.length; wi++) {
+          const item = wList[wi]
           const ds   = Utilities.formatDate(new Date(item.dt * 1000), 'Asia/Tokyo', 'yyyy/MM/dd')
-          const main = item.weather?.[0]?.main ?? 'Clouds'
+          const wArr = item.weather || []
+          const main = wArr.length > 0 ? wArr[0].main : 'Clouds'
           if (!counts[ds]) counts[ds] = {}
-          counts[ds][main] = (counts[ds][main] ?? 0) + 1
+          counts[ds][main] = (counts[ds][main] || 0) + 1
         }
-        for (const [ds, c] of Object.entries(counts)) {
-          forecastWeatherMap[ds] = Object.keys(c).reduce((a, b) => c[a] > c[b] ? a : b)
+        const dsKeys = Object.keys(counts)
+        for (let ki = 0; ki < dsKeys.length; ki++) {
+          const ds   = dsKeys[ki]
+          const c    = counts[ds]
+          const cKeys = Object.keys(c)
+          let best = cKeys[0]
+          for (let ci = 1; ci < cKeys.length; ci++) {
+            if (c[cKeys[ci]] > c[best]) best = cKeys[ci]
+          }
+          forecastWeatherMap[ds] = best
         }
       }
     } catch (e) {
@@ -559,8 +661,8 @@ function exportSalesForecast() {
 
   // ─ シート出力
   const DOW_NAMES = ['日', '月', '火', '水', '木', '金', '土']
-  const headers = ['日付', '曜日', '売上予測', '曜日平均', '天気係数', '競合休業係数', 'イベント係数', '天気']
-  const rows = [headers]
+  const headers   = ['日付', '曜日', '売上予測', '曜日平均', '天気係数', '競合休業係数', 'イベント係数', '天気']
+  const rows      = [headers]
 
   for (let i = 0; i < FORECAST_DAYS; i++) {
     const d   = new Date(todayJst.getTime() + i * 86400000)
@@ -568,23 +670,22 @@ function exportSalesForecast() {
     const dow = new Date(ds.replace(/\//g, '-') + 'T12:00:00+09:00').getDay()
     const base = dowAvg[dow]
 
-    // 天気係数
+    // ① 天気係数（過去データ相関）
     const forecastWeather = forecastWeatherMap[ds] || null
-    const wFactor = forecastWeather ? (WEATHER_FACTORS[forecastWeather] || 1.0) : 1.0
+    const wFactor = forecastWeather ? (dynamicWeatherFactors[forecastWeather] || 1.0) : 1.0
 
-    // 競合休業係数（休業店舗数に応じて複利）
-    let closedCount = 0
+    // ② 競合休業係数: 定休日以外の臨時休業が1店でもあれば×1.12（管理画面と同一）
+    let reducedCompetition = false
     for (let si = 0; si < shops.length; si++) {
-      const shop = shops[si]
-      const shopOverrides = statusMap[shop.id] || {}
-      const override = shopOverrides[ds]
-      const openDays = Array.isArray(shop.open_weekdays) ? shop.open_weekdays : []
-      const isOpen = override !== undefined ? override : openDays.indexOf(dow) !== -1
-      if (!isOpen) closedCount++
+      const shop       = shops[si]
+      const openDays   = Array.isArray(shop.open_weekdays) ? shop.open_weekdays : []
+      const defaultOpen = openDays.indexOf(dow) !== -1
+      const overrides  = statusMap[shop.id] || {}
+      const override   = overrides[ds]
+      const isOpen     = override !== undefined ? override : defaultOpen
+      if (defaultOpen && !isOpen) reducedCompetition = true
     }
-    const cFactor = closedCount > 0
-      ? Math.round(Math.pow(COMP_CLOSED_FACTOR, closedCount) * 100) / 100
-      : 1.0
+    const cFactor = reducedCompetition ? COMP_FACTOR : 1.0
 
     // イベント係数
     const ev      = eventMap[ds]
@@ -601,7 +702,7 @@ function exportSalesForecast() {
   sheet.getRange(1, 1, rows.length, headers.length).setValues(rows)
   styleHeader(sheet, headers.length)
   sheet.autoResizeColumns(1, headers.length)
-  SpreadsheetApp.getActiveSpreadsheet().toast(`売上予測: ${FORECAST_DAYS}日分を更新しました`, '完了', 3)
+  SpreadsheetApp.getActiveSpreadsheet().toast('売上予測: ' + FORECAST_DAYS + '日分を更新しました', '完了', 3)
 }
 
 // ─── 9. 1週間後フォローアップ LINE メッセージ ────────────────────
