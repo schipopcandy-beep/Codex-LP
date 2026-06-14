@@ -255,35 +255,79 @@ function refreshAll() {
   exportTakeoutHistory()
   exportDailySales()
   exportSoldoutLogs()
+  exportVisitLog()
 }
 
-// ─── 5. 1週間後フォローアップ LINE メッセージ ────────────────────
+// ─── 5. 来店記録 ─────────────────────────────────────────────────
 
-function sendWeeklyFollowUp() {
-  const { lineToken, supabaseUrl, supabaseKey } = getProps()
-  if (!lineToken) { console.log('LINE_CHANNEL_ACCESS_TOKEN が未設定です'); return }
-
-  // 7日前（日本時間）の注文を取得
-  const targetDay = nDaysAgoJst(7)
-  const { start: fromUtc, end: toUtc } = utcRangeForJstDay(targetDay)
-  const targetDateStr = Utilities.formatDate(targetDay, 'Asia/Tokyo', 'yyyy/MM/dd')
-
-  const orders = supabaseGet('orders', [
-    ['select',       'line_user_id'],
+function exportVisitLog() {
+  const data = supabaseGet('orders', [
+    ['select',       'line_user_id,created_at,table_id'],
     ['status',       'eq.paid'],
-    ['created_at',   `gte.${fromUtc}`],
-    ['created_at',   `lt.${toUtc}`],
     ['line_user_id', 'not.is.null'],
+    ['order',        'created_at.desc'],
+    ['limit',        5000],
   ])
 
-  // LINE ユーザーIDを重複排除
-  const userIds = [...new Set(orders.map(o => o.line_user_id).filter(Boolean))]
+  // (line_user_id, 来店日) ごとに集計
+  const visitMap = new Map()
+  for (const order of data) {
+    if (!order.line_user_id) continue
+    const ds      = jstDateStr(toJstDate(order.created_at))
+    const key     = `${order.line_user_id}__${ds}`
+    const type    = order.table_id === 'takeout' ? 'テイクアウト' : 'イートイン'
+    const existing = visitMap.get(key)
+    if (existing) {
+      existing.count++
+      if (existing.type !== type) existing.type = '両方'
+    } else {
+      visitMap.set(key, { userId: order.line_user_id, date: ds, count: 1, type })
+    }
+  }
+
+  const visits = [...visitMap.values()].sort((a, b) => b.date.localeCompare(a.date))
+
+  const sheet   = getOrCreateSheet('来店記録')
+  sheet.clearContents()
+  const headers = ['LINE user_id', '来店日', '注文数', '注文タイプ']
+  const rows    = [headers, ...visits.map(v => [v.userId, v.date, v.count, v.type])]
+
+  sheet.getRange(1, 1, rows.length, headers.length).setValues(rows)
+  styleHeader(sheet, headers.length)
+  sheet.setColumnWidth(1, 240) // LINE ID は長いので幅を広く
+  sheet.autoResizeColumns(2, headers.length - 1)
+  SpreadsheetApp.getActiveSpreadsheet().toast(`来店記録: ${visits.length}件を更新しました`, '完了', 3)
+}
+
+// ─── 6. 1週間後フォローアップ LINE メッセージ ────────────────────
+
+function sendWeeklyFollowUp() {
+  const { lineToken } = getProps()
+  if (!lineToken) { console.log('LINE_CHANNEL_ACCESS_TOKEN が未設定です'); return }
+
+  // 7日前の来店者を「来店記録」シートから取得
+  const targetDay     = nDaysAgoJst(7)
+  const targetDateStr = Utilities.formatDate(targetDay, 'Asia/Tokyo', 'yyyy/MM/dd')
+
+  const visitSheet = getOrCreateSheet('来店記録')
+  if (visitSheet.getLastRow() <= 1) {
+    console.log('来店記録が空です。先に refreshAll() を実行してください')
+    return
+  }
+
+  const visitData = visitSheet.getRange(2, 1, visitSheet.getLastRow() - 1, 2).getValues()
+  const userIds   = [...new Set(
+    visitData.filter(row => row[1] === targetDateStr && row[0]).map(row => String(row[0]))
+  )]
+
   if (userIds.length === 0) {
     console.log(`${targetDateStr}: 対象ユーザーなし`)
     return
   }
 
-  // 送信済みログシートを確認（同じユーザーに重複送信しない）
+  console.log(`${targetDateStr}: 対象 ${userIds.length} 人`)
+
+  // 送信済みログシートで重複送信を防ぐ
   const logSheet = getOrCreateSheet('送信ログ')
   if (logSheet.getLastRow() === 0) {
     logSheet.appendRow(['送信日時', '来店日', 'LINE user_id', '結果'])
@@ -298,9 +342,7 @@ function sendWeeklyFollowUp() {
     }
   }
 
-  const now       = new Date()
-  const nowJstStr = Utilities.formatDate(new Date(now.getTime() + 9 * 3600000), 'Asia/Tokyo', 'yyyy/MM/dd HH:mm')
-
+  const nowJstStr = Utilities.formatDate(new Date(Date.now() + 9 * 3600000), 'Asia/Tokyo', 'yyyy/MM/dd HH:mm')
   let sentCount = 0
   let skipCount = 0
 
