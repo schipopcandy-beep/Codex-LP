@@ -427,29 +427,28 @@ function exportSalesAnalysis() {
     dates.push(Utilities.formatDate(d, 'Asia/Tokyo', 'yyyy/MM/dd'))
   }
 
-  const shopNames = shops.map(s => s.name)
-  const headers = ['日付', '曜日', '天気', ...shopNames, 'イベント情報', '売上']
+  const shopNames = shops.map(function(s) { return s.name })
+  const headers = ['日付', '曜日', '天気'].concat(shopNames).concat(['イベント情報', '売上'])
   const rows = [headers]
 
-  for (const ds of dates) {
-    const d = new Date(ds.replace(/\//g, '-') + 'T12:00:00+09:00')
+  for (let di = 0; di < dates.length; di++) {
+    const ds  = dates[di]
+    const d   = new Date(ds.replace(/\//g, '-') + 'T12:00:00+09:00')
     const dow = d.getDay()
 
-    const shopStatuses = shops.map(shop => {
-      const override = statusMap[shop.id]?.[ds]
+    const shopStatuses = shops.map(function(shop) {
+      const shopOverrides = statusMap[shop.id] || {}
+      const override = shopOverrides[ds]
       if (override !== undefined) return override ? '営業' : '休業'
       const openDays = Array.isArray(shop.open_weekdays) ? shop.open_weekdays : []
-      return openDays.includes(dow) ? '営業' : '休業'
+      return openDays.indexOf(dow) !== -1 ? '営業' : '休業'
     })
 
-    rows.push([
-      ds,
-      DOW_NAMES[dow],
-      weatherMap[ds] || '—',
-      ...shopStatuses,
-      eventMap[ds] || '—',
-      dailyRev[ds] ?? 0,
-    ])
+    const row = [ds, DOW_NAMES[dow], weatherMap[ds] || '—']
+    for (let si = 0; si < shopStatuses.length; si++) row.push(shopStatuses[si])
+    row.push(eventMap[ds] || '—')
+    row.push(dailyRev[ds] || 0)
+    rows.push(row)
   }
 
   const sheet = getOrCreateSheet('売上分析')
@@ -570,15 +569,17 @@ function exportSalesForecast() {
     const base = dowAvg[dow]
 
     // 天気係数
-    const forecastWeather = forecastWeatherMap[ds] ?? null
-    const wFactor = forecastWeather ? (WEATHER_FACTORS[forecastWeather] ?? 1.0) : 1.0
+    const forecastWeather = forecastWeatherMap[ds] || null
+    const wFactor = forecastWeather ? (WEATHER_FACTORS[forecastWeather] || 1.0) : 1.0
 
     // 競合休業係数（休業店舗数に応じて複利）
     let closedCount = 0
-    for (const shop of shops) {
-      const override = statusMap[shop.id]?.[ds]
+    for (let si = 0; si < shops.length; si++) {
+      const shop = shops[si]
+      const shopOverrides = statusMap[shop.id] || {}
+      const override = shopOverrides[ds]
       const openDays = Array.isArray(shop.open_weekdays) ? shop.open_weekdays : []
-      const isOpen = override !== undefined ? override : openDays.includes(dow)
+      const isOpen = override !== undefined ? override : openDays.indexOf(dow) !== -1
       if (!isOpen) closedCount++
     }
     const cFactor = closedCount > 0
@@ -587,7 +588,8 @@ function exportSalesForecast() {
 
     // イベント係数
     const ev      = eventMap[ds]
-    const eFactor = ev ? (EVENT_FACTORS[Math.min(ev.scale, EVENT_FACTORS.length - 1)] ?? 1.0) : 1.0
+    const eScale  = ev ? Math.min(ev.scale, EVENT_FACTORS.length - 1) : 0
+    const eFactor = ev ? (EVENT_FACTORS[eScale] || 1.0) : 1.0
 
     const predicted = Math.round(base * wFactor * cFactor * eFactor)
 
