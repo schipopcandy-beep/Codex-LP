@@ -118,8 +118,8 @@ export default function AnalyticsPage() {
       </div>
 
       {/* カレンダーモード */}
-      {range === 'calendar' && <CalendarView />}
-
+      {range === 'calendar' ? <CalendarView /> : (
+      <>
       {/* 履歴 月ナビ */}
       {range === 'history' && (
         <div className="flex items-center justify-between mb-5 px-1">
@@ -131,11 +131,11 @@ export default function AnalyticsPage() {
         </div>
       )}
 
-      {range !== 'calendar' && loading ? (
+      {loading ? (
         <div className="text-center py-20 text-brown-400 text-lg">読み込み中...</div>
-      ) : range !== 'calendar' && !data ? (
+      ) : !data ? (
         <div className="text-center py-20 text-brown-400">データを取得できませんでした</div>
-      ) : range !== 'calendar' && (
+      ) : (
         <div className="space-y-5">
 
           {/* 今日：天気 */}
@@ -248,6 +248,8 @@ export default function AnalyticsPage() {
           )}
 
         </div>
+      )}
+      </>
       )}
     </div>
   )
