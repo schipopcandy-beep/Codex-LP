@@ -385,13 +385,13 @@ function exportSalesAnalysis() {
 
   // 天気ログ
   const weatherLogs = supabaseGet('weather_log', [
-    ['select', 'date,weather'],
+    ['select', 'date,weather_main'],
     ['date',   `gte.${fromStr}`],
     ['order',  'date.asc'],
   ])
   const weatherMap = {}
   for (const w of weatherLogs) {
-    weatherMap[w.date.replace(/-/g, '/')] = w.weather
+    weatherMap[w.date.replace(/-/g, '/')] = w.weather_main
   }
 
   // 競合店一覧
