@@ -62,23 +62,26 @@ export default function TakeoutCart({
         <div className="fixed inset-0 z-50 flex flex-col justify-end">
           <div className="absolute inset-0 bg-black/50" onClick={() => { setIsOpen(false); setConfirmed(false) }} />
 
-          <div className="relative bg-cream-50 rounded-t-3xl max-h-[90dvh] flex flex-col shadow-2xl">
-            <div className="flex justify-center pt-3 pb-1">
-              <div className="w-10 h-1 bg-brown-300 rounded-full" />
+          <div className="relative bg-cream-50 rounded-t-3xl max-h-[90dvh] overflow-y-auto shadow-2xl">
+            {/* ドラッグハンドル＋ヘッダー（sticky で常に見える） */}
+            <div className="sticky top-0 bg-cream-50 z-10">
+              <div className="flex justify-center pt-3 pb-1">
+                <div className="w-10 h-1 bg-brown-300 rounded-full" />
+              </div>
+              <div className="px-4 py-2 flex items-center justify-between border-b border-cream-300">
+                <h2 className="section-title text-xl">ご注文内容</h2>
+                <button
+                  onClick={() => { setIsOpen(false); setConfirmed(false) }}
+                  className="text-brown-400 text-3xl leading-none p-1"
+                  aria-label="閉じる"
+                >
+                  ×
+                </button>
+              </div>
             </div>
 
-            <div className="px-4 py-2 flex items-center justify-between border-b border-cream-300">
-              <h2 className="section-title text-xl">ご注文内容</h2>
-              <button
-                onClick={() => { setIsOpen(false); setConfirmed(false) }}
-                className="text-brown-400 text-3xl leading-none p-1"
-                aria-label="閉じる"
-              >
-                ×
-              </button>
-            </div>
-
-            <div className="overflow-y-auto flex-1 px-4 py-3 space-y-4">
+            {/* 全コンテンツを1本スクロール */}
+            <div className="px-4 py-3 space-y-4">
               {/* 注文明細 */}
               <div className="space-y-3">
                 {items.map((item) => {
@@ -122,45 +125,46 @@ export default function TakeoutCart({
                   onSelect={onPickupSelect}
                 />
               </div>
-            </div>
 
-            <div className="px-4 py-4 border-t border-cream-300 space-y-3">
-              <div className="flex justify-between items-center">
-                <span className="text-xl font-bold text-brown-800">合計</span>
-                <span className="text-2xl font-bold text-brown-700 tabular-nums">
-                  ¥{total.toLocaleString()}
-                </span>
-              </div>
-              <p className="text-sm text-brown-400 text-center">
-                ※ お会計はレジにてお願いします
-              </p>
-              {!pickupReady && (
-                <p className="text-center text-sm text-amber-700 font-medium">
-                  受取日時を選んでから注文できます
+              {/* 合計・確認・注文ボタン */}
+              <div className="border-t border-cream-300 pt-4 space-y-3">
+                <div className="flex justify-between items-center">
+                  <span className="text-xl font-bold text-brown-800">合計</span>
+                  <span className="text-2xl font-bold text-brown-700 tabular-nums">
+                    ¥{total.toLocaleString()}
+                  </span>
+                </div>
+                <p className="text-sm text-brown-400 text-center">
+                  ※ お会計はレジにてお願いします
                 </p>
-              )}
+                {!pickupReady && (
+                  <p className="text-center text-sm text-amber-700 font-medium">
+                    受取日時を選んでから注文できます
+                  </p>
+                )}
 
-              {/* 注文確認チェックボックス */}
-              <div className="border border-cream-300 rounded-xl p-3 bg-white space-y-2">
-                <p className="text-sm font-semibold text-brown-700">ご注文にお間違えはありませんか？</p>
-                <label className="flex items-center gap-3 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={confirmed}
-                    onChange={(e) => setConfirmed(e.target.checked)}
-                    className="w-5 h-5 accent-brown-600 cursor-pointer"
-                  />
-                  <span className="text-sm text-brown-800 font-medium">はい、間違いありません。</span>
-                </label>
+                {/* 注文確認チェックボックス */}
+                <div className="border border-cream-300 rounded-xl p-3 bg-white space-y-2">
+                  <p className="text-sm font-semibold text-brown-700">ご注文にお間違えはありませんか？</p>
+                  <label className="flex items-center gap-3 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={confirmed}
+                      onChange={(e) => setConfirmed(e.target.checked)}
+                      className="w-5 h-5 accent-brown-600 cursor-pointer"
+                    />
+                    <span className="text-sm text-brown-800 font-medium">はい、間違いありません。</span>
+                  </label>
+                </div>
+
+                <button
+                  onClick={async () => { await onSubmit(); setIsOpen(false); setConfirmed(false) }}
+                  disabled={isSubmitting || !canSubmit}
+                  className="btn-primary w-full text-xl py-4 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {isSubmitting ? '送信中...' : '注文を確定する'}
+                </button>
               </div>
-
-              <button
-                onClick={async () => { await onSubmit(); setIsOpen(false); setConfirmed(false) }}
-                disabled={isSubmitting || !canSubmit}
-                className="btn-primary w-full text-xl py-4 disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {isSubmitting ? '送信中...' : '注文を確定する'}
-              </button>
             </div>
 
             <div className="pb-safe" />
