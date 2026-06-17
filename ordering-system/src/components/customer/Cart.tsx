@@ -23,6 +23,8 @@ interface Props {
   onLunchNigiriChange?: (index: number, next: Map<string, number>) => void
   /** ドリンクのタイミング変更 */
   onDrinkTimingChange?: (productId: string, timing: DrinkTiming) => void
+  /** 商品をカートに追加（豚汁おすすめ用） */
+  onAddItem?: (product: Product, withTopping: boolean) => void
 }
 
 export default function Cart({
@@ -33,6 +35,7 @@ export default function Cart({
   lunchNigiriPerPlate = [],
   onLunchNigiriChange,
   onDrinkTimingChange,
+  onAddItem,
 }: Props) {
   const [isOpen, setIsOpen] = useState(false)
   const [showTonjiruPopup, setShowTonjiruPopup] = useState(false)
@@ -108,7 +111,12 @@ export default function Cart({
               </p>
             </div>
             <button
-              onClick={() => setShowTonjiruPopup(false)}
+              onClick={() => {
+                const tonjiru = allProducts.find((p) => p.name.includes('豚汁'))
+                if (tonjiru && onAddItem) onAddItem(tonjiru, false)
+                setShowTonjiruPopup(false)
+                setIsOpen(true)
+              }}
               className="btn-primary w-full py-3 text-base"
             >
               追加する

@@ -335,6 +335,7 @@ export default function OrderUI({ tableId, lineUserId, partySize, buildCompleteH
         lunchNigiriPerPlate={lunchNigiriPerPlate}
         onLunchNigiriChange={handleLunchNigiriChange}
         onDrinkTimingChange={handleDrinkTimingChange}
+        onAddItem={handleAdd}
       />
     </div>
   )
