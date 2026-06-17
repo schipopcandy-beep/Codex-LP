@@ -35,6 +35,17 @@ export default function Cart({
   onDrinkTimingChange,
 }: Props) {
   const [isOpen, setIsOpen] = useState(false)
+  const [showTonjiruPopup, setShowTonjiruPopup] = useState(false)
+
+  const hasTonjiru = items.some((i) => i.product.name.includes('豚汁'))
+
+  function handleCartOpen() {
+    if (!hasTonjiru) {
+      setShowTonjiruPopup(true)
+    } else {
+      setIsOpen(true)
+    }
+  }
 
   const baseTotal = calcCartTotal(items)
   const lunchSurcharge = lunchNigiriPerPlate.flatMap((plateMap) =>
@@ -65,7 +76,7 @@ export default function Cart({
       <div className="fixed bottom-0 left-0 right-0 z-40">
         <div className="bg-brown-600 text-white px-4 py-3 flex items-center justify-between shadow-lg">
           <button
-            onClick={() => setIsOpen(true)}
+            onClick={handleCartOpen}
             className="flex items-center gap-3 flex-1"
           >
             <div className="w-7 h-7 rounded-full bg-white/20 flex items-center justify-center">
@@ -83,6 +94,34 @@ export default function Cart({
           </span>
         </div>
       </div>
+
+      {/* 豚汁おすすめポップアップ */}
+      {showTonjiruPopup && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center px-6">
+          <div className="absolute inset-0 bg-black/50" onClick={() => setShowTonjiruPopup(false)} />
+          <div className="relative bg-cream-50 rounded-2xl shadow-2xl p-6 w-full max-w-sm space-y-4">
+            <div className="text-center space-y-2">
+              <p className="text-4xl">🍲</p>
+              <h3 className="text-xl font-bold text-brown-800">豚汁はいかがですか？</h3>
+              <p className="text-sm text-brown-500">
+                おにぎりとの相性抜群です。<br />ご一緒にどうぞ！
+              </p>
+            </div>
+            <button
+              onClick={() => setShowTonjiruPopup(false)}
+              className="btn-primary w-full py-3 text-base"
+            >
+              追加する
+            </button>
+            <button
+              onClick={() => { setShowTonjiruPopup(false); setIsOpen(true) }}
+              className="w-full py-3 text-sm text-brown-500 underline underline-offset-2"
+            >
+              このまま注文する
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* カートドロワー */}
       {isOpen && (
