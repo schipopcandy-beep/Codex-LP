@@ -533,7 +533,10 @@ function exportSalesForecast() {
     }
   }
 
-  // ─ ① 天気係数を過去データの相関から動的算出（管理画面と同一ロジック）
+  // ─ ① 天気係数を過去データの相関から動的算出（データ不足時は固定値フォールバック）
+  // 固定値フォールバック: weather_log の蓄積が少ない天気タイプに使用
+  const FALLBACK_WEATHER_FACTORS = { Clear: 1.08, Clouds: 1.0, Rain: 0.82, Drizzle: 0.88, Snow: 0.75, Thunderstorm: 0.70 }
+
   const histWeatherLogs = supabaseGet('weather_log', [
     ['select', 'date,weather_main'],
     ['date',   'gte.' + histFromStr],
@@ -670,9 +673,11 @@ function exportSalesForecast() {
     const dow = new Date(ds.replace(/\//g, '-') + 'T12:00:00+09:00').getDay()
     const base = dowAvg[dow]
 
-    // ① 天気係数（過去データ相関）
+    // ① 天気係数（過去データ相関 → なければ固定値 → なければ1.0）
     const forecastWeather = forecastWeatherMap[ds] || null
-    const wFactor = forecastWeather ? (dynamicWeatherFactors[forecastWeather] || 1.0) : 1.0
+    const wFactor = forecastWeather
+      ? (dynamicWeatherFactors[forecastWeather] || FALLBACK_WEATHER_FACTORS[forecastWeather] || 1.0)
+      : 1.0
 
     // ② 競合休業係数: 定休日以外の臨時休業が1店でもあれば×1.12（管理画面と同一）
     let reducedCompetition = false
