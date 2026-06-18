@@ -789,3 +789,36 @@ function sendWeeklyFollowUp() {
 
   console.log(`フォローアップ送信完了: 送信${sentCount}件 / スキップ${skipCount}件（来店日: ${targetDateStr}）`)
 }
+
+// ─── テスト用: 自分だけにフォローアップメッセージを送信 ────────────
+// GASエディタから手動で実行する。送信ログには記録されない。
+// TEST_LINE_USER_ID スクリプトプロパティに自分の LINE user_id を設定しておくこと。
+
+function testFollowUpToMyself() {
+  const props = PropertiesService.getScriptProperties().getProperties()
+  const lineToken  = props['LINE_CHANNEL_ACCESS_TOKEN']
+  const testUserId = props['TEST_LINE_USER_ID']
+
+  if (!lineToken)  { console.log('LINE_CHANNEL_ACCESS_TOKEN が未設定です'); return }
+  if (!testUserId) { console.log('TEST_LINE_USER_ID が未設定です（スクリプトプロパティに追加してください）'); return }
+
+  const res = UrlFetchApp.fetch('https://api.line.me/v2/bot/message/push', {
+    method: 'post',
+    headers: {
+      'Content-Type':  'application/json',
+      'Authorization': `Bearer ${lineToken}`,
+    },
+    payload: JSON.stringify({
+      to: testUserId,
+      messages: [{ type: 'text', text: CONFIG.FOLLOW_UP_MESSAGE }],
+    }),
+    muteHttpExceptions: true,
+  })
+
+  const code = res.getResponseCode()
+  if (code === 200) {
+    console.log(`テスト送信成功 → ${testUserId}`)
+  } else {
+    console.log(`テスト送信失敗 (${code}): ${res.getContentText()}`)
+  }
+}
