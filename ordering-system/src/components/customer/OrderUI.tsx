@@ -42,6 +42,7 @@ export default function OrderUI({ tableId, lineUserId, partySize, buildCompleteH
 
   const nigiriProducts = products.filter((p) => p.category === 'おにぎり')
   const drinkProducts = products.filter((p) => p.category === DRINK_CATEGORY)
+  const tonjiruProduct = products.find((p) => p.name.includes('豚汁'))
 
   /** カート内のランチプレート枚数 */
   const lunchPlateCount = cartItems
@@ -336,6 +337,7 @@ export default function OrderUI({ tableId, lineUserId, partySize, buildCompleteH
         onLunchNigiriChange={handleLunchNigiriChange}
         onDrinkTimingChange={handleDrinkTimingChange}
         onAddItem={handleAdd}
+        tonjiruProduct={tonjiruProduct}
       />
     </div>
   )
