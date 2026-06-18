@@ -23,6 +23,10 @@ interface Props {
   onLunchNigiriChange?: (index: number, next: Map<string, number>) => void
   /** ドリンクのタイミング変更 */
   onDrinkTimingChange?: (productId: string, timing: DrinkTiming) => void
+  /** 商品をカートに追加（豚汁おすすめ用） */
+  onAddItem?: (product: Product, withTopping: boolean) => void
+  /** おすすめする豚汁商品（渡された場合のみポップアップ表示） */
+  tonjiruProduct?: Product
 }
 
 export default function Cart({
@@ -33,14 +37,18 @@ export default function Cart({
   lunchNigiriPerPlate = [],
   onLunchNigiriChange,
   onDrinkTimingChange,
+  onAddItem,
+  tonjiruProduct,
 }: Props) {
   const [isOpen, setIsOpen] = useState(false)
   const [showTonjiruPopup, setShowTonjiruPopup] = useState(false)
 
-  const hasTonjiru = items.some((i) => i.product.name.includes('豚汁'))
+  const hasTonjiru = tonjiruProduct
+    ? items.some((i) => i.product.id === tonjiruProduct.id)
+    : true
 
   function handleCartOpen() {
-    if (!hasTonjiru) {
+    if (tonjiruProduct && !hasTonjiru) {
       setShowTonjiruPopup(true)
     } else {
       setIsOpen(true)
@@ -108,7 +116,11 @@ export default function Cart({
               </p>
             </div>
             <button
-              onClick={() => setShowTonjiruPopup(false)}
+              onClick={() => {
+                if (tonjiruProduct && onAddItem) onAddItem(tonjiruProduct, false)
+                setShowTonjiruPopup(false)
+                setIsOpen(true)
+              }}
               className="btn-primary w-full py-3 text-base"
             >
               追加する
