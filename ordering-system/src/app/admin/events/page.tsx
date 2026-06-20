@@ -164,7 +164,7 @@ export default function EventsPage() {
             <div className="card p-4">
               <h2 className="font-bold text-brown-700 mb-3">今後・開催中</h2>
               <div className="space-y-3">
-                {upcoming.map((e) => <EventRow key={e.id} event={e} onDelete={deleteEvent} />)}
+                {upcoming.map((e) => <EventRow key={e.id} event={e} onDelete={deleteEvent} onSave={fetchEvents} />)}
               </div>
             </div>
           )}
@@ -174,7 +174,7 @@ export default function EventsPage() {
             <div className="card p-4">
               <h2 className="font-bold text-brown-700 mb-3 text-sm opacity-70">過去のイベント</h2>
               <div className="space-y-3 opacity-60">
-                {past.map((e) => <EventRow key={e.id} event={e} onDelete={deleteEvent} />)}
+                {past.map((e) => <EventRow key={e.id} event={e} onDelete={deleteEvent} onSave={fetchEvents} />)}
               </div>
             </div>
           )}
@@ -188,10 +188,118 @@ export default function EventsPage() {
   )
 }
 
-function EventRow({ event, onDelete }: { event: Event; onDelete: (id: string) => void }) {
+function EventRow({
+  event,
+  onDelete,
+  onSave,
+}: {
+  event: Event
+  onDelete: (id: string) => void
+  onSave: () => void
+}) {
+  const [editing, setEditing] = useState(false)
+  const [saving, setSaving] = useState(false)
+  const [form, setForm] = useState({
+    name: event.name,
+    date: event.date,
+    end_date: event.end_date ?? '',
+    location: event.location ?? '',
+    scale: event.scale,
+    note: event.note ?? '',
+  })
+  const startEdit = () => {
+    setForm({ name: event.name, date: event.date, end_date: event.end_date ?? '', location: event.location ?? '', scale: event.scale, note: event.note ?? '' })
+    setEditing(true)
+  }
+
+  const save = async () => {
+    if (!form.name || !form.date) return
+    setSaving(true)
+    await fetch(`/api/admin/events/${event.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ...form, end_date: form.end_date || null, location: form.location || null, note: form.note || null }),
+    })
+    setSaving(false)
+    setEditing(false)
+    onSave()
+  }
+
   const dateLabel = event.end_date && event.end_date !== event.date
     ? `${event.date} 〜 ${event.end_date}`
     : event.date
+
+  if (editing) {
+    return (
+      <div className="border border-brown-300 rounded-xl p-3 space-y-2 bg-cream-100">
+        <input
+          className="w-full border border-cream-300 rounded-lg px-3 py-1.5 text-sm bg-white focus:outline-none focus:border-brown-400"
+          value={form.name}
+          onChange={(e) => setForm({ ...form, name: e.target.value })}
+          placeholder="イベント名"
+        />
+        <div className="grid grid-cols-2 gap-2">
+          <input
+            type="date"
+            className="border border-cream-300 rounded-lg px-3 py-1.5 text-sm bg-white focus:outline-none focus:border-brown-400"
+            value={form.date}
+            onChange={(e) => setForm({ ...form, date: e.target.value })}
+          />
+          <input
+            type="date"
+            className="border border-cream-300 rounded-lg px-3 py-1.5 text-sm bg-white focus:outline-none focus:border-brown-400"
+            value={form.end_date}
+            onChange={(e) => setForm({ ...form, end_date: e.target.value })}
+            placeholder="終了日（任意）"
+          />
+        </div>
+        <input
+          className="w-full border border-cream-300 rounded-lg px-3 py-1.5 text-sm bg-white focus:outline-none focus:border-brown-400"
+          value={form.location}
+          onChange={(e) => setForm({ ...form, location: e.target.value })}
+          placeholder="場所（任意）"
+        />
+        <div className="flex gap-1.5">
+          {[1, 2, 3, 4, 5].map((s) => (
+            <button
+              key={s}
+              onClick={() => setForm({ ...form, scale: s })}
+              className={`flex-1 py-1 rounded-lg text-xs font-bold border transition-colors ${
+                form.scale === s
+                  ? 'bg-amber-500 text-white border-amber-500'
+                  : 'bg-cream-100 text-brown-600 border-cream-300 hover:bg-cream-200'
+              }`}
+            >
+              {'★'.repeat(s)}
+            </button>
+          ))}
+        </div>
+        <textarea
+          className="w-full border border-cream-300 rounded-lg px-3 py-1.5 text-sm bg-white focus:outline-none focus:border-brown-400 resize-none"
+          rows={2}
+          value={form.note}
+          onChange={(e) => setForm({ ...form, note: e.target.value })}
+          placeholder="コメント（任意）"
+        />
+        <div className="flex gap-2">
+          <button
+            onClick={save}
+            disabled={saving || !form.name || !form.date}
+            className="flex-1 py-1.5 bg-brown-600 text-white font-bold rounded-lg text-sm hover:bg-brown-700 disabled:opacity-50 transition-colors"
+          >
+            {saving ? '保存中...' : '保存'}
+          </button>
+          <button
+            onClick={() => setEditing(false)}
+            className="px-4 py-1.5 border border-cream-300 text-brown-500 rounded-lg text-sm hover:bg-cream-100 transition-colors"
+          >
+            キャンセル
+          </button>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="flex items-start gap-3">
       <span className="text-xl shrink-0 mt-0.5">🎪</span>
@@ -201,9 +309,16 @@ function EventRow({ event, onDelete }: { event: Event; onDelete: (id: string) =>
           {dateLabel}
           {event.location && <span className="ml-2">📍{event.location}</span>}
         </p>
+        {event.note && <p className="text-xs text-brown-400 mt-0.5 leading-relaxed">{event.note}</p>}
       </div>
       <div className="flex items-center gap-2 shrink-0">
         <span className="text-amber-400 text-xs">{'★'.repeat(event.scale)}</span>
+        <button
+          onClick={startEdit}
+          className="text-xs text-brown-400 hover:text-brown-600 px-2 py-1 rounded transition-colors"
+        >
+          編集
+        </button>
         <button
           onClick={() => onDelete(event.id)}
           className="text-xs text-red-400 hover:text-red-600 px-2 py-1 rounded transition-colors"
