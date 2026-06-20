@@ -28,6 +28,26 @@ const CONFIG = {
   FOLLOW_UP_MESSAGE: '先日は織はやにご来店いただきありがとうございました😊\nまたのご来店をお待ちしております！',
   SALES_DAYS: 30,        // 日次販売数の集計期間（日）
   TAKEOUT_LIMIT: 500,    // テイクアウト履歴の取得件数
+
+  // 期間限定メニューのお知らせ（空文字にすると送らない）
+  LIMITED_MENU_IMAGE_URL: '',   // Supabase Storage の画像URL（https://...）
+  LIMITED_MENU_TEXT: '',        // 例: '🌟期間限定メニュー登場！\n【商品名】¥○○\nぜひこの機会にお試しください！'
+}
+
+/** フォローアップで送るメッセージ配列を生成する */
+function buildFollowUpMessages() {
+  const messages = [{ type: 'text', text: CONFIG.FOLLOW_UP_MESSAGE }]
+
+  if (CONFIG.LIMITED_MENU_IMAGE_URL && CONFIG.LIMITED_MENU_TEXT) {
+    messages.push({
+      type: 'image',
+      originalContentUrl: CONFIG.LIMITED_MENU_IMAGE_URL,
+      previewImageUrl:    CONFIG.LIMITED_MENU_IMAGE_URL,
+    })
+    messages.push({ type: 'text', text: CONFIG.LIMITED_MENU_TEXT })
+  }
+
+  return messages
 }
 
 function getProps() {
@@ -771,7 +791,7 @@ function sendWeeklyFollowUp() {
         },
         payload: JSON.stringify({
           to: userId,
-          messages: [{ type: 'text', text: CONFIG.FOLLOW_UP_MESSAGE }],
+          messages: buildFollowUpMessages(),
         }),
         muteHttpExceptions: true,
       })
@@ -810,7 +830,7 @@ function testFollowUpToMyself() {
     },
     payload: JSON.stringify({
       to: testUserId,
-      messages: [{ type: 'text', text: CONFIG.FOLLOW_UP_MESSAGE }],
+      messages: buildFollowUpMessages(),
     }),
     muteHttpExceptions: true,
   })
