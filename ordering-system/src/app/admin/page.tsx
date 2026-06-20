@@ -74,6 +74,7 @@ export default function AdminDashboard() {
   useEffect(() => {
     fetchOrders()
 
+    // Supabase Realtime：注文変更を即時反映
     const supabase = createClient()
     const channel = supabase
       .channel('admin-orders')
@@ -81,7 +82,13 @@ export default function AdminDashboard() {
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'order_items' }, () => fetchOrders())
       .subscribe()
 
-    return () => { supabase.removeChannel(channel) }
+    // Realtime が無効な環境向けに15秒ポーリングをフォールバックとして追加
+    const timer = setInterval(fetchOrders, 15000)
+
+    return () => {
+      supabase.removeChannel(channel)
+      clearInterval(timer)
+    }
   }, [fetchOrders])
 
   const toggleSound = () => {
