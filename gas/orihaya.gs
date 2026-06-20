@@ -146,7 +146,7 @@ function testConnection() {
 
 function exportTakeoutHistory() {
   const data = supabaseGet('orders', {
-    select:    'id,line_user_id,created_at,pickup_at,order_items(unit_price,quantity,with_topping,products(name))',
+    select:    'id,created_at,pickup_at,order_items(unit_price,quantity,with_topping,products(name))',
     table_id:  'eq.takeout',
     status:    'eq.paid',
     order:     'created_at.desc',
@@ -156,17 +156,16 @@ function exportTakeoutHistory() {
   const sheet = getOrCreateSheet('テイクアウト履歴')
   sheet.clearContents()
 
-  const headers = ['注文日', '受取時刻', '商品名', '数量', '単価', '小計', 'LINE user ID']
+  const headers = ['注文日', '受取時刻', '商品名', '数量', '単価', '小計', '注文ID']
   const rows = [headers]
 
   for (const order of data) {
     const dateStr   = jstDateStr(toJstDate(order.created_at))
     const pickupStr = order.pickup_at ? jstTimeStr(order.pickup_at) : '—'
-    const userId    = order.line_user_id || '—'
     const items = order.order_items || []
 
     if (items.length === 0) {
-      rows.push([dateStr, pickupStr, '（商品なし）', '', '', '', userId])
+      rows.push([dateStr, pickupStr, '（商品なし）', '', '', '', order.id])
       continue
     }
 
@@ -179,7 +178,7 @@ function exportTakeoutHistory() {
         item.quantity,
         unitPrice,
         unitPrice * item.quantity,
-        userId,
+        order.id,
       ])
     }
   }
@@ -334,7 +333,7 @@ function exportVisitLog() {
 
 function exportEatinHistory() {
   const data = supabaseGet('orders', [
-    ['select',   'id,line_user_id,created_at,table_id,order_items(unit_price,quantity,with_topping,products(name))'],
+    ['select',   'id,created_at,table_id,order_items(unit_price,quantity,with_topping,products(name))'],
     ['table_id', 'neq.takeout'],
     ['status',   'eq.paid'],
     ['order',    'created_at.desc'],
@@ -344,7 +343,7 @@ function exportEatinHistory() {
   const sheet = getOrCreateSheet('店内注文履歴')
   sheet.clearContents()
 
-  const headers = ['注文日', '注文時刻', 'テーブル', '商品名', '数量', '単価', '小計', 'LINE user ID']
+  const headers = ['注文日', '注文時刻', 'テーブル', '商品名', '数量', '単価', '小計', '注文ID']
   const rows = [headers]
 
   for (const order of data) {
@@ -352,11 +351,10 @@ function exportEatinHistory() {
     const dateStr = jstDateStr(jst)
     const timeStr = Utilities.formatDate(jst, 'Asia/Tokyo', 'HH:mm')
     const tableStr = order.table_id || '—'
-    const userId   = order.line_user_id || '—'
     const items   = order.order_items || []
 
     if (items.length === 0) {
-      rows.push([dateStr, timeStr, tableStr, '（商品なし）', '', '', '', userId])
+      rows.push([dateStr, timeStr, tableStr, '（商品なし）', '', '', '', order.id])
       continue
     }
 
@@ -370,7 +368,7 @@ function exportEatinHistory() {
         item.quantity,
         unitPrice,
         unitPrice * item.quantity,
-        userId,
+        order.id,
       ])
     }
   }
