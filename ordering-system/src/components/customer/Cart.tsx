@@ -48,7 +48,8 @@ export default function Cart({
     : true
 
   function handleCartOpen() {
-    if (tonjiruProduct && !hasTonjiru) {
+    const hasLunchPlate = lunchNigiriPerPlate.length > 0
+    if (tonjiruProduct && !hasTonjiru && !hasLunchPlate) {
       setShowTonjiruPopup(true)
     } else {
       setIsOpen(true)
