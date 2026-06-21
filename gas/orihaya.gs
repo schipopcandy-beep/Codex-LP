@@ -292,41 +292,41 @@ function refreshAll() {
 
 function exportVisitLog() {
   const data = supabaseGet('orders', [
-    ['select',       'line_user_id,created_at,table_id'],
+    ['select',       'line_user_id,created_at'],
     ['status',       'eq.paid'],
     ['line_user_id', 'not.is.null'],
-    ['order',        'created_at.desc'],
+    ['order',        'created_at.asc'],
     ['limit',        5000],
   ])
 
-  // (line_user_id, 来店日) ごとに集計
-  const visitMap = new Map()
+  // line_user_id ごとに初回・最終来店日と来店回数を集計
+  const userMap = new Map()
   for (const order of data) {
     if (!order.line_user_id) continue
-    const ds      = jstDateStr(toJstDate(order.created_at))
-    const key     = `${order.line_user_id}__${ds}`
-    const type    = order.table_id === 'takeout' ? 'テイクアウト' : 'イートイン'
-    const existing = visitMap.get(key)
+    const ds = jstDateStr(toJstDate(order.created_at))
+    const existing = userMap.get(order.line_user_id)
     if (existing) {
-      existing.count++
-      if (existing.type !== type) existing.type = '両方'
+      if (ds < existing.firstDate) existing.firstDate = ds
+      if (ds > existing.lastDate)  existing.lastDate  = ds
+      existing.visitDates.add(ds)
     } else {
-      visitMap.set(key, { userId: order.line_user_id, date: ds, count: 1, type })
+      userMap.set(order.line_user_id, { firstDate: ds, lastDate: ds, visitDates: new Set([ds]) })
     }
   }
 
-  const visits = [...visitMap.values()].sort((a, b) => b.date.localeCompare(a.date))
+  // 最終来店日の新しい順に並べる
+  const rows = [...userMap.entries()]
+    .sort(([, a], [, b]) => b.lastDate.localeCompare(a.lastDate))
+    .map(([userId, v]) => [userId, v.firstDate, v.lastDate, v.visitDates.size])
 
   const sheet   = getOrCreateSheet('来店記録')
   sheet.clearContents()
-  const headers = ['LINE user_id', '来店日', '注文数', '注文タイプ']
-  const rows    = [headers, ...visits.map(v => [v.userId, v.date, v.count, v.type])]
-
-  sheet.getRange(1, 1, rows.length, headers.length).setValues(rows)
+  const headers = ['LINE user ID', '初回来店日', '最終来店日', '来店回数']
+  sheet.getRange(1, 1, rows.length + 1, headers.length).setValues([headers, ...rows])
   styleHeader(sheet, headers.length)
-  sheet.setColumnWidth(1, 240) // LINE ID は長いので幅を広く
+  sheet.setColumnWidth(1, 240)
   sheet.autoResizeColumns(2, headers.length - 1)
-  SpreadsheetApp.getActiveSpreadsheet().toast(`来店記録: ${visits.length}件を更新しました`, '完了', 3)
+  SpreadsheetApp.getActiveSpreadsheet().toast(`来店記録: ${rows.length}人を更新しました`, '完了', 3)
 }
 
 // ─── 6. 店内注文履歴 ─────────────────────────────────────────────
@@ -746,9 +746,11 @@ function sendWeeklyFollowUp() {
     return
   }
 
-  const visitData = visitSheet.getRange(2, 1, visitSheet.getLastRow() - 1, 2).getValues()
+  // 列構成: [LINE user ID, 初回来店日, 最終来店日, 来店回数]
+  // 最終来店日（列3）が7日前のユーザーに送信
+  const visitData = visitSheet.getRange(2, 1, visitSheet.getLastRow() - 1, 3).getValues()
   const userIds   = [...new Set(
-    visitData.filter(row => row[1] === targetDateStr && row[0]).map(row => String(row[0]))
+    visitData.filter(row => row[2] === targetDateStr && row[0]).map(row => String(row[0]))
   )]
 
   if (userIds.length === 0) {
