@@ -844,3 +844,123 @@ function testFollowUpToMyself() {
     console.log(`テスト送信失敗 (${code}): ${res.getContentText()}`)
   }
 }
+
+// ─── 再来店促進メッセージ（30日未来店のお客さんへ）────────────────
+// 毎日トリガー推奨。最終来店日ごとに1回だけ送信（再来店後に再び30日経過したら再送）。
+
+const REENGAGEMENT_MESSAGE = 'お久しぶりです！期間限定メニューのご紹介です！\nまたご来店お待ちしております😊'
+const REENGAGEMENT_IMAGE_URL = 'https://wgjfwjourukgtxpkuaup.supabase.co/storage/v1/object/public/product-images/shinshomhin_compressed.jpg'
+const REENGAGEMENT_DAYS = 30  // 何日未来店でメッセージを送るか
+
+function sendReengagementMessage() {
+  const { lineToken } = getProps()
+  if (!lineToken) { console.log('LINE_CHANNEL_ACCESS_TOKEN が未設定です'); return }
+
+  const visitSheet = getOrCreateSheet('来店記録')
+  if (visitSheet.getLastRow() <= 1) {
+    console.log('来店記録が空です。先に refreshAll() を実行してください')
+    return
+  }
+
+  // 閾値日（30日前）を計算
+  const thresholdDay = nDaysAgoJst(REENGAGEMENT_DAYS)
+  const thresholdStr = Utilities.formatDate(thresholdDay, 'Asia/Tokyo', 'yyyy/MM/dd')
+
+  // 来店記録: [LINE user ID, 初回来店日, 最終来店日, 来店回数]
+  const visitData = visitSheet.getRange(2, 1, visitSheet.getLastRow() - 1, 3).getValues()
+  const targets = visitData
+    .filter(row => row[0] && row[2] && row[2] <= thresholdStr)
+    .map(row => ({ userId: String(row[0]), lastVisit: String(row[2]) }))
+
+  if (targets.length === 0) {
+    console.log(`30日以上未来店のユーザーなし（閾値: ${thresholdStr}）`)
+    return
+  }
+
+  // 送信ログで重複を防ぐ（userId + 最終来店日 の組み合わせで判定）
+  const logSheet = getOrCreateSheet('再来店促進ログ')
+  if (logSheet.getLastRow() === 0) {
+    logSheet.appendRow(['送信日時', 'LINE user_id', '最終来店日', '結果'])
+    styleHeader(logSheet, 4)
+  }
+
+  const sentKeys = new Set()
+  if (logSheet.getLastRow() > 1) {
+    const logData = logSheet.getRange(2, 2, logSheet.getLastRow() - 1, 2).getValues()
+    for (const [userId, lastVisit] of logData) {
+      sentKeys.add(`${userId}__${lastVisit}`)
+    }
+  }
+
+  const nowJstStr = Utilities.formatDate(new Date(Date.now() + 9 * 3600000), 'Asia/Tokyo', 'yyyy/MM/dd HH:mm')
+  let sentCount = 0
+  let skipCount = 0
+
+  for (const { userId, lastVisit } of targets) {
+    const key = `${userId}__${lastVisit}`
+    if (sentKeys.has(key)) { skipCount++; continue }
+
+    let result = 'OK'
+    try {
+      const res = UrlFetchApp.fetch('https://api.line.me/v2/bot/message/push', {
+        method: 'post',
+        headers: {
+          'Content-Type':  'application/json',
+          'Authorization': `Bearer ${lineToken}`,
+        },
+        payload: JSON.stringify({
+          to: userId,
+          messages: [
+            { type: 'text', text: REENGAGEMENT_MESSAGE },
+            { type: 'image', originalContentUrl: REENGAGEMENT_IMAGE_URL, previewImageUrl: REENGAGEMENT_IMAGE_URL },
+          ],
+        }),
+        muteHttpExceptions: true,
+      })
+      if (res.getResponseCode() !== 200) {
+        result = `ERROR ${res.getResponseCode()}: ${res.getContentText().slice(0, 80)}`
+      }
+    } catch (e) {
+      result = `EXCEPTION: ${e.message}`
+    }
+
+    logSheet.appendRow([nowJstStr, userId, lastVisit, result])
+    sentCount++
+    Utilities.sleep(200)
+  }
+
+  console.log(`再来店促進メッセージ送信完了: 送信${sentCount}件 / スキップ${skipCount}件`)
+}
+
+// テスト用：自分だけに再来店促進メッセージを送信
+function testReengagementToMyself() {
+  const props = PropertiesService.getScriptProperties().getProperties()
+  const lineToken  = props['LINE_CHANNEL_ACCESS_TOKEN']
+  const testUserId = props['TEST_LINE_USER_ID']
+
+  if (!lineToken)  { console.log('LINE_CHANNEL_ACCESS_TOKEN が未設定です'); return }
+  if (!testUserId) { console.log('TEST_LINE_USER_ID が未設定です'); return }
+
+  const res = UrlFetchApp.fetch('https://api.line.me/v2/bot/message/push', {
+    method: 'post',
+    headers: {
+      'Content-Type':  'application/json',
+      'Authorization': `Bearer ${lineToken}`,
+    },
+    payload: JSON.stringify({
+      to: testUserId,
+      messages: [
+        { type: 'text', text: REENGAGEMENT_MESSAGE },
+        { type: 'image', originalContentUrl: REENGAGEMENT_IMAGE_URL, previewImageUrl: REENGAGEMENT_IMAGE_URL },
+      ],
+    }),
+    muteHttpExceptions: true,
+  })
+
+  const code = res.getResponseCode()
+  if (code === 200) {
+    console.log(`テスト送信成功 → ${testUserId}`)
+  } else {
+    console.log(`テスト送信失敗 (${code}): ${res.getContentText()}`)
+  }
+}
