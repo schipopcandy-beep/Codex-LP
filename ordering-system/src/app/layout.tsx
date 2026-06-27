@@ -2,7 +2,7 @@ import type { Metadata, Viewport } from 'next'
 import './globals.css'
 
 export const metadata: Metadata = {
-  title: 'おにぎり注文システム',
+  title: '織はや注文',
   description: '席からご注文いただけます',
   robots: 'noindex, nofollow',
 }
