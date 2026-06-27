@@ -45,10 +45,13 @@ function verifySignature(rawBody: string, sigHeader: string, secret: string): bo
 export async function POST(req: NextRequest) {
   const rawBody = await req.text()
 
-  // シークレット検証（LINE_HARNESS_WEBHOOK_SECRET 優先、次に LINE_CHANNEL_SECRET）
+  // シークレット検証
+  // Harness 経由（友だち追加など）は LINE_HARNESS_WEBHOOK_SECRET で署名され、
+  // 実 LINE Messaging API 経由（テキストメッセージなど）は LINE_CHANNEL_SECRET で署名される。
+  // どちらの経路でも通るよう、両方のシークレットで検証していずれか一致すれば許可する。
   const harnessSecret = process.env.LINE_HARNESS_WEBHOOK_SECRET ?? ''
   const channelSecret = process.env.LINE_CHANNEL_SECRET ?? ''
-  const activeSecret = harnessSecret || channelSecret
+  const secrets = [harnessSecret, channelSecret].filter(Boolean)
 
   const sigHeader =
     req.headers.get('x-harness-signature') ??
@@ -56,8 +59,9 @@ export async function POST(req: NextRequest) {
     req.headers.get('x-hub-signature-256') ??
     ''
 
-  if (activeSecret && sigHeader) {
-    if (!verifySignature(rawBody, sigHeader, activeSecret)) {
+  if (secrets.length > 0 && sigHeader) {
+    const ok = secrets.some((s) => verifySignature(rawBody, sigHeader, s))
+    if (!ok) {
       return NextResponse.json({ error: 'Invalid signature' }, { status: 401 })
     }
   }
