@@ -8,6 +8,25 @@
  */
 
 const LINE_API = 'https://api.line.me/v2/bot/message/push'
+const LINE_REPLY_API = 'https://api.line.me/v2/bot/message/reply'
+
+/** reply token を使ってテキストメッセージを返信する（push と違い無料・即時） */
+export async function replyLineMessage(replyToken: string, text: string): Promise<void> {
+  const token = process.env.LINE_CHANNEL_ACCESS_TOKEN
+  if (!token) return
+
+  await fetch(LINE_REPLY_API, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify({
+      replyToken,
+      messages: [{ type: 'text', text }],
+    }),
+  })
+}
 
 /** テキストメッセージを1件送信する */
 export async function sendLineMessage(lineUserId: string, text: string): Promise<void> {
