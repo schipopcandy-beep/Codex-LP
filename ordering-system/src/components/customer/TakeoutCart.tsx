@@ -82,10 +82,15 @@ export default function TakeoutCart({
           <div className="absolute inset-0 bg-black/50" onClick={() => setShowTonjiruPopup(false)} />
           <div className="relative bg-cream-50 rounded-2xl shadow-2xl p-6 w-full max-w-sm space-y-4">
             <div className="text-center space-y-2">
-              <p className="text-4xl">🍲</p>
-              <h3 className="text-xl font-bold text-brown-800">豚汁はいかがですか？</h3>
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src="https://wgjfwjourukgtxpkuaup.supabase.co/storage/v1/object/public/product-images/miso-soup.jpg"
+                alt="豚汁"
+                className="w-full h-40 object-cover rounded-xl"
+              />
+              <h3 className="text-xl font-bold text-brown-800">ご一緒に豚汁はいかがですか？</h3>
               <p className="text-sm text-brown-500">
-                おにぎりとの相性抜群です。<br />ご一緒にどうぞ！
+                おにぎりとの相性抜群です。
               </p>
             </div>
             <button
