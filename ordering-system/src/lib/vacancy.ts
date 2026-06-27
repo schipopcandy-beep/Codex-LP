@@ -1,9 +1,9 @@
 import { createServiceRoleClient } from '@/lib/supabase/server'
 
-/** テーブル席の table_id 一覧 */
+/** テーブル卓の table_id 一覧 */
 export const TABLE_SEAT_IDS = ['table-1', 'table-2', 'table-3', 'table-4']
-/** カウンター席の table_id 一覧 */
-export const COUNTER_SEAT_IDS = ['counter-1', 'counter-2', 'counter-3', 'counter-4']
+/** カウンター席の table_id 一覧（全3席） */
+export const COUNTER_SEAT_IDS = ['counter-1', 'counter-2', 'counter-3']
 /** 店内席の table_id 一覧（テイクアウトを除く） */
 export const SEAT_IDS = [...TABLE_SEAT_IDS, ...COUNTER_SEAT_IDS]
 
@@ -60,15 +60,12 @@ export function buildVacancyText(v: VacancyResult): string {
   const lines = ['【ただいまの空席状況】', '']
 
   if (v.vacant === 0) {
-    lines.push('🈵 満席です', '', '少々お待ちいただく場合がございます。')
-  } else {
-    lines.push(`🈳 空席 ${v.vacant}席`)
+    lines.push('🈵 満席です', '少々お待ちいただく場合がございます。', '')
   }
 
   lines.push(
-    '',
-    `テーブル席：空き ${v.table.vacant}/${v.table.total}席`,
-    `カウンター席：空き ${v.counter.vacant}/${v.counter.total}席`,
+    `テーブル：空き ${v.table.vacant}/${v.table.total}卓`,
+    `カウンター：空き ${v.counter.vacant}/${v.counter.total}席`,
     '',
     '※ ご注文状況をもとにした目安です。',
     '実際の空席と異なる場合がございます。',

@@ -70,36 +70,21 @@ export default function VacancyPage() {
           <p className="text-brown-400 text-lg py-12">状況を取得できませんでした</p>
         ) : (
           <>
-            <div
-              className={`w-full rounded-3xl border-2 p-8 text-center ${
-                isFull
-                  ? 'bg-red-50 border-red-200'
-                  : 'bg-green-50 border-matcha-500'
-              }`}
-            >
-              {isFull ? (
-                <>
-                  <p className="text-xl font-bold text-red-500 mb-2">満席です</p>
-                  <p className="text-sm text-brown-500">
-                    申し訳ございません。<br />
-                    少々お待ちいただく場合がございます。
-                  </p>
-                </>
-              ) : (
-                <>
-                  <p className="text-base text-brown-500 mb-1">空席</p>
-                  <p className="text-6xl font-bold text-matcha-600 tabular-nums leading-none">
-                    {data.vacant}
-                    <span className="text-2xl text-brown-500 ml-1">席</span>
-                  </p>
-                </>
-              )}
-            </div>
+            {/* 満席時のみ案内 */}
+            {isFull && (
+              <div className="w-full rounded-3xl border-2 bg-red-50 border-red-200 p-6 text-center">
+                <p className="text-xl font-bold text-red-500 mb-2">満席です</p>
+                <p className="text-sm text-brown-500">
+                  申し訳ございません。<br />
+                  少々お待ちいただく場合がございます。
+                </p>
+              </div>
+            )}
 
-            {/* 席種別ごとの内訳 */}
+            {/* 席種別ごとの空席数 */}
             <div className="w-full grid grid-cols-2 gap-3">
-              <SeatGroupCard label="テーブル席" group={data.table} />
-              <SeatGroupCard label="カウンター席" group={data.counter} />
+              <SeatGroupCard label="テーブル" group={data.table} unit="卓" />
+              <SeatGroupCard label="カウンター" group={data.counter} unit="席" />
             </div>
 
             <div className="flex flex-col items-center gap-3">
@@ -125,20 +110,20 @@ export default function VacancyPage() {
   )
 }
 
-function SeatGroupCard({ label, group }: { label: string; group: SeatGroup }) {
+function SeatGroupCard({ label, group, unit }: { label: string; group: SeatGroup; unit: string }) {
   const isFull = group.vacant === 0
   return (
-    <div className="card p-4 text-center">
-      <p className="text-sm font-semibold text-brown-600 mb-2">{label}</p>
+    <div className="card p-5 text-center">
+      <p className="text-sm font-semibold text-brown-600 mb-3">{label}</p>
       {isFull ? (
-        <p className="text-lg font-bold text-red-400">満席</p>
+        <p className="text-2xl font-bold text-red-400 leading-none py-2">満席</p>
       ) : (
-        <p className="text-3xl font-bold text-matcha-600 tabular-nums leading-none">
+        <p className="text-4xl font-bold text-matcha-600 tabular-nums leading-none">
           {group.vacant}
-          <span className="text-base text-brown-400 ml-0.5">/ {group.total}席</span>
+          <span className="text-base text-brown-400 ml-0.5">/ {group.total}{unit}</span>
         </p>
       )}
-      <p className="text-xs text-brown-400 mt-1.5">空席数</p>
+      <p className="text-xs text-brown-400 mt-2">空き{unit}数</p>
     </div>
   )
 }
