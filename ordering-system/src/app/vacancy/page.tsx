@@ -4,10 +4,18 @@ import { useEffect, useState, useCallback } from 'react'
 import Image from 'next/image'
 import { storageUrl } from '@/lib/types'
 
+interface SeatGroup {
+  total: number
+  occupied: number
+  vacant: number
+}
+
 interface Vacancy {
   total: number
   occupied: number
   vacant: number
+  table: SeatGroup
+  counter: SeatGroup
 }
 
 export default function VacancyPage() {
@@ -88,20 +96,10 @@ export default function VacancyPage() {
               )}
             </div>
 
-            {/* 内訳 */}
-            <div className="w-full grid grid-cols-3 gap-3 text-center">
-              <div className="card p-4">
-                <p className="text-xs text-brown-400 mb-1">全席</p>
-                <p className="text-2xl font-bold text-brown-700 tabular-nums">{data.total}</p>
-              </div>
-              <div className="card p-4">
-                <p className="text-xs text-brown-400 mb-1">利用中</p>
-                <p className="text-2xl font-bold text-brown-500 tabular-nums">{data.occupied}</p>
-              </div>
-              <div className="card p-4">
-                <p className="text-xs text-brown-400 mb-1">空席</p>
-                <p className="text-2xl font-bold text-matcha-600 tabular-nums">{data.vacant}</p>
-              </div>
+            {/* 席種別ごとの内訳 */}
+            <div className="w-full grid grid-cols-2 gap-3">
+              <SeatGroupCard label="テーブル席" group={data.table} />
+              <SeatGroupCard label="カウンター席" group={data.counter} />
             </div>
 
             <div className="flex flex-col items-center gap-3">
@@ -123,6 +121,24 @@ export default function VacancyPage() {
           </>
         )}
       </main>
+    </div>
+  )
+}
+
+function SeatGroupCard({ label, group }: { label: string; group: SeatGroup }) {
+  const isFull = group.vacant === 0
+  return (
+    <div className="card p-4 text-center">
+      <p className="text-sm font-semibold text-brown-600 mb-2">{label}</p>
+      {isFull ? (
+        <p className="text-lg font-bold text-red-400">満席</p>
+      ) : (
+        <p className="text-3xl font-bold text-matcha-600 tabular-nums leading-none">
+          {group.vacant}
+          <span className="text-base text-brown-400 ml-0.5">/ {group.total}席</span>
+        </p>
+      )}
+      <p className="text-xs text-brown-400 mt-1.5">空席数</p>
     </div>
   )
 }
