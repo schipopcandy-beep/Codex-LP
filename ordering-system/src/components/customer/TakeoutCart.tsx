@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import type { CartItem } from '@/lib/types'
+import type { CartItem, Product } from '@/lib/types'
 import { calcCartTotal, TOPPING_NAME, TOPPING_PRICE } from '@/lib/types'
 import PickupDateTimePicker from '@/components/customer/PickupDateTimePicker'
 
@@ -12,6 +12,10 @@ interface Props {
   pickupDate: string | null
   pickupTime: string | null
   onPickupSelect: (date: string, time: string) => void
+  /** 商品をカートに追加（豚汁おすすめ用） */
+  onAddItem?: (product: Product, withTopping: boolean) => void
+  /** おすすめする豚汁商品（渡された場合のみポップアップ表示） */
+  tonjiruProduct?: Product
 }
 
 export default function TakeoutCart({
@@ -21,14 +25,29 @@ export default function TakeoutCart({
   pickupDate,
   pickupTime,
   onPickupSelect,
+  onAddItem,
+  tonjiruProduct,
 }: Props) {
   const [isOpen, setIsOpen] = useState(false)
   const [confirmed, setConfirmed] = useState(false)
+  const [showTonjiruPopup, setShowTonjiruPopup] = useState(false)
 
   const total = calcCartTotal(items)
   const totalCount = items.reduce((s, i) => s + i.quantity, 0)
   const pickupReady = !!(pickupDate && pickupTime)
   const canSubmit = pickupReady && confirmed
+
+  const hasTonjiru = tonjiruProduct
+    ? items.some((i) => i.product.id === tonjiruProduct.id)
+    : true
+
+  function handleCartOpen() {
+    if (tonjiruProduct && !hasTonjiru) {
+      setShowTonjiruPopup(true)
+    } else {
+      setIsOpen(true)
+    }
+  }
 
   if (totalCount === 0) return null
 
@@ -38,7 +57,7 @@ export default function TakeoutCart({
       <div className="fixed bottom-0 left-0 right-0 z-40">
         <div className="bg-brown-600 text-white px-4 py-3 flex items-center justify-between shadow-lg">
           <button
-            onClick={() => setIsOpen(true)}
+            onClick={handleCartOpen}
             className="flex items-center gap-3 flex-1"
           >
             <div className="w-7 h-7 rounded-full bg-white/20 flex items-center justify-center">
@@ -56,6 +75,38 @@ export default function TakeoutCart({
           </span>
         </div>
       </div>
+
+      {/* 豚汁おすすめポップアップ */}
+      {showTonjiruPopup && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center px-6">
+          <div className="absolute inset-0 bg-black/50" onClick={() => setShowTonjiruPopup(false)} />
+          <div className="relative bg-cream-50 rounded-2xl shadow-2xl p-6 w-full max-w-sm space-y-4">
+            <div className="text-center space-y-2">
+              <p className="text-4xl">🍲</p>
+              <h3 className="text-xl font-bold text-brown-800">豚汁はいかがですか？</h3>
+              <p className="text-sm text-brown-500">
+                おにぎりとの相性抜群です。<br />ご一緒にどうぞ！
+              </p>
+            </div>
+            <button
+              onClick={() => {
+                if (tonjiruProduct && onAddItem) onAddItem(tonjiruProduct, false)
+                setShowTonjiruPopup(false)
+                setIsOpen(true)
+              }}
+              className="btn-primary w-full py-3 text-base"
+            >
+              追加する
+            </button>
+            <button
+              onClick={() => { setShowTonjiruPopup(false); setIsOpen(true) }}
+              className="w-full py-3 text-sm text-brown-500 underline underline-offset-2"
+            >
+              このまま注文する
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* カートドロワー */}
       {isOpen && (

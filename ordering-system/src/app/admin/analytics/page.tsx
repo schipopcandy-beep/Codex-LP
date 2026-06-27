@@ -279,7 +279,7 @@ function fmtK(n: number): string {
   return `${n}`
 }
 
-function DayCell({ day }: { day: CalendarDay }) {
+function DayCell({ day, onClick }: { day: CalendarDay; onClick: (day: CalendarDay) => void }) {
   const weather = day.weather_actual ?? day.weather_forecast
   const revenue = day.is_future ? day.predicted_revenue : day.actual_revenue
 
@@ -299,7 +299,11 @@ function DayCell({ day }: { day: CalendarDay }) {
   const dateColor = day.dow === 0 ? 'text-red-500' : day.dow === 6 ? 'text-blue-500' : 'text-brown-700'
 
   return (
-    <div className={`${bgClass} rounded-lg border ${day.is_today ? 'border-brown-500 border-2' : 'border-cream-200'} p-1 flex flex-col gap-0.5`} style={{ minHeight: '72px' }}>
+    <div
+      onClick={() => onClick(day)}
+      className={`${bgClass} rounded-lg border ${day.is_today ? 'border-brown-500 border-2' : 'border-cream-200'} p-1 flex flex-col gap-0.5 cursor-pointer active:opacity-70 hover:border-brown-400 transition-colors`}
+      style={{ minHeight: '72px' }}
+    >
       {/* 日付 + 天気 */}
       <div className="flex items-center justify-between">
         <span className={`text-xs font-bold leading-none ${dateColor}`}>{dateNum}</span>
@@ -344,15 +348,116 @@ function DayCell({ day }: { day: CalendarDay }) {
   )
 }
 
+function DayDetailModal({ day, onClose }: { day: CalendarDay; onClose: () => void }) {
+  const weather = day.weather_actual ?? day.weather_forecast
+  const [, mm, dd] = day.date.split('-')
+  const dateLabel = `${parseInt(mm)}月${parseInt(dd)}日（${day.dow_label}）`
+  const revenue = day.is_future ? day.predicted_revenue : day.actual_revenue
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center px-4" onClick={onClose}>
+      <div className="absolute inset-0 bg-black/50" />
+      <div className="relative bg-cream-50 rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden" onClick={(e) => e.stopPropagation()}>
+        {/* ヘッダー */}
+        <div className="flex items-center justify-between px-5 py-4 border-b border-cream-200">
+          <h3 className="font-bold text-brown-800 text-lg">{dateLabel}</h3>
+          <button onClick={onClose} className="text-brown-400 text-2xl leading-none">×</button>
+        </div>
+
+        <div className="px-5 py-4 space-y-4">
+          {/* 売上 */}
+          <div className="flex items-center justify-between">
+            <span className="text-sm text-brown-500">{day.is_future ? '予測売上' : '実績売上'}</span>
+            <span className="text-xl font-bold text-brown-800 tabular-nums">
+              {revenue !== null ? `¥${revenue.toLocaleString()}` : '—'}
+            </span>
+          </div>
+
+          {!day.is_future && day.actual_revenue !== null && (
+            <div className="flex items-center justify-between">
+              <span className="text-sm text-brown-500">注文数</span>
+              <span className="font-bold text-brown-700">{day.order_count ?? '—'} 件</span>
+            </div>
+          )}
+
+          {!day.is_future && day.vs_avg_pct !== null && (
+            <div className="flex items-center justify-between">
+              <span className="text-sm text-brown-500">平均比</span>
+              <span className={`font-bold tabular-nums ${day.vs_avg_pct > 0 ? 'text-green-600' : 'text-red-500'}`}>
+                {day.vs_avg_pct > 0 ? '+' : ''}{day.vs_avg_pct}%
+              </span>
+            </div>
+          )}
+
+          {day.is_future && day.predicted_revenue !== null && (
+            <div className="flex items-center justify-between">
+              <span className="text-sm text-brown-500">実績</span>
+              <span className="font-bold text-brown-400">まだありません</span>
+            </div>
+          )}
+
+          {/* 天気 */}
+          {weather && (
+            <div className="flex items-center justify-between">
+              <span className="text-sm text-brown-500">{day.weather_actual ? '天気（実績）' : '天気（予報）'}</span>
+              <span className="font-bold text-brown-700">
+                {weatherEmoji(weather.main)} {weather.desc ?? weather.main}
+                {weather.temp_max !== null && weather.temp_min !== null && (
+                  <span className="ml-1 text-sm font-normal text-brown-500">
+                    {weather.temp_max}°/{weather.temp_min}°
+                  </span>
+                )}
+              </span>
+            </div>
+          )}
+
+          {/* 競合店 */}
+          {day.competitor_status.shop_status.length > 0 && (
+            <div>
+              <p className="text-sm text-brown-500 mb-1.5">競合店</p>
+              <div className="space-y-1">
+                {day.competitor_status.shop_status.map((s) => (
+                  <div key={s.id} className="flex items-center justify-between text-sm">
+                    <span className="text-brown-700">{s.name}</span>
+                    <span className={`font-semibold ${s.is_open ? 'text-green-600' : 'text-red-400'}`}>
+                      {s.is_open ? '営業中' : '休業'}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* イベント */}
+          {day.events.length > 0 && (
+            <div>
+              <p className="text-sm text-brown-500 mb-1.5">近隣イベント</p>
+              <div className="space-y-1">
+                {day.events.map((ev, i) => (
+                  <div key={i} className="flex items-center justify-between text-sm">
+                    <span className="text-brown-700">{ev.name}</span>
+                    <span className="text-amber-400">{'★'.repeat(ev.scale)}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}
+
 function CalendarView() {
   const nowDate  = new Date()
   const nowYear  = nowDate.getFullYear()
   const nowMonth = nowDate.getMonth() + 1
 
-  const [year, setYear]       = useState(nowYear)
-  const [month, setMonth]     = useState(nowMonth)
-  const [data, setData]       = useState<CalendarData | null>(null)
-  const [loading, setLoading] = useState(true)
+  const [year, setYear]         = useState(nowYear)
+  const [month, setMonth]       = useState(nowMonth)
+  const [data, setData]         = useState<CalendarData | null>(null)
+  const [loading, setLoading]   = useState(true)
+  const [selectedDay, setSelectedDay] = useState<CalendarDay | null>(null)
 
   const load = useCallback(async (y: number, m: number) => {
     setLoading(true)
@@ -425,7 +530,7 @@ function CalendarView() {
           <div className="grid grid-cols-7 gap-1">
             {/* 月初の空白 */}
             {Array(firstDow).fill(null).map((_, i) => <div key={`b${i}`} />)}
-            {data.days.map((day) => <DayCell key={day.date} day={day} />)}
+            {data.days.map((day) => <DayCell key={day.date} day={day} onClick={setSelectedDay} />)}
           </div>
 
           {/* 凡例 */}
@@ -440,6 +545,9 @@ function CalendarView() {
           </div>
         </div>
       )}
+
+      {/* 日付詳細ポップアップ */}
+      {selectedDay && <DayDetailModal day={selectedDay} onClose={() => setSelectedDay(null)} />}
 
       {/* 曜日別ベースライン */}
       {data && data.weekday_baselines.some(d => d.count > 0) && (

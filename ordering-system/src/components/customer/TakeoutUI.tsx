@@ -4,7 +4,6 @@ import { useEffect, useState, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import Image from 'next/image'
 import ProductCard from '@/components/customer/ProductCard'
-import DrinkCard from '@/components/customer/DrinkCard'
 import TakeoutCart from '@/components/customer/TakeoutCart'
 import type { Product, CartItem } from '@/lib/types'
 import { storageUrl, LUNCH_PLATE_NAME, DRINK_CATEGORY, TAKEOUT_TABLE_ID } from '@/lib/types'
@@ -14,7 +13,6 @@ interface Props {
 }
 
 const cartKey = (productId: string, withTopping: boolean) => `${productId}-${withTopping}`
-const drinkKey = (productId: string) => `${productId}-drink`
 
 export default function TakeoutUI({ lineUserId }: Props) {
   const router = useRouter()
@@ -34,9 +32,12 @@ export default function TakeoutUI({ lineUserId }: Props) {
 
   const cartItems: CartItem[] = Array.from(cartMap.values())
 
-  // ランチプレートを除外したメニュー
+  // ランチプレートを除外したメニュー（ドリンクはテイクアウト対象外）
   const nigiriProducts = products.filter((p) => p.category === 'おにぎり')
-  const drinkProducts = products.filter((p) => p.category === DRINK_CATEGORY)
+  const sideProducts = products.filter(
+    (p) => p.category !== 'おにぎり' && p.category !== DRINK_CATEGORY,
+  )
+  const tonjiruProduct = products.find((p) => p.name.includes('豚汁'))
 
   useEffect(() => {
     fetch('/api/products')
@@ -87,34 +88,6 @@ export default function TakeoutUI({ lineUserId }: Props) {
           else next.delete(key)
           break
         }
-      }
-      return next
-    })
-  }, [])
-
-  /** ドリンク用 */
-  const handleAddDrink = useCallback((product: Product) => {
-    setCartMap((prev) => {
-      const next = new Map(prev)
-      const key = drinkKey(product.id)
-      const existing = next.get(key)
-      if (existing) {
-        next.set(key, { ...existing, quantity: existing.quantity + 1 })
-      } else {
-        next.set(key, { product, quantity: 1, with_topping: false })
-      }
-      return next
-    })
-  }, [])
-
-  const handleRemoveDrink = useCallback((product: Product) => {
-    setCartMap((prev) => {
-      const next = new Map(prev)
-      const key = drinkKey(product.id)
-      const existing = next.get(key)
-      if (existing) {
-        if (existing.quantity > 1) next.set(key, { ...existing, quantity: existing.quantity - 1 })
-        else next.delete(key)
       }
       return next
     })
@@ -228,20 +201,26 @@ export default function TakeoutUI({ lineUserId }: Props) {
               </div>
             </section>
 
-            {/* ドリンク */}
-            {drinkProducts.length > 0 && (
+            {/* サイド（豚汁など） */}
+            {sideProducts.length > 0 && (
               <section>
-                <h2 className="section-title mb-3 px-1">ドリンク</h2>
-                <div className="space-y-2">
-                  {drinkProducts.map((product) => (
-                    <DrinkCard
-                      key={product.id}
-                      product={product}
-                      quantity={cartMap.get(drinkKey(product.id))?.quantity ?? 0}
-                      onAdd={() => handleAddDrink(product)}
-                      onRemove={() => handleRemoveDrink(product)}
-                    />
-                  ))}
+                <h2 className="section-title mb-3 px-1">サイド</h2>
+                <div className="grid grid-cols-2 gap-3">
+                  {sideProducts.map((product) => {
+                    const quantity =
+                      (cartMap.get(cartKey(product.id, false))?.quantity ?? 0) +
+                      (cartMap.get(cartKey(product.id, true))?.quantity ?? 0)
+                    return (
+                      <ProductCard
+                        key={product.id}
+                        product={product}
+                        quantity={quantity}
+                        withTopping={false}
+                        onAdd={handleAdd}
+                        onRemove={handleRemove}
+                      />
+                    )
+                  })}
                 </div>
               </section>
             )}
@@ -256,6 +235,8 @@ export default function TakeoutUI({ lineUserId }: Props) {
         pickupDate={pickupDate}
         pickupTime={pickupTime}
         onPickupSelect={handlePickupSelect}
+        onAddItem={handleAdd}
+        tonjiruProduct={tonjiruProduct}
       />
     </div>
   )

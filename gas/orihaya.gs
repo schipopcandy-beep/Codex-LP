@@ -292,41 +292,41 @@ function refreshAll() {
 
 function exportVisitLog() {
   const data = supabaseGet('orders', [
-    ['select',       'line_user_id,created_at,table_id'],
+    ['select',       'line_user_id,created_at'],
     ['status',       'eq.paid'],
     ['line_user_id', 'not.is.null'],
-    ['order',        'created_at.desc'],
+    ['order',        'created_at.asc'],
     ['limit',        5000],
   ])
 
-  // (line_user_id, 来店日) ごとに集計
-  const visitMap = new Map()
+  // line_user_id ごとに初回・最終来店日と来店回数を集計
+  const userMap = new Map()
   for (const order of data) {
     if (!order.line_user_id) continue
-    const ds      = jstDateStr(toJstDate(order.created_at))
-    const key     = `${order.line_user_id}__${ds}`
-    const type    = order.table_id === 'takeout' ? 'テイクアウト' : 'イートイン'
-    const existing = visitMap.get(key)
+    const ds = jstDateStr(toJstDate(order.created_at))
+    const existing = userMap.get(order.line_user_id)
     if (existing) {
-      existing.count++
-      if (existing.type !== type) existing.type = '両方'
+      if (ds < existing.firstDate) existing.firstDate = ds
+      if (ds > existing.lastDate)  existing.lastDate  = ds
+      existing.visitDates.add(ds)
     } else {
-      visitMap.set(key, { userId: order.line_user_id, date: ds, count: 1, type })
+      userMap.set(order.line_user_id, { firstDate: ds, lastDate: ds, visitDates: new Set([ds]) })
     }
   }
 
-  const visits = [...visitMap.values()].sort((a, b) => b.date.localeCompare(a.date))
+  // 最終来店日の新しい順に並べる
+  const rows = [...userMap.entries()]
+    .sort(([, a], [, b]) => b.lastDate.localeCompare(a.lastDate))
+    .map(([userId, v]) => [userId, v.firstDate, v.lastDate, v.visitDates.size])
 
   const sheet   = getOrCreateSheet('来店記録')
   sheet.clearContents()
-  const headers = ['LINE user_id', '来店日', '注文数', '注文タイプ']
-  const rows    = [headers, ...visits.map(v => [v.userId, v.date, v.count, v.type])]
-
-  sheet.getRange(1, 1, rows.length, headers.length).setValues(rows)
+  const headers = ['LINE user ID', '初回来店日', '最終来店日', '来店回数']
+  sheet.getRange(1, 1, rows.length + 1, headers.length).setValues([headers, ...rows])
   styleHeader(sheet, headers.length)
-  sheet.setColumnWidth(1, 240) // LINE ID は長いので幅を広く
+  sheet.setColumnWidth(1, 240)
   sheet.autoResizeColumns(2, headers.length - 1)
-  SpreadsheetApp.getActiveSpreadsheet().toast(`来店記録: ${visits.length}件を更新しました`, '完了', 3)
+  SpreadsheetApp.getActiveSpreadsheet().toast(`来店記録: ${rows.length}人を更新しました`, '完了', 3)
 }
 
 // ─── 6. 店内注文履歴 ─────────────────────────────────────────────
@@ -746,9 +746,11 @@ function sendWeeklyFollowUp() {
     return
   }
 
-  const visitData = visitSheet.getRange(2, 1, visitSheet.getLastRow() - 1, 2).getValues()
+  // 列構成: [LINE user ID, 初回来店日, 最終来店日, 来店回数]
+  // 最終来店日（列3）が7日前のユーザーに送信
+  const visitData = visitSheet.getRange(2, 1, visitSheet.getLastRow() - 1, 3).getValues()
   const userIds   = [...new Set(
-    visitData.filter(row => row[1] === targetDateStr && row[0]).map(row => String(row[0]))
+    visitData.filter(row => row[2] === targetDateStr && row[0]).map(row => String(row[0]))
   )]
 
   if (userIds.length === 0) {
@@ -831,6 +833,126 @@ function testFollowUpToMyself() {
     payload: JSON.stringify({
       to: testUserId,
       messages: buildFollowUpMessages(),
+    }),
+    muteHttpExceptions: true,
+  })
+
+  const code = res.getResponseCode()
+  if (code === 200) {
+    console.log(`テスト送信成功 → ${testUserId}`)
+  } else {
+    console.log(`テスト送信失敗 (${code}): ${res.getContentText()}`)
+  }
+}
+
+// ─── 再来店促進メッセージ（30日未来店のお客さんへ）────────────────
+// 毎日トリガー推奨。最終来店日ごとに1回だけ送信（再来店後に再び30日経過したら再送）。
+
+const REENGAGEMENT_MESSAGE = 'お久しぶりです！期間限定メニューのご紹介です！\nまたご来店お待ちしております😊'
+const REENGAGEMENT_IMAGE_URL = 'https://wgjfwjourukgtxpkuaup.supabase.co/storage/v1/object/public/product-images/shinshomhin_compressed.jpg'
+const REENGAGEMENT_DAYS = 30  // 何日未来店でメッセージを送るか
+
+function sendReengagementMessage() {
+  const { lineToken } = getProps()
+  if (!lineToken) { console.log('LINE_CHANNEL_ACCESS_TOKEN が未設定です'); return }
+
+  const visitSheet = getOrCreateSheet('来店記録')
+  if (visitSheet.getLastRow() <= 1) {
+    console.log('来店記録が空です。先に refreshAll() を実行してください')
+    return
+  }
+
+  // 閾値日（30日前）を計算
+  const thresholdDay = nDaysAgoJst(REENGAGEMENT_DAYS)
+  const thresholdStr = Utilities.formatDate(thresholdDay, 'Asia/Tokyo', 'yyyy/MM/dd')
+
+  // 来店記録: [LINE user ID, 初回来店日, 最終来店日, 来店回数]
+  const visitData = visitSheet.getRange(2, 1, visitSheet.getLastRow() - 1, 3).getValues()
+  const targets = visitData
+    .filter(row => row[0] && row[2] && row[2] <= thresholdStr)
+    .map(row => ({ userId: String(row[0]), lastVisit: String(row[2]) }))
+
+  if (targets.length === 0) {
+    console.log(`30日以上未来店のユーザーなし（閾値: ${thresholdStr}）`)
+    return
+  }
+
+  // 送信ログで重複を防ぐ（userId + 最終来店日 の組み合わせで判定）
+  const logSheet = getOrCreateSheet('再来店促進ログ')
+  if (logSheet.getLastRow() === 0) {
+    logSheet.appendRow(['送信日時', 'LINE user_id', '最終来店日', '結果'])
+    styleHeader(logSheet, 4)
+  }
+
+  const sentKeys = new Set()
+  if (logSheet.getLastRow() > 1) {
+    const logData = logSheet.getRange(2, 2, logSheet.getLastRow() - 1, 2).getValues()
+    for (const [userId, lastVisit] of logData) {
+      sentKeys.add(`${userId}__${lastVisit}`)
+    }
+  }
+
+  const nowJstStr = Utilities.formatDate(new Date(Date.now() + 9 * 3600000), 'Asia/Tokyo', 'yyyy/MM/dd HH:mm')
+  let sentCount = 0
+  let skipCount = 0
+
+  for (const { userId, lastVisit } of targets) {
+    const key = `${userId}__${lastVisit}`
+    if (sentKeys.has(key)) { skipCount++; continue }
+
+    let result = 'OK'
+    try {
+      const res = UrlFetchApp.fetch('https://api.line.me/v2/bot/message/push', {
+        method: 'post',
+        headers: {
+          'Content-Type':  'application/json',
+          'Authorization': `Bearer ${lineToken}`,
+        },
+        payload: JSON.stringify({
+          to: userId,
+          messages: [
+            { type: 'text', text: REENGAGEMENT_MESSAGE },
+            { type: 'image', originalContentUrl: REENGAGEMENT_IMAGE_URL, previewImageUrl: REENGAGEMENT_IMAGE_URL },
+          ],
+        }),
+        muteHttpExceptions: true,
+      })
+      if (res.getResponseCode() !== 200) {
+        result = `ERROR ${res.getResponseCode()}: ${res.getContentText().slice(0, 80)}`
+      }
+    } catch (e) {
+      result = `EXCEPTION: ${e.message}`
+    }
+
+    logSheet.appendRow([nowJstStr, userId, lastVisit, result])
+    sentCount++
+    Utilities.sleep(200)
+  }
+
+  console.log(`再来店促進メッセージ送信完了: 送信${sentCount}件 / スキップ${skipCount}件`)
+}
+
+// テスト用：自分だけに再来店促進メッセージを送信
+function testReengagementToMyself() {
+  const props = PropertiesService.getScriptProperties().getProperties()
+  const lineToken  = props['LINE_CHANNEL_ACCESS_TOKEN']
+  const testUserId = props['TEST_LINE_USER_ID']
+
+  if (!lineToken)  { console.log('LINE_CHANNEL_ACCESS_TOKEN が未設定です'); return }
+  if (!testUserId) { console.log('TEST_LINE_USER_ID が未設定です'); return }
+
+  const res = UrlFetchApp.fetch('https://api.line.me/v2/bot/message/push', {
+    method: 'post',
+    headers: {
+      'Content-Type':  'application/json',
+      'Authorization': `Bearer ${lineToken}`,
+    },
+    payload: JSON.stringify({
+      to: testUserId,
+      messages: [
+        { type: 'text', text: REENGAGEMENT_MESSAGE },
+        { type: 'image', originalContentUrl: REENGAGEMENT_IMAGE_URL, previewImageUrl: REENGAGEMENT_IMAGE_URL },
+      ],
     }),
     muteHttpExceptions: true,
   })
