@@ -1,26 +1,22 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createHmac } from 'crypto'
 import { createServiceRoleClient } from '@/lib/supabase/server'
-import { sendWelcomeMessage, replyLineMessage } from '@/lib/line-message'
-import { getVacancy, buildVacancyText } from '@/lib/vacancy'
+import { sendWelcomeMessage } from '@/lib/line-message'
 
 // LINE Harness 送信Webhookのペイロード型
 // イベントタイプ: "friend.added" / "friend.removed" (Harness独自形式)
 // 標準LINE形式: "follow" / "unfollow" にも対応（後方互換）
 interface HarnessEvent {
   event?: string    // Harness形式: "friend.added", "friend.removed"
-  type?: string     // LINE標準形式: "follow", "unfollow", "message"
+  type?: string     // LINE標準形式: "follow", "unfollow"
   data?: {
     userId?: string
     lineUserId?: string
     source?: string   // 流入元: "qr_table" | "qr_takeout" | "instagram"
-    text?: string     // メッセージ本文（Harness形式）
     [key: string]: unknown
   }
   source?: { userId?: string }
   userId?: string
-  replyToken?: string
-  message?: { type?: string; text?: string }  // LINE標準のメッセージイベント
 }
 
 interface WebhookBody {
@@ -80,23 +76,6 @@ export async function POST(req: NextRequest) {
   const events: HarnessEvent[] = body.events ?? (body.event ? [body as HarnessEvent] : [])
 
   for (const ev of events) {
-    // Harness形式 ("friend.added") と LINE標準形式 ("follow") 両方に対応
-    const eventType = ev.event ?? ev.type ?? ''
-
-    // ── メッセージイベント（リッチメニューから「空席確認」が送られる）──
-    if (eventType === 'message') {
-      const text = (ev.message?.text ?? ev.data?.text ?? '').trim()
-      if (text.includes('空席') && ev.replyToken) {
-        try {
-          const vacancy = await getVacancy()
-          await replyLineMessage(ev.replyToken, buildVacancyText(vacancy))
-        } catch (err) {
-          console.error('空席確認の返信に失敗:', err)
-        }
-      }
-      continue
-    }
-
     // userIdをペイロード内の複数の場所から取得
     const userId =
       ev.data?.userId ??
@@ -105,6 +84,9 @@ export async function POST(req: NextRequest) {
       ev.userId
 
     if (!userId) continue
+
+    // Harness形式 ("friend.added") と LINE標準形式 ("follow") 両方に対応
+    const eventType = ev.event ?? ev.type ?? ''
 
     if (eventType === 'friend.added' || eventType === 'follow') {
       // line_users を upsert
