@@ -14,7 +14,6 @@ type GuardStatus =
   | 'logging-in'        // LINEログインリダイレクト中
   | 'checking-friend'   // 友だち確認中
   | 'friend-add'        // 友だち追加ボタン表示
-  | 'waiting-return'    // LINEアプリ起動中・戻り待ち
   | 'not-friend'        // LINEアプリ内・友だち未追加（検証済み）
   | 'party-size'        // 人数選択
   | 'ready'
@@ -46,12 +45,14 @@ export default function OrderAccessGuard({ tableId, children, onUserIdReady, onP
   // 「友だち追加する」リンクをタップしたときの処理
   // ※ preventDefault しないことで iOS Universal Links が正常に動作する
   //   （Universal Links = Safari を離れずに LINE アプリを直接開く仕組み）
+  // タップした瞬間にこのページを人数選択へ進めておくことで、
+  // LINE から戻ってきたときに追加操作なしですぐ注文へ進める
   const handleFriendAddClick = useCallback(() => {
     sessionStorage.setItem(LINE_ADD_KEY, '1')
-    setStatus('waiting-return')
+    setStatus('party-size')
     // ブラウザのデフォルト動作（リンク遷移）はそのまま実行される
-    // iOS/LINE インストール済み → Universal Link でLINEが開き Safari は残る → visibilitychange で検知
-    // Universal Link が効かない場合 → line.me へ遷移 → 戻るボタンで復帰 → sessionStorage で検知
+    // iOS/LINE インストール済み → Universal Link でLINEが開き Safari 側は人数選択画面のまま残る
+    // Universal Link が効かず line.me へ遷移した場合 → 戻る操作で復帰 → pageshow + sessionStorage で人数選択へ
   }, [])
 
   // ─── 戻り検知ハンドラ群（マウント時に一度だけ設定）───────────────────
@@ -213,25 +214,6 @@ export default function OrderAccessGuard({ tableId, children, onUserIdReady, onP
     )
   }
 
-  // --- LINEアプリ起動中・戻り待ち ---
-  if (status === 'waiting-return') {
-    return (
-      <div className="min-h-dvh flex flex-col items-center justify-center gap-4 bg-cream-50 p-8">
-        <div className="w-10 h-10 border-4 border-[#06C755] border-t-transparent rounded-full animate-spin" />
-        <p className="text-brown-600 text-base text-center">
-          LINEに移動しました。<br />
-          友だち追加後、このページに戻ってください。
-        </p>
-        <button
-          onClick={() => { sessionStorage.removeItem(LINE_ADD_KEY); setStatus('party-size') }}
-          className="mt-2 px-6 py-3 rounded-xl border-2 border-brown-400 text-brown-600 text-sm"
-        >
-          注文へ進む
-        </button>
-      </div>
-    )
-  }
-
   // --- 友だち追加ボタン画面（通常ブラウザ）---
   if (status === 'friend-add') {
     return (
@@ -244,10 +226,7 @@ export default function OrderAccessGuard({ tableId, children, onUserIdReady, onP
             </h1>
             <div className="text-sm text-brown-500 leading-relaxed space-y-1">
               <p>友だち追加でお得な情報をお届けします。</p>
-              <p className="font-bold text-brown-800 text-base">
-                追加後は戻るボタンを押してください。
-              </p>
-              <p>注文画面に移動します。</p>
+              <p>追加がすんでこの画面に戻ると、<br />そのまま注文にお進みいただけます。</p>
               <p className="text-xs text-brown-400">※トーク画面では注文できません</p>
             </div>
           </div>
