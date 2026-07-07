@@ -8,7 +8,7 @@ import {
   calcOrderTotal,
   TABLE_NAMES,
   ORDER_STATUS_LABELS,
-  TOPPING_NAME,
+  TOPPING_CART_LABEL,
   TOPPING_PRICE,
   DRINK_CATEGORY,
   DRINK_TIMING_LABELS,
@@ -311,7 +311,7 @@ function ItemRow({ item }: { item: OrderItem }) {
           {item.product?.name ?? '不明商品'}
         </p>
         {item.with_topping && (
-          <p className="text-sm text-brown-400">＋{TOPPING_NAME}</p>
+          <p className="text-sm text-brown-400">（{TOPPING_CART_LABEL}）</p>
         )}
         <p className="text-sm text-brown-400">
           ¥{(item.unit_price + toppingCost).toLocaleString()} × {item.quantity}

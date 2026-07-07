@@ -3,7 +3,7 @@ import type { Order } from '@/lib/types'
 import {
   calcOrderTotal,
   TABLE_NAMES,
-  TOPPING_NAME,
+  TOPPING_CART_LABEL,
   TOPPING_PRICE,
   DRINK_CATEGORY,
   DRINK_TIMING_LABELS,
@@ -75,7 +75,7 @@ export default function OrderCard({ order }: Props) {
                 <span>
                   {item.product?.name ?? '不明'}
                   {item.with_topping && (
-                    <span className="text-brown-400 ml-1">+{TOPPING_NAME}</span>
+                    <span className="text-brown-400 ml-1">{TOPPING_CART_LABEL}</span>
                   )}
                   {timingLabel && (
                     <span className="text-blue-600 ml-1">（{timingLabel}）</span>

@@ -5,7 +5,7 @@ import Link from 'next/link'
 import Image from 'next/image'
 import { useSearchParams } from 'next/navigation'
 import type { Order } from '@/lib/types'
-import { calcOrderTotal, TABLE_NAMES, TOPPING_NAME, TOPPING_PRICE, storageUrl } from '@/lib/types'
+import { calcOrderTotal, TABLE_NAMES, TOPPING_CART_LABEL, TOPPING_PRICE, storageUrl } from '@/lib/types'
 import StatusBadge from '@/components/admin/StatusBadge'
 
 interface Props {
@@ -78,7 +78,7 @@ export default function CompletePage({ params }: Props) {
                         {item.product?.name ?? '不明'}
                       </p>
                       {item.with_topping && (
-                        <p className="text-sm text-brown-400">＋{TOPPING_NAME}</p>
+                        <p className="text-sm text-brown-400">（{TOPPING_CART_LABEL}）</p>
                       )}
                       <p className="text-sm text-brown-400">
                         ¥{(item.unit_price + toppingCost).toLocaleString()} × {item.quantity}

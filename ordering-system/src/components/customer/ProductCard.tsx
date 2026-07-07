@@ -2,7 +2,7 @@
 
 import Image from 'next/image'
 import type { Product } from '@/lib/types'
-import { TOPPING_NAME, TOPPING_PRICE } from '@/lib/types'
+import { TOPPING_CHANGE_LABEL, TOPPING_PRICE } from '@/lib/types'
 
 interface Props {
   product: Product
@@ -66,7 +66,7 @@ export default function ProductCard({ product, quantity, withTopping, onAdd, onR
               disabled={quantity === 0}
             />
             <span>
-              +{TOPPING_NAME}
+              {TOPPING_CHANGE_LABEL}
               <span className="text-brown-400 ml-1">(+¥{TOPPING_PRICE})</span>
             </span>
           </label>

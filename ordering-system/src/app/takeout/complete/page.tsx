@@ -5,7 +5,7 @@ import Link from 'next/link'
 import Image from 'next/image'
 import { useSearchParams } from 'next/navigation'
 import type { Order } from '@/lib/types'
-import { calcOrderTotal, TOPPING_NAME, TOPPING_PRICE, storageUrl, formatScheduleDate } from '@/lib/types'
+import { calcOrderTotal, TOPPING_CART_LABEL, TOPPING_PRICE, storageUrl, formatScheduleDate } from '@/lib/types'
 
 function TakeoutCompleteContent() {
   const searchParams = useSearchParams()
@@ -100,7 +100,7 @@ function TakeoutCompleteContent() {
                         {item.product?.name ?? '不明'}
                       </p>
                       {item.with_topping && (
-                        <p className="text-sm text-brown-400">＋{TOPPING_NAME}</p>
+                        <p className="text-sm text-brown-400">（{TOPPING_CART_LABEL}）</p>
                       )}
                       <p className="text-sm text-brown-400">
                         ¥{(item.unit_price + toppingCost).toLocaleString()} × {item.quantity}
