@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import type { CartItem, Product } from '@/lib/types'
-import { calcCartTotal, TOPPING_NAME, TOPPING_PRICE } from '@/lib/types'
+import { calcCartTotal, TOPPING_CART_LABEL, TOPPING_PRICE } from '@/lib/types'
 import PickupDateTimePicker from '@/components/customer/PickupDateTimePicker'
 
 interface Props {
@@ -153,7 +153,7 @@ export default function TakeoutCart({
                           {item.product.name}
                           {item.with_topping && (
                             <span className="ml-1 text-sm text-brown-500 font-normal">
-                              ＋{TOPPING_NAME}
+                              （{TOPPING_CART_LABEL}）
                             </span>
                           )}
                         </p>

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServiceRoleClient } from '@/lib/supabase/server'
-import { TOPPING_NAME, TOPPING_PRICE } from '@/lib/types'
+import { TOPPING_CART_LABEL, TOPPING_PRICE } from '@/lib/types'
 import { sendLineMessage } from '@/lib/line-message'
 
 interface TakeoutOrderItem {
@@ -35,7 +35,7 @@ function buildOrderMessage(
     const subtotal = unitPrice * item.quantity
     total += subtotal
 
-    const toppingNote = item.with_topping ? `（＋${TOPPING_NAME}）` : ''
+    const toppingNote = item.with_topping ? `（${TOPPING_CART_LABEL}）` : ''
     lines.push(`・${item.product_name}${toppingNote} ×${item.quantity}　¥${subtotal.toLocaleString()}`)
   }
 

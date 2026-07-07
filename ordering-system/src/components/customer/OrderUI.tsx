@@ -6,11 +6,14 @@ import Image from 'next/image'
 import ProductCard from '@/components/customer/ProductCard'
 import DrinkCard from '@/components/customer/DrinkCard'
 import Cart from '@/components/customer/Cart'
-import type { Product, CartItem, DrinkTiming } from '@/lib/types'
+import type { Product, CartItem, DrinkTiming, LunchNigiriUnit } from '@/lib/types'
 import {
   TABLE_NAMES,
   storageUrl,
   LUNCH_PLATE_NAME,
+  LUNCH_START_HOUR,
+  LUNCH_PLATE_SECOND_NIGIRI_PRICE,
+  isLunchTimeNow,
   getLunchPlateSurcharge,
   DRINK_CATEGORY,
 } from '@/lib/types'
@@ -35,14 +38,21 @@ export default function OrderUI({ tableId, lineUserId, partySize, buildCompleteH
   const [cartMap, setCartMap] = useState<Map<string, CartItem>>(new Map())
   const [isSubmitting, setIsSubmitting] = useState(false)
 
-  /** ランチプレート1枚ごとのおにぎり選択: productId → 選択数 */
-  const [lunchNigiriPerPlate, setLunchNigiriPerPlate] = useState<Array<Map<string, number>>>([])
+  /** ランチプレート1枚ごとのおにぎり選択（1〜2個、とろろ昆布変更含む） */
+  const [lunchNigiriPerPlate, setLunchNigiriPerPlate] = useState<LunchNigiriUnit[][]>([])
 
   const cartItems: CartItem[] = Array.from(cartMap.values())
 
   const nigiriProducts = products.filter((p) => p.category === 'おにぎり')
   const drinkProducts = products.filter((p) => p.category === DRINK_CATEGORY)
+  const lunchPlateProducts = products.filter((p) => p.name === LUNCH_PLATE_NAME)
+  const sideProducts = products.filter(
+    (p) => p.category !== 'おにぎり' && p.category !== DRINK_CATEGORY && p.name !== LUNCH_PLATE_NAME,
+  )
   const tonjiruProduct = products.find((p) => p.name.includes('豚汁'))
+
+  /** ランチタイム判定（11:00〜）。ランチ中はランチプレートのみ注文可 */
+  const isLunchTime = isLunchTimeNow()
 
   /** カート内のランチプレート枚数 */
   const lunchPlateCount = cartItems
@@ -56,7 +66,7 @@ export default function OrderUI({ tableId, lineUserId, partySize, buildCompleteH
       if (prev.length < lunchPlateCount) {
         return [
           ...prev,
-          ...Array.from({ length: lunchPlateCount - prev.length }, () => new Map<string, number>()),
+          ...Array.from({ length: lunchPlateCount - prev.length }, () => [] as LunchNigiriUnit[]),
         ]
       }
       return prev.slice(0, lunchPlateCount)
@@ -147,7 +157,7 @@ export default function OrderUI({ tableId, lineUserId, partySize, buildCompleteH
     })
   }, [])
 
-  const handleLunchNigiriChange = useCallback((index: number, next: Map<string, number>) => {
+  const handleLunchNigiriChange = useCallback((index: number, next: LunchNigiriUnit[]) => {
     setLunchNigiriPerPlate((prev) => {
       const arr = [...prev]
       arr[index] = next
@@ -161,16 +171,19 @@ export default function OrderUI({ tableId, lineUserId, partySize, buildCompleteH
 
     try {
       // ランチプレートのおにぎり選択をアイテムに変換（プレート番号を付与）
-      const lunchNigiriItems = lunchNigiriPerPlate.flatMap((plateMap, plateIndex) =>
-        Array.from(plateMap.entries()).flatMap(([productId, count]) => {
-          const product = products.find((p) => p.id === productId)
-          if (!product || count <= 0) return []
+      // 2個目のおにぎりには +200円（1個 ¥1,300 / 2個 ¥1,500）
+      const lunchNigiriItems = lunchNigiriPerPlate.flatMap((units, plateIndex) =>
+        units.flatMap((unit, unitIndex) => {
+          const product = products.find((p) => p.id === unit.productId)
+          if (!product) return []
           return [{
-            product_id: productId,
+            product_id: unit.productId,
             product_name: product.name,
-            quantity: count,
-            unit_price: getLunchPlateSurcharge(product),
-            with_topping: false,
+            quantity: 1,
+            unit_price:
+              getLunchPlateSurcharge(product) +
+              (unitIndex === 1 ? LUNCH_PLATE_SECOND_NIGIRI_PRICE : 0),
+            with_topping: unit.tororo,
             timing: null,
             lunch_plate_index: plateIndex,
           }]
@@ -258,10 +271,44 @@ export default function OrderUI({ tableId, lineUserId, partySize, buildCompleteH
           </div>
         ) : (
           <>
-            {/* おにぎり */}
+            {/* ランチプレート（一番上に配置） */}
+            {lunchPlateProducts.length > 0 && (
+              <section>
+                <h1 className="section-title mb-1 px-1">ランチプレート</h1>
+                <p className={`text-xs mb-3 px-1 ${isLunchTime ? 'text-brown-500' : 'text-amber-700 font-medium'}`}>
+                  {isLunchTime
+                    ? `ランチタイム限定（${LUNCH_START_HOUR}:00〜）／おにぎり1個 ¥1,300・2個 ¥1,500`
+                    : `ご注文は ${LUNCH_START_HOUR}:00 からです`}
+                </p>
+                <div className={`grid grid-cols-2 gap-3 ${!isLunchTime ? 'opacity-50 pointer-events-none' : ''}`}>
+                  {lunchPlateProducts.map((product) => {
+                    const quantity =
+                      (cartMap.get(cartKey(product.id, false))?.quantity ?? 0) +
+                      (cartMap.get(cartKey(product.id, true))?.quantity ?? 0)
+                    return (
+                      <ProductCard
+                        key={product.id}
+                        product={product}
+                        quantity={quantity}
+                        withTopping={false}
+                        onAdd={handleAdd}
+                        onRemove={handleRemove}
+                      />
+                    )
+                  })}
+                </div>
+              </section>
+            )}
+
+            {/* おにぎり（ランチタイム中は注文不可） */}
             <section>
-              <h1 className="section-title mb-4 px-1">メニュー</h1>
-              <div className="grid grid-cols-2 gap-3">
+              <h2 className="section-title mb-1 px-1">おにぎり</h2>
+              {isLunchTime && (
+                <p className="text-xs text-amber-700 font-medium mb-3 px-1">
+                  ランチタイム（{LUNCH_START_HOUR}:00〜）はランチプレートのみのご注文となります
+                </p>
+              )}
+              <div className={`grid grid-cols-2 gap-3 ${isLunchTime ? 'opacity-50 pointer-events-none' : 'mt-3'}`}>
                 {nigiriProducts.map((product) => {
                   const withTopping = cartMap.get(cartKey(product.id, true))?.with_topping ?? false
                   const quantity =
@@ -281,7 +328,31 @@ export default function OrderUI({ tableId, lineUserId, partySize, buildCompleteH
               </div>
             </section>
 
-            {/* ドリンク */}
+            {/* サイド（豚汁など・ランチタイム中は注文不可） */}
+            {sideProducts.length > 0 && (
+              <section>
+                <h2 className="section-title mb-3 px-1">サイド</h2>
+                <div className={`grid grid-cols-2 gap-3 ${isLunchTime ? 'opacity-50 pointer-events-none' : ''}`}>
+                  {sideProducts.map((product) => {
+                    const quantity =
+                      (cartMap.get(cartKey(product.id, false))?.quantity ?? 0) +
+                      (cartMap.get(cartKey(product.id, true))?.quantity ?? 0)
+                    return (
+                      <ProductCard
+                        key={product.id}
+                        product={product}
+                        quantity={quantity}
+                        withTopping={false}
+                        onAdd={handleAdd}
+                        onRemove={handleRemove}
+                      />
+                    )
+                  })}
+                </div>
+              </section>
+            )}
+
+            {/* ドリンク（終日注文可） */}
             {drinkProducts.length > 0 && (
               <section>
                 <h2 className="section-title mb-3 px-1">ドリンク</h2>
@@ -298,32 +369,6 @@ export default function OrderUI({ tableId, lineUserId, partySize, buildCompleteH
                 </div>
               </section>
             )}
-
-            {/* ランチプレート等その他 */}
-            {products.filter((p) => p.category !== 'おにぎり' && p.category !== DRINK_CATEGORY).length > 0 && (
-              <section>
-                <h2 className="section-title mb-3 px-1">セット</h2>
-                <div className="grid grid-cols-2 gap-3">
-                  {products
-                    .filter((p) => p.category !== 'おにぎり' && p.category !== DRINK_CATEGORY)
-                    .map((product) => {
-                      const quantity =
-                        (cartMap.get(cartKey(product.id, false))?.quantity ?? 0) +
-                        (cartMap.get(cartKey(product.id, true))?.quantity ?? 0)
-                      return (
-                        <ProductCard
-                          key={product.id}
-                          product={product}
-                          quantity={quantity}
-                          withTopping={false}
-                          onAdd={handleAdd}
-                          onRemove={handleRemove}
-                        />
-                      )
-                    })}
-                </div>
-              </section>
-            )}
           </>
         )}
       </main>
@@ -337,7 +382,7 @@ export default function OrderUI({ tableId, lineUserId, partySize, buildCompleteH
         onLunchNigiriChange={handleLunchNigiriChange}
         onDrinkTimingChange={handleDrinkTimingChange}
         onAddItem={handleAdd}
-        tonjiruProduct={tonjiruProduct}
+        tonjiruProduct={isLunchTime ? undefined : tonjiruProduct}
       />
     </div>
   )

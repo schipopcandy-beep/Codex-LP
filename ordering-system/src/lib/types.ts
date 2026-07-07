@@ -94,6 +94,11 @@ export function orderShortId(orderId: string): string {
 export const TOPPING_NAME = 'とろろ昆布'
 export const TOPPING_PRICE = 50
 
+/** トッピングの正体は「海苔→とろろ昆布への変更」なので、変更である旨が伝わる表記を使う */
+export const TOPPING_CHANGE_LABEL = '海苔をとろろ昆布に変更'
+/** カート・明細で使う短い表記 */
+export const TOPPING_CART_LABEL = 'とろろ昆布に変更'
+
 export const DRINK_CATEGORY = 'ドリンク'
 
 export type DrinkTiming = 'before' | 'with' | 'after'
@@ -105,6 +110,33 @@ export const DRINK_TIMING_LABELS: Record<DrinkTiming, string> = {
 
 /** ランチプレートの商品名（DBの name と一致させること） */
 export const LUNCH_PLATE_NAME = 'ランチプレート'
+
+/** ランチ開始時刻（時・JST）。この時刻以降はランチプレートのみ注文可 */
+export const LUNCH_START_HOUR = 11
+/** ランチ終了時刻（時・JST）。null なら閉店まで */
+export const LUNCH_END_HOUR: number | null = null
+
+/** ランチプレート2個目のおにぎり追加料金（1個 ¥1,300 / 2個 ¥1,500） */
+export const LUNCH_PLATE_SECOND_NIGIRI_PRICE = 200
+
+/** 現在（JST）がランチタイムかどうか */
+export function isLunchTimeNow(): boolean {
+  const hour = parseInt(
+    new Intl.DateTimeFormat('ja-JP', { hour: 'numeric', hour12: false, timeZone: 'Asia/Tokyo' })
+      .format(new Date()),
+    10,
+  )
+  if (hour < LUNCH_START_HOUR) return false
+  if (LUNCH_END_HOUR !== null && hour >= LUNCH_END_HOUR) return false
+  return true
+}
+
+/** ランチプレート1枚分のおにぎり1個の選択内容 */
+export interface LunchNigiriUnit {
+  productId: string
+  /** 海苔→とろろ昆布に変更（+50円） */
+  tororo: boolean
+}
 
 /**
  * ランチプレート選択時のおにぎり追加料金

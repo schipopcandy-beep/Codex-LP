@@ -1,14 +1,15 @@
 'use client'
 
 import { useState } from 'react'
-import type { CartItem, Product, DrinkTiming } from '@/lib/types'
+import type { CartItem, Product, DrinkTiming, LunchNigiriUnit } from '@/lib/types'
 import {
   calcCartTotal,
-  TOPPING_NAME,
   TOPPING_PRICE,
+  TOPPING_CART_LABEL,
   DRINK_TIMING_LABELS,
   DRINK_CATEGORY,
   getLunchPlateSurcharge,
+  LUNCH_PLATE_SECOND_NIGIRI_PRICE,
 } from '@/lib/types'
 import LunchPlateSelector from '@/components/customer/LunchPlateSelector'
 
@@ -19,8 +20,8 @@ interface Props {
   /** ランチプレート選択UI用 */
   allProducts?: Product[]
   /** ランチプレート1枚ごとのおにぎり選択（配列長 = ランチプレート枚数） */
-  lunchNigiriPerPlate?: Array<Map<string, number>>
-  onLunchNigiriChange?: (index: number, next: Map<string, number>) => void
+  lunchNigiriPerPlate?: LunchNigiriUnit[][]
+  onLunchNigiriChange?: (index: number, next: LunchNigiriUnit[]) => void
   /** ドリンクのタイミング変更 */
   onDrinkTimingChange?: (productId: string, timing: DrinkTiming) => void
   /** 商品をカートに追加（豚汁おすすめ用） */
@@ -57,10 +58,16 @@ export default function Cart({
   }
 
   const baseTotal = calcCartTotal(items)
-  const lunchSurcharge = lunchNigiriPerPlate.flatMap((plateMap) =>
-    Array.from(plateMap.entries()).map(([productId, count]) => {
-      const product = allProducts.find((p) => p.id === productId)
-      return product ? getLunchPlateSurcharge(product) * count : 0
+  // ランチプレート追加分: 種類別加算 + 2個目 +200円 + とろろ昆布変更 +50円
+  const lunchSurcharge = lunchNigiriPerPlate.flatMap((units) =>
+    units.map((unit, i) => {
+      const product = allProducts.find((p) => p.id === unit.productId)
+      const surcharge = product ? getLunchPlateSurcharge(product) : 0
+      return (
+        surcharge +
+        (i === 1 ? LUNCH_PLATE_SECOND_NIGIRI_PRICE : 0) +
+        (unit.tororo ? TOPPING_PRICE : 0)
+      )
     })
   ).reduce((s, v) => s + v, 0)
   const total = baseTotal + lunchSurcharge
@@ -70,9 +77,7 @@ export default function Cart({
   const lunchPlateCount = lunchNigiriPerPlate.length
   const lunchPlateReady =
     lunchPlateCount === 0 ||
-    lunchNigiriPerPlate.every(
-      (map) => Array.from(map.values()).reduce((s, v) => s + v, 0) >= 2
-    )
+    lunchNigiriPerPlate.every((units) => units.length >= 1)
 
   const drinkItems = items.filter((item) => item.product.category === DRINK_CATEGORY)
   const drinksReady = drinkItems.every((item) => item.timing != null)
@@ -179,7 +184,7 @@ export default function Cart({
                           {item.product.name}
                           {item.with_topping && (
                             <span className="ml-1 text-sm text-brown-500 font-normal">
-                              ＋{TOPPING_NAME}
+                              （{TOPPING_CART_LABEL}）
                             </span>
                           )}
                         </p>
@@ -221,11 +226,11 @@ export default function Cart({
 
               {/* ランチプレート おにぎり選択（プレート別） */}
               {lunchPlateCount > 0 && onLunchNigiriChange &&
-                lunchNigiriPerPlate.map((plateMap, i) => (
+                lunchNigiriPerPlate.map((units, i) => (
                   <LunchPlateSelector
                     key={i}
                     products={allProducts}
-                    selections={plateMap}
+                    units={units}
                     plateLabel={lunchPlateCount > 1 ? `${i + 1}枚目` : undefined}
                     onChange={(next) => onLunchNigiriChange(i, next)}
                   />
@@ -251,7 +256,7 @@ export default function Cart({
               </p>
               {lunchPlateCount > 0 && !lunchPlateReady && (
                 <p className="text-center text-sm text-amber-700 font-medium">
-                  ランチプレートのおにぎり（各2つ）を選んでから注文できます
+                  ランチプレートのおにぎり（1〜2個）を選んでから注文できます
                 </p>
               )}
               {!drinksReady && (

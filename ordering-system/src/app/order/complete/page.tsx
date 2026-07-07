@@ -8,7 +8,7 @@ import type { Order } from '@/lib/types'
 import {
   calcOrderTotal,
   TABLE_NAMES,
-  TOPPING_NAME,
+  TOPPING_CART_LABEL,
   TOPPING_PRICE,
   storageUrl,
   seatToTableId,
@@ -83,7 +83,7 @@ function CompletePageContent() {
                         {item.product?.name ?? '不明'}
                       </p>
                       {item.with_topping && (
-                        <p className="text-sm text-brown-400">＋{TOPPING_NAME}</p>
+                        <p className="text-sm text-brown-400">（{TOPPING_CART_LABEL}）</p>
                       )}
                       <p className="text-sm text-brown-400">
                         ¥{(item.unit_price + toppingCost).toLocaleString()} × {item.quantity}
