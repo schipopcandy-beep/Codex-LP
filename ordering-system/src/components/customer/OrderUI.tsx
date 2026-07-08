@@ -269,39 +269,38 @@ export default function OrderUI({ tableId, lineUserId, partySize, buildCompleteH
           <div className="flex items-center justify-center py-20">
             <p className="text-brown-400 text-lg">メニューを読み込み中...</p>
           </div>
-        ) : (
-          <>
-            {/* ランチプレート（一番上に配置） */}
-            {lunchPlateProducts.length > 0 && (
-              <section>
-                <h1 className="section-title mb-1 px-1">ランチプレート</h1>
-                <p className={`text-xs mb-3 px-1 ${isLunchTime ? 'text-brown-500' : 'text-amber-700 font-medium'}`}>
-                  {isLunchTime
-                    ? `ランチタイム限定（${LUNCH_START_HOUR}:00〜）／おにぎり1個 ¥1,300・2個 ¥1,500`
-                    : `ご注文は ${LUNCH_START_HOUR}:00 からです`}
-                </p>
-                <div className={`grid grid-cols-2 gap-3 ${!isLunchTime ? 'opacity-50 pointer-events-none' : ''}`}>
-                  {lunchPlateProducts.map((product) => {
-                    const quantity =
-                      (cartMap.get(cartKey(product.id, false))?.quantity ?? 0) +
-                      (cartMap.get(cartKey(product.id, true))?.quantity ?? 0)
-                    return (
-                      <ProductCard
-                        key={product.id}
-                        product={product}
-                        quantity={quantity}
-                        withTopping={false}
-                        onAdd={handleAdd}
-                        onRemove={handleRemove}
-                      />
-                    )
-                  })}
-                </div>
-              </section>
-            )}
+        ) : (() => {
+          // ─ 各セクションを変数化し、ランチタイム中はドリンクをおにぎりの上に表示する ─
+          const lunchPlateSection = lunchPlateProducts.length > 0 && (
+            <section key="lunch-plate">
+              <h1 className="section-title mb-1 px-1">ランチプレート</h1>
+              <p className={`text-xs mb-3 px-1 ${isLunchTime ? 'text-brown-500' : 'text-amber-700 font-medium'}`}>
+                {isLunchTime
+                  ? `ランチタイム限定（${LUNCH_START_HOUR}:00〜）／おにぎり1個 ¥1,300・2個 ¥1,500`
+                  : `ご注文は ${LUNCH_START_HOUR}:00 からです`}
+              </p>
+              <div className={`grid grid-cols-2 gap-3 ${!isLunchTime ? 'opacity-50 pointer-events-none' : ''}`}>
+                {lunchPlateProducts.map((product) => {
+                  const quantity =
+                    (cartMap.get(cartKey(product.id, false))?.quantity ?? 0) +
+                    (cartMap.get(cartKey(product.id, true))?.quantity ?? 0)
+                  return (
+                    <ProductCard
+                      key={product.id}
+                      product={product}
+                      quantity={quantity}
+                      withTopping={false}
+                      onAdd={handleAdd}
+                      onRemove={handleRemove}
+                    />
+                  )
+                })}
+              </div>
+            </section>
+          )
 
-            {/* おにぎり（ランチタイム中は注文不可） */}
-            <section>
+          const nigiriSection = (
+            <section key="nigiri">
               <h2 className="section-title mb-1 px-1">おにぎり</h2>
               {isLunchTime && (
                 <p className="text-xs text-amber-700 font-medium mb-3 px-1">
@@ -327,50 +326,66 @@ export default function OrderUI({ tableId, lineUserId, partySize, buildCompleteH
                 })}
               </div>
             </section>
+          )
 
-            {/* サイド（豚汁など・ランチタイム中は注文不可） */}
-            {sideProducts.length > 0 && (
-              <section>
-                <h2 className="section-title mb-3 px-1">サイド</h2>
-                <div className={`grid grid-cols-2 gap-3 ${isLunchTime ? 'opacity-50 pointer-events-none' : ''}`}>
-                  {sideProducts.map((product) => {
-                    const quantity =
-                      (cartMap.get(cartKey(product.id, false))?.quantity ?? 0) +
-                      (cartMap.get(cartKey(product.id, true))?.quantity ?? 0)
-                    return (
-                      <ProductCard
-                        key={product.id}
-                        product={product}
-                        quantity={quantity}
-                        withTopping={false}
-                        onAdd={handleAdd}
-                        onRemove={handleRemove}
-                      />
-                    )
-                  })}
-                </div>
-              </section>
-            )}
-
-            {/* ドリンク（終日注文可） */}
-            {drinkProducts.length > 0 && (
-              <section>
-                <h2 className="section-title mb-3 px-1">ドリンク</h2>
-                <div className="space-y-2">
-                  {drinkProducts.map((product) => (
-                    <DrinkCard
+          const sideSection = sideProducts.length > 0 && (
+            <section key="side">
+              <h2 className="section-title mb-3 px-1">サイド</h2>
+              <div className={`grid grid-cols-2 gap-3 ${isLunchTime ? 'opacity-50 pointer-events-none' : ''}`}>
+                {sideProducts.map((product) => {
+                  const quantity =
+                    (cartMap.get(cartKey(product.id, false))?.quantity ?? 0) +
+                    (cartMap.get(cartKey(product.id, true))?.quantity ?? 0)
+                  return (
+                    <ProductCard
                       key={product.id}
                       product={product}
-                      quantity={cartMap.get(drinkKey(product.id))?.quantity ?? 0}
-                      onAdd={() => handleAddDrink(product)}
-                      onRemove={() => handleRemoveDrink(product)}
+                      quantity={quantity}
+                      withTopping={false}
+                      onAdd={handleAdd}
+                      onRemove={handleRemove}
                     />
-                  ))}
-                </div>
-              </section>
-            )}
-          </>
-        )}
+                  )
+                })}
+              </div>
+            </section>
+          )
+
+          const drinkSection = drinkProducts.length > 0 && (
+            <section key="drink">
+              <h2 className="section-title mb-3 px-1">ドリンク</h2>
+              <div className="space-y-2">
+                {drinkProducts.map((product) => (
+                  <DrinkCard
+                    key={product.id}
+                    product={product}
+                    quantity={cartMap.get(drinkKey(product.id))?.quantity ?? 0}
+                    onAdd={() => handleAddDrink(product)}
+                    onRemove={() => handleRemoveDrink(product)}
+                  />
+                ))}
+              </div>
+            </section>
+          )
+
+          // ランチ中: プレート → ドリンク → おにぎり → サイド
+          // 通常時:   プレート → おにぎり → サイド → ドリンク
+          return isLunchTime ? (
+            <>
+              {lunchPlateSection}
+              {drinkSection}
+              {nigiriSection}
+              {sideSection}
+            </>
+          ) : (
+            <>
+              {lunchPlateSection}
+              {nigiriSection}
+              {sideSection}
+              {drinkSection}
+            </>
+          )
+        })()}
       </main>
 
       <Cart
