@@ -112,25 +112,22 @@ export default function AdminDashboard() {
       if (tab === 'eatin') return o.table_id !== TAKEOUT_TABLE_ID
       return true
     })
-    if (tab === 'takeout') {
-      return [...base].sort((a, b) => {
-        if (!a.pickup_at && !b.pickup_at) return 0
-        if (!a.pickup_at) return 1
-        if (!b.pickup_at) return -1
-        return a.pickup_at.localeCompare(b.pickup_at)
-      })
+    if (tab === 'takeout' || tab === 'all') {
+      // 時間の近い順（テイクアウトは受取時間、イートインは注文時間で並べる）
+      const sortKey = (o: Order) => o.pickup_at ?? o.created_at ?? ''
+      return [...base].sort((a, b) => sortKey(a).localeCompare(sortKey(b)))
     }
     return base
   })()
 
-  // テイクアウトタブ: 本日分と明日以降に分ける（受取時間の近い順は filteredOrders で維持）
+  // すべて/テイクアウトタブ: 本日分と明日以降に分ける（時間順は filteredOrders で維持）
   const jstDate = (iso: string) =>
     new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Tokyo' }).format(new Date(iso))
   const todayStr = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Tokyo' }).format(new Date())
-  const takeoutToday = filteredOrders.filter(
+  const todayOrders = filteredOrders.filter(
     (o) => !o.pickup_at || jstDate(o.pickup_at) <= todayStr,
   )
-  const takeoutLater = filteredOrders.filter(
+  const laterOrders = filteredOrders.filter(
     (o) => o.pickup_at && jstDate(o.pickup_at) > todayStr,
   )
 
@@ -198,27 +195,27 @@ export default function AdminDashboard() {
         <div className="text-center py-16 text-brown-400">
           <p className="text-xl">現在、未会計の注文はありません</p>
         </div>
-      ) : tab === 'takeout' ? (
+      ) : tab === 'takeout' || tab === 'all' ? (
         <div className="space-y-6">
-          {takeoutToday.length > 0 && (
+          {todayOrders.length > 0 && (
             <section>
               <h2 className="text-sm font-bold text-green-800 bg-green-50 border border-green-200 rounded-lg px-3 py-1.5 mb-3 w-fit">
-                本日分（{takeoutToday.length}件）
+                本日分（{todayOrders.length}件）
               </h2>
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {takeoutToday.map((order) => (
+                {todayOrders.map((order) => (
                   <OrderCard key={order.id} order={order} />
                 ))}
               </div>
             </section>
           )}
-          {takeoutLater.length > 0 && (
+          {laterOrders.length > 0 && (
             <section>
               <h2 className="text-sm font-bold text-brown-600 bg-cream-200 border border-cream-300 rounded-lg px-3 py-1.5 mb-3 w-fit">
-                明日以降（{takeoutLater.length}件）
+                明日以降（{laterOrders.length}件）
               </h2>
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {takeoutLater.map((order) => (
+                {laterOrders.map((order) => (
                   <OrderCard key={order.id} order={order} />
                 ))}
               </div>
