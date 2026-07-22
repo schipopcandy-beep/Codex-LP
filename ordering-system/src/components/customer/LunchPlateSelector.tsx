@@ -101,12 +101,12 @@ export default function LunchPlateSelector({ products, units, onChange, plateLab
         })}
       </div>
 
-      {/* 選択したおにぎりごとの とろろ昆布変更 */}
-      {units.length > 0 && (
+      {/* 選択したおにぎりごとの とろろ昆布変更（topping_available の商品のみ） */}
+      {units.some((u) => products.find((p) => p.id === u.productId)?.topping_available) && (
         <div className="border-t border-amber-200 pt-2 space-y-1.5">
           {units.map((unit, i) => {
             const product = products.find((p) => p.id === unit.productId)
-            if (!product) return null
+            if (!product || !product.topping_available) return null
             return (
               <label
                 key={`${unit.productId}-${i}`}

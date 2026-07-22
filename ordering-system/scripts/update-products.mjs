@@ -23,17 +23,17 @@ const supabase = createClient(
 )
 
 const PRODUCTS = [
-  { name: '伊達の旨塩にぎり', price: 250,  description: '素材を活かす伊達な旨塩',                          category: 'おにぎり', sort_order: 10,  is_sold_out: false, topping_available: true  },
+  { name: '伊達の旨塩にぎり', price: 250,  description: '素材を活かす伊達な旨塩',                          category: 'おにぎり', sort_order: 10,  is_sold_out: false, topping_available: false },
   { name: 'おかか',           price: 300,  description: 'ふわっと広がる手作りの甘み',                      category: 'おにぎり', sort_order: 20,  is_sold_out: false, topping_available: true  },
   { name: '海苔佃煮',         price: 300,  description: '包むも中身も小野徳さん 海苔で味わう贅沢品',       category: 'おにぎり', sort_order: 30,  is_sold_out: false, topping_available: true  },
   { name: 'ほぐし梅',         price: 300,  description: '紀州産A級品質 特選紀州梅干使用',                  category: 'おにぎり', sort_order: 40,  is_sold_out: false, topping_available: true  },
   { name: '焼しゃけ',         price: 350,  description: '毎朝店内焼き上げ 定番の味',                      category: 'おにぎり', sort_order: 50,  is_sold_out: false, topping_available: true  },
   { name: 'ツナマヨ',         price: 350,  description: 'ツナから手作り ふんわり食感',                    category: 'おにぎり', sort_order: 60,  is_sold_out: false, topping_available: true  },
   { name: '鶏そぼろ',         price: 400,  description: '生姜香る 甘辛ジューシー',                        category: 'おにぎり', sort_order: 70,  is_sold_out: false, topping_available: true  },
-  { name: '焼きおにぎり',     price: 400,  description: '香ばしい味噌に爽やかなしそ 懐かしくて笑顔になる味', category: 'おにぎり', sort_order: 80,  is_sold_out: false, topping_available: true  },
+  { name: '焼きおにぎり',     price: 400,  description: '香ばしい味噌に爽やかなしそ 懐かしくて笑顔になる味', category: 'おにぎり', sort_order: 80,  is_sold_out: false, topping_available: false },
   { name: 'おかチー',         price: 400,  description: 'おかかとチーズ 驚きの相性',                      category: 'おにぎり', sort_order: 90,  is_sold_out: false, topping_available: true  },
   { name: '辛子明太子',       price: 400,  description: 'ピリッとやみつき ぷちぷちの誘惑',                category: 'おにぎり', sort_order: 100, is_sold_out: false, topping_available: true  },
-  { name: '萩のしそひじき',   price: 400,  description: '井上商店の名産品 山口県からお取り寄せ',           category: 'おにぎり', sort_order: 110, is_sold_out: false, topping_available: true  },
+  { name: '萩のしそひじき',   price: 400,  description: '井上商店の名産品 山口県からお取り寄せ',           category: 'おにぎり', sort_order: 110, is_sold_out: false, topping_available: false },
   { name: 'ガパオ',           price: 400,  description: '一口でタイ旅行 鶏ひき肉のバジル炒め',            category: 'おにぎり', sort_order: 120, is_sold_out: false, topping_available: true  },
   { name: 'えびマヨ',         price: 450,  description: 'えび好きのあなたをときめかせたい',               category: 'おにぎり', sort_order: 130, is_sold_out: false, topping_available: true  },
   { name: 'ルーロー',         price: 450,  description: '台湾の人気グルメ 豚肉の甘辛煮',                  category: 'おにぎり', sort_order: 140, is_sold_out: false, topping_available: true  },
