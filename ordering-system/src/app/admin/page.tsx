@@ -123,6 +123,17 @@ export default function AdminDashboard() {
     return base
   })()
 
+  // テイクアウトタブ: 本日分と明日以降に分ける（受取時間の近い順は filteredOrders で維持）
+  const jstDate = (iso: string) =>
+    new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Tokyo' }).format(new Date(iso))
+  const todayStr = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Tokyo' }).format(new Date())
+  const takeoutToday = filteredOrders.filter(
+    (o) => !o.pickup_at || jstDate(o.pickup_at) <= todayStr,
+  )
+  const takeoutLater = filteredOrders.filter(
+    (o) => o.pickup_at && jstDate(o.pickup_at) > todayStr,
+  )
+
   const newCount = filteredOrders.filter((o) => o.status === 'new').length
   const preparingCount = filteredOrders.filter((o) => o.status === 'preparing').length
   const takeoutCount = orders.filter((o) => o.table_id === TAKEOUT_TABLE_ID).length
@@ -186,6 +197,33 @@ export default function AdminDashboard() {
       ) : filteredOrders.length === 0 ? (
         <div className="text-center py-16 text-brown-400">
           <p className="text-xl">現在、未会計の注文はありません</p>
+        </div>
+      ) : tab === 'takeout' ? (
+        <div className="space-y-6">
+          {takeoutToday.length > 0 && (
+            <section>
+              <h2 className="text-sm font-bold text-green-800 bg-green-50 border border-green-200 rounded-lg px-3 py-1.5 mb-3 w-fit">
+                本日分（{takeoutToday.length}件）
+              </h2>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {takeoutToday.map((order) => (
+                  <OrderCard key={order.id} order={order} />
+                ))}
+              </div>
+            </section>
+          )}
+          {takeoutLater.length > 0 && (
+            <section>
+              <h2 className="text-sm font-bold text-brown-600 bg-cream-200 border border-cream-300 rounded-lg px-3 py-1.5 mb-3 w-fit">
+                明日以降（{takeoutLater.length}件）
+              </h2>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {takeoutLater.map((order) => (
+                  <OrderCard key={order.id} order={order} />
+                ))}
+              </div>
+            </section>
+          )}
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
