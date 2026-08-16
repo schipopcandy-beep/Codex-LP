@@ -114,21 +114,37 @@ export const LUNCH_PLATE_NAME = 'ランチプレート'
 /** ランチ開始時刻（時・JST）。この時刻以降はランチプレートのみ注文可 */
 export const LUNCH_START_HOUR = 11
 /** ランチ終了時刻（時・JST）。null なら閉店まで */
-export const LUNCH_END_HOUR: number | null = null
+export const LUNCH_END_HOUR: number | null = 14
 
 /** ランチプレート2個目のおにぎり追加料金（1個 ¥1,300 / 2個 ¥1,500） */
 export const LUNCH_PLATE_SECOND_NIGIRI_PRICE = 200
 
-/** 現在（JST）がランチタイムかどうか */
-export function isLunchTimeNow(): boolean {
-  const hour = parseInt(
+/** ランチタイムの表示用ラベル（例: "11:00〜14:00"） */
+export const LUNCH_TIME_LABEL =
+  LUNCH_END_HOUR !== null
+    ? `${LUNCH_START_HOUR}:00〜${LUNCH_END_HOUR}:00`
+    : `${LUNCH_START_HOUR}:00〜`
+
+/** 現在時刻（時・JST） */
+function jstHourNow(): number {
+  return parseInt(
     new Intl.DateTimeFormat('ja-JP', { hour: 'numeric', hour12: false, timeZone: 'Asia/Tokyo' })
       .format(new Date()),
     10,
   )
+}
+
+/** 現在（JST）がランチタイムかどうか */
+export function isLunchTimeNow(): boolean {
+  const hour = jstHourNow()
   if (hour < LUNCH_START_HOUR) return false
   if (LUNCH_END_HOUR !== null && hour >= LUNCH_END_HOUR) return false
   return true
+}
+
+/** ランチタイム終了後（この時間以降はランチプレートを非表示にする） */
+export function isAfterLunchNow(): boolean {
+  return LUNCH_END_HOUR !== null && jstHourNow() >= LUNCH_END_HOUR
 }
 
 /** ランチプレート1枚分のおにぎり1個の選択内容 */
