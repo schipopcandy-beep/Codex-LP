@@ -12,8 +12,10 @@ import {
   storageUrl,
   LUNCH_PLATE_NAME,
   LUNCH_START_HOUR,
+  LUNCH_TIME_LABEL,
   LUNCH_PLATE_SECOND_NIGIRI_PRICE,
   isLunchTimeNow,
+  isAfterLunchNow,
   getLunchPlateSurcharge,
   DRINK_CATEGORY,
 } from '@/lib/types'
@@ -51,8 +53,10 @@ export default function OrderUI({ tableId, lineUserId, partySize, buildCompleteH
   )
   const tonjiruProduct = products.find((p) => p.name.includes('豚汁'))
 
-  /** ランチタイム判定（11:00〜）。ランチ中はランチプレートのみ注文可 */
+  /** ランチタイム判定（11:00〜14:00）。ランチ中はランチプレートのみ注文可 */
   const isLunchTime = isLunchTimeNow()
+  /** 14:00以降はランチプレート自体を非表示にする */
+  const isAfterLunch = isAfterLunchNow()
 
   /** カート内のランチプレート枚数 */
   const lunchPlateCount = cartItems
@@ -271,12 +275,12 @@ export default function OrderUI({ tableId, lineUserId, partySize, buildCompleteH
           </div>
         ) : (() => {
           // ─ 各セクションを変数化し、ランチタイム中はドリンクをおにぎりの上に表示する ─
-          const lunchPlateSection = lunchPlateProducts.length > 0 && (
+          const lunchPlateSection = !isAfterLunch && lunchPlateProducts.length > 0 && (
             <section key="lunch-plate">
               <h1 className="section-title mb-1 px-1">ランチプレート</h1>
               <p className={`text-xs mb-3 px-1 ${isLunchTime ? 'text-brown-500' : 'text-amber-700 font-medium'}`}>
                 {isLunchTime
-                  ? `ランチタイム限定（${LUNCH_START_HOUR}:00〜）／おにぎり1個 ¥1,300・2個 ¥1,500`
+                  ? `ランチタイム限定（${LUNCH_TIME_LABEL}）／おにぎり1個 ¥1,300・2個 ¥1,500`
                   : `ご注文は ${LUNCH_START_HOUR}:00 からです`}
               </p>
               <div className={`grid grid-cols-2 gap-3 ${!isLunchTime ? 'opacity-50 pointer-events-none' : ''}`}>
@@ -304,7 +308,7 @@ export default function OrderUI({ tableId, lineUserId, partySize, buildCompleteH
               <h2 className="section-title mb-1 px-1">おにぎり</h2>
               {isLunchTime && (
                 <p className="text-xs text-amber-700 font-medium mb-3 px-1">
-                  ランチタイム（{LUNCH_START_HOUR}:00〜）はランチプレートのみのご注文となります
+                  ランチタイム（{LUNCH_TIME_LABEL}）はランチプレートのみのご注文となります
                 </p>
               )}
               <div className={`grid grid-cols-2 gap-3 ${isLunchTime ? 'opacity-50 pointer-events-none' : 'mt-3'}`}>

@@ -1,5 +1,8 @@
+'use client'
+
+import { useState } from 'react'
 import Link from 'next/link'
-import type { Order } from '@/lib/types'
+import type { Order, OrderStatus } from '@/lib/types'
 import {
   calcOrderTotal,
   TABLE_NAMES,
@@ -13,11 +16,41 @@ import {
 } from '@/lib/types'
 import StatusBadge from './StatusBadge'
 
-interface Props {
-  order: Order
+/** バッジタップで循環させる順序: 新規 → 調理中 → 提供済み → 新規 */
+const NEXT_STATUS: Record<OrderStatus, OrderStatus> = {
+  new: 'preparing',
+  preparing: 'served',
+  served: 'new',
+  paid: 'paid',
 }
 
-export default function OrderCard({ order }: Props) {
+interface Props {
+  order: Order
+  /** ステータス変更後に一覧を再取得するコールバック */
+  onStatusChanged?: () => void
+}
+
+export default function OrderCard({ order, onStatusChanged }: Props) {
+  const [updating, setUpdating] = useState(false)
+
+  const handleStatusTap = async (e: React.MouseEvent) => {
+    // カード全体が詳細ページへの Link なので遷移を止める
+    e.preventDefault()
+    e.stopPropagation()
+    if (updating || order.status === 'paid') return
+    setUpdating(true)
+    const res = await fetch(`/api/orders/${order.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status: NEXT_STATUS[order.status] }),
+    })
+    if (res.ok) {
+      onStatusChanged?.()
+    } else {
+      alert('ステータスの更新に失敗しました')
+    }
+    setUpdating(false)
+  }
   const items = order.order_items ?? []
   const total = calcOrderTotal(items)
   const tableName = TABLE_NAMES[order.table_id] ?? order.table_id
@@ -63,7 +96,15 @@ export default function OrderCard({ order }: Props) {
               )}
             </p>
           </div>
-          <StatusBadge status={order.status} tableId={order.table_id} />
+          <button
+            type="button"
+            onClick={handleStatusTap}
+            disabled={updating}
+            className={`${updating ? 'opacity-50' : 'active:scale-95'} transition-transform`}
+            title="タップでステータスを切り替え"
+          >
+            <StatusBadge status={order.status} tableId={order.table_id} />
+          </button>
         </div>
 
         <div className="space-y-1 mb-3">
