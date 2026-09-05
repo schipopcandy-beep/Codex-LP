@@ -11,8 +11,10 @@
  *
  * 関数一覧:
  *   refreshAll()             - 全シートをまとめて最新化（手動 or 日次トリガー）
- *   exportTakeoutHistory()   - テイクアウト履歴シートを更新
- *   exportEatinHistory()     - 店内注文履歴シートを更新
+ *   exportDailySummary()     - 日次サマリーシートを更新（1日1行のダッシュボード）
+ *   exportTakeoutHistory()   - 今月のテイクアウト履歴シート（テイクアウト履歴_yyyy-MM）を更新
+ *   exportEatinHistory()     - 今月の店内注文履歴シート（店内注文履歴_yyyy-MM）を更新
+ *   backfillMonthlyHistory() - 過去分の月別履歴シートを一括作成（初回に1度だけ手動実行）
  *   exportDailySales()       - 商品日次販売数シートを更新
  *   exportSoldoutLogs()      - 売切時刻シートを更新
  *   exportVisitLog()         - 来店記録シートを更新
@@ -27,7 +29,8 @@ const CONFIG = {
   TOPPING_PRICE: 50,
   FOLLOW_UP_MESSAGE: '先日は織はやにご来店いただきありがとうございました😊\nまたのご来店をお待ちしております！',
   SALES_DAYS: 30,        // 日次販売数の集計期間（日）
-  TAKEOUT_LIMIT: 500,    // テイクアウト履歴の取得件数
+  SUMMARY_DAYS: 92,      // 日次サマリーの集計期間（日）約3ヶ月
+  BACKFILL_MONTHS: 12,   // backfillMonthlyHistory で遡る月数
 
   // 期間限定メニューのお知らせ（空文字にすると送らない）
   LIMITED_MENU_IMAGE_URL: '',   // Supabase Storage の画像URL（https://...）
@@ -86,6 +89,24 @@ function supabaseGet(table, params) {
   return JSON.parse(res.getContentText())
 }
 
+/**
+ * 全件取得（Supabase側の1リクエスト上限対策でページネーションする）
+ * params には limit/offset を含めないこと
+ */
+function supabaseGetAll(table, params, pageSize) {
+  pageSize = pageSize || 1000
+  const entries = Array.isArray(params) ? params.slice() : Object.entries(params)
+  let all = []
+  let offset = 0
+  while (true) {
+    const page = supabaseGet(table, entries.concat([['limit', pageSize], ['offset', offset]]))
+    all = all.concat(page)
+    if (page.length < pageSize) break
+    offset += pageSize
+  }
+  return all
+}
+
 // ─── 日付ヘルパー ──────────────────────────────────────────────
 
 function toJstDate(isoStr) {
@@ -112,6 +133,23 @@ function nDaysAgoJst(n) {
   const now = new Date()
   const jst = new Date(now.getTime() + 9 * 3600000)
   return new Date(jst.getFullYear(), jst.getMonth(), jst.getDate() - n)
+}
+
+/**
+ * JST基準の「今月からoffsetMonthsヶ月ずらした月」の情報を返す
+ * 例: offsetMonths=0 → 今月, -1 → 先月
+ * 返り値: { label: 'yyyy-MM', startUtc, endUtc }（月初0:00〜翌月初0:00 JST のUTC範囲）
+ */
+function jstMonthRange(offsetMonths) {
+  const now = new Date()
+  const jst = new Date(now.getTime() + 9 * 3600000)
+  const start = new Date(jst.getFullYear(), jst.getMonth() + offsetMonths, 1)
+  const end   = new Date(jst.getFullYear(), jst.getMonth() + offsetMonths + 1, 1)
+  return {
+    label:    Utilities.formatDate(start, 'Asia/Tokyo', 'yyyy-MM'),
+    startUtc: new Date(start.getTime() - 9 * 3600000).toISOString(),
+    endUtc:   new Date(end.getTime() - 9 * 3600000).toISOString(),
+  }
 }
 
 // ─── 共通: ヘッダースタイル ─────────────────────────────────────
@@ -142,38 +180,82 @@ function testConnection() {
   }
 }
 
-// ─── 1. テイクアウト履歴 ─────────────────────────────────────────
+// ─── 1. 注文履歴（月別シート）───────────────────────────────────
+// 「テイクアウト履歴_yyyy-MM」「店内注文履歴_yyyy-MM」の形で月ごとに分けて書き出す。
+// 通常の更新（refreshAll / 各export関数）は今月のシートだけを書き換えるので、
+// データが増えても更新は重くならず、過去月のシートはそのまま保存される。
 
+/** 今月のテイクアウト履歴シートを更新 */
 function exportTakeoutHistory() {
-  const data = supabaseGet('orders', {
-    select:    'id,created_at,pickup_at,order_items(unit_price,quantity,with_topping,products(name))',
-    table_id:  'eq.takeout',
-    status:    'eq.paid',
-    order:     'created_at.desc',
-    limit:     CONFIG.TAKEOUT_LIMIT,
-  })
+  exportHistoryForMonth('takeout', 0)
+}
 
-  const sheet = getOrCreateSheet('テイクアウト履歴')
+/** 過去分の月別履歴シートを一括作成する（初回に1度だけ手動実行すればOK） */
+function backfillMonthlyHistory() {
+  let created = 0
+  for (let m = -(CONFIG.BACKFILL_MONTHS - 1); m <= 0; m++) {
+    const hasTakeout = exportHistoryForMonth('takeout', m)
+    const hasEatin   = exportHistoryForMonth('eatin', m)
+    if (hasTakeout || hasEatin) created++
+  }
+  SpreadsheetApp.getActiveSpreadsheet().toast(
+    `過去${CONFIG.BACKFILL_MONTHS}ヶ月分の月別履歴シートを作成しました`, '完了', 5)
+}
+
+/**
+ * 指定月の注文履歴シートを更新する
+ * kind: 'takeout' | 'eatin' / offsetMonths: 0=今月, -1=先月...
+ * 対象月に注文があれば true を返す（注文ゼロの月はシートを作らない）
+ */
+function exportHistoryForMonth(kind, offsetMonths) {
+  const month     = jstMonthRange(offsetMonths)
+  const isTakeout = kind === 'takeout'
+  const prefix    = isTakeout ? 'テイクアウト履歴' : '店内注文履歴'
+
+  const data = supabaseGetAll('orders', [
+    ['select',     'id,created_at,pickup_at,table_id,order_items(unit_price,quantity,with_topping,products(name))'],
+    ['table_id',   isTakeout ? 'eq.takeout' : 'neq.takeout'],
+    ['status',     'eq.paid'],
+    ['created_at', `gte.${month.startUtc}`],
+    ['created_at', `lt.${month.endUtc}`],
+    ['order',      'created_at.desc'],
+  ])
+
+  const sheetName = `${prefix}_${month.label}`
+  if (data.length === 0) {
+    // 注文ゼロの月は空シートを作らない（既存シートがあれば中身だけクリア）
+    const existing = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(sheetName)
+    if (existing) existing.clearContents()
+    return false
+  }
+
+  const sheet = getOrCreateSheet(sheetName)
   sheet.clearContents()
 
-  const headers = ['注文日', '受取時刻', '商品名', '数量', '単価', '小計', '注文ID']
+  const headers = isTakeout
+    ? ['注文日', '受取時刻', '商品名', '数量', '単価', '小計', '注文ID']
+    : ['注文日', '注文時刻', 'テーブル', '商品名', '数量', '単価', '小計', '注文ID']
   const rows = [headers]
 
   for (const order of data) {
-    const dateStr   = jstDateStr(toJstDate(order.created_at))
-    const pickupStr = order.pickup_at ? jstTimeStr(order.pickup_at) : '—'
+    const jst     = toJstDate(order.created_at)
+    const dateStr = jstDateStr(jst)
+    const timeStr = isTakeout
+      ? (order.pickup_at ? jstTimeStr(order.pickup_at) : '—')
+      : Utilities.formatDate(jst, 'Asia/Tokyo', 'HH:mm')
     const items = order.order_items || []
 
+    const baseCols = isTakeout ? [dateStr, timeStr] : [dateStr, timeStr, order.table_id || '—']
+
     if (items.length === 0) {
-      rows.push([dateStr, pickupStr, '（商品なし）', '', '', '', order.id])
+      rows.push([...baseCols, '（商品なし）', '', '', '', order.id])
       continue
     }
 
     for (const item of items) {
       const unitPrice = item.unit_price + (item.with_topping ? CONFIG.TOPPING_PRICE : 0)
       rows.push([
-        dateStr,
-        pickupStr,
+        ...baseCols,
         item.products?.name ?? '不明',
         item.quantity,
         unitPrice,
@@ -186,7 +268,8 @@ function exportTakeoutHistory() {
   sheet.getRange(1, 1, rows.length, headers.length).setValues(rows)
   styleHeader(sheet, headers.length)
   sheet.autoResizeColumns(1, headers.length)
-  SpreadsheetApp.getActiveSpreadsheet().toast(`テイクアウト履歴: ${rows.length - 1}行を更新しました`, '完了', 3)
+  SpreadsheetApp.getActiveSpreadsheet().toast(`${sheetName}: ${rows.length - 1}行を更新しました`, '完了', 3)
+  return true
 }
 
 // ─── 2. 商品日次販売数（ピボット形式）────────────────────────────
@@ -279,6 +362,7 @@ function exportSoldoutLogs() {
 // ─── 4. まとめて更新 ────────────────────────────────────────────
 
 function refreshAll() {
+  exportDailySummary()
   exportTakeoutHistory()
   exportEatinHistory()
   exportDailySales()
@@ -286,6 +370,85 @@ function refreshAll() {
   exportVisitLog()
   exportSalesAnalysis()
   exportSalesForecast()
+}
+
+// ─── 4.5 日次サマリー（1日1行のダッシュボード）───────────────────
+
+function exportDailySummary() {
+  const fromJst = nDaysAgoJst(CONFIG.SUMMARY_DAYS - 1)
+  const { start: fromUtc } = utcRangeForJstDay(fromJst)
+
+  const data = supabaseGetAll('orders', [
+    ['select',     'created_at,table_id,party_size,order_items(unit_price,quantity,with_topping,products(name))'],
+    ['status',     'eq.paid'],
+    ['created_at', `gte.${fromUtc}`],
+    ['order',      'created_at.asc'],
+  ])
+
+  // 日付ごとに集計
+  // ds -> { sales, eatinOrders, eatinGuests, takeoutOrders, productQty: {name: qty} }
+  const days = {}
+
+  for (const order of data) {
+    const ds = jstDateStr(toJstDate(order.created_at))
+    if (!days[ds]) {
+      days[ds] = { sales: 0, eatinOrders: 0, eatinGuests: 0, takeoutOrders: 0, productQty: {} }
+    }
+    const day = days[ds]
+    const isTakeout = order.table_id === 'takeout'
+
+    if (isTakeout) {
+      day.takeoutOrders++
+    } else {
+      day.eatinOrders++
+      day.eatinGuests += order.party_size || 1
+    }
+
+    for (const item of order.order_items || []) {
+      const unitPrice = item.unit_price + (item.with_topping ? CONFIG.TOPPING_PRICE : 0)
+      day.sales += unitPrice * item.quantity
+      const name = item.products?.name ?? '不明'
+      day.productQty[name] = (day.productQty[name] ?? 0) + item.quantity
+    }
+  }
+
+  const WEEKDAYS = ['日', '月', '火', '水', '木', '金', '土']
+  const headers = ['日付', '曜日', '売上合計', 'イートイン組数', '来店人数', 'テイクアウト件数', '平均単価', '人気No.1']
+  const rows = [headers]
+
+  // 新しい日付が上に来るように降順で並べる
+  for (const ds of Object.keys(days).sort().reverse()) {
+    const day = days[ds]
+    const [y, m, d] = ds.split('/').map(Number)
+    const weekday = WEEKDAYS[new Date(Date.UTC(y, m - 1, d)).getUTCDay()]
+    const orderCount = day.eatinOrders + day.takeoutOrders
+    const avg = orderCount > 0 ? Math.round(day.sales / orderCount) : 0
+    const topProduct = Object.entries(day.productQty)
+      .sort(([, a], [, b]) => b - a)[0]
+    rows.push([
+      ds,
+      weekday,
+      day.sales,
+      day.eatinOrders,
+      day.eatinGuests,
+      day.takeoutOrders,
+      avg,
+      topProduct ? `${topProduct[0]}（${topProduct[1]}個）` : '—',
+    ])
+  }
+
+  const ss = SpreadsheetApp.getActiveSpreadsheet()
+  const sheet = getOrCreateSheet('日次サマリー')
+  sheet.clearContents()
+  sheet.getRange(1, 1, rows.length, headers.length).setValues(rows)
+  styleHeader(sheet, headers.length)
+  sheet.autoResizeColumns(1, headers.length)
+
+  // 一番左のタブに固定して、開いたらすぐ見えるようにする
+  ss.setActiveSheet(sheet)
+  ss.moveActiveSheet(1)
+
+  ss.toast(`日次サマリー: ${rows.length - 1}日分を更新しました`, '完了', 3)
 }
 
 // ─── 5. 来店記録 ─────────────────────────────────────────────────
@@ -329,54 +492,11 @@ function exportVisitLog() {
   SpreadsheetApp.getActiveSpreadsheet().toast(`来店記録: ${rows.length}人を更新しました`, '完了', 3)
 }
 
-// ─── 6. 店内注文履歴 ─────────────────────────────────────────────
+// ─── 6. 店内注文履歴（月別シート）────────────────────────────────
 
+/** 今月の店内注文履歴シートを更新 */
 function exportEatinHistory() {
-  const data = supabaseGet('orders', [
-    ['select',   'id,created_at,table_id,order_items(unit_price,quantity,with_topping,products(name))'],
-    ['table_id', 'neq.takeout'],
-    ['status',   'eq.paid'],
-    ['order',    'created_at.desc'],
-    ['limit',    CONFIG.TAKEOUT_LIMIT],
-  ])
-
-  const sheet = getOrCreateSheet('店内注文履歴')
-  sheet.clearContents()
-
-  const headers = ['注文日', '注文時刻', 'テーブル', '商品名', '数量', '単価', '小計', '注文ID']
-  const rows = [headers]
-
-  for (const order of data) {
-    const jst     = toJstDate(order.created_at)
-    const dateStr = jstDateStr(jst)
-    const timeStr = Utilities.formatDate(jst, 'Asia/Tokyo', 'HH:mm')
-    const tableStr = order.table_id || '—'
-    const items   = order.order_items || []
-
-    if (items.length === 0) {
-      rows.push([dateStr, timeStr, tableStr, '（商品なし）', '', '', '', order.id])
-      continue
-    }
-
-    for (const item of items) {
-      const unitPrice = item.unit_price + (item.with_topping ? CONFIG.TOPPING_PRICE : 0)
-      rows.push([
-        dateStr,
-        timeStr,
-        tableStr,
-        item.products?.name ?? '不明',
-        item.quantity,
-        unitPrice,
-        unitPrice * item.quantity,
-        order.id,
-      ])
-    }
-  }
-
-  sheet.getRange(1, 1, rows.length, headers.length).setValues(rows)
-  styleHeader(sheet, headers.length)
-  sheet.autoResizeColumns(1, headers.length)
-  SpreadsheetApp.getActiveSpreadsheet().toast(`店内注文履歴: ${rows.length - 1}行を更新しました`, '完了', 3)
+  exportHistoryForMonth('eatin', 0)
 }
 
 // ─── 7. 売上分析（日付・曜日・天気・競合・イベント・売上）────────
