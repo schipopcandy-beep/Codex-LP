@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState } from 'react'
 
 interface Props {
   tableId: string
@@ -10,109 +10,31 @@ interface Props {
 }
 
 type GuardStatus =
-  | 'initializing'      // 起動中
-  | 'logging-in'        // LINEログインリダイレクト中
-  | 'checking-friend'   // 友だち確認中
-  | 'friend-add'        // 友だち追加ボタン表示
-  | 'not-friend'        // LINEアプリ内・友だち未追加（検証済み）
-  | 'party-size'        // 人数選択
+  | 'initializing'   // 起動中（LIFF初期化・LINE ID取得）
+  | 'party-size'     // 人数選択
   | 'ready'
   | 'error-no-seat'
 
 const LIFF_ID = process.env.NEXT_PUBLIC_LIFF_ID ?? ''
-const ADD_FRIEND_URL = process.env.NEXT_PUBLIC_LINE_ADD_FRIEND_URL ?? ''
 
-/** sessionStorage キー: LINE友だち追加ボタンを押したフラグ（ページ遷移後の復帰用） */
-const LINE_ADD_KEY = 'orihaya-line-add'
-
+/**
+ * 店内注文の入口。
+ * 友だち追加は求めず、席が特定できたらそのまま人数選択→注文へ進む。
+ * LINEアプリ内で開かれた場合のみ、通知用にLINE IDを取得する。
+ */
 export default function OrderAccessGuard({ tableId, children, onUserIdReady, onPartySizeReady }: Props) {
   const [status, setStatus] = useState<GuardStatus>('initializing')
-  const [userId, setUserId] = useState<string | null>(null)
-  const [recheckError, setRecheckError] = useState<string | null>(null)
   const [selectedPartySize, setSelectedPartySize] = useState<number | null>(null)
 
-  const checkFriend = useCallback(async (uid: string): Promise<boolean> => {
-    const res = await fetch('/api/line/friend-status', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ userId: uid }),
-    })
-    if (!res.ok) throw new Error('友だち確認APIの呼び出しに失敗しました')
-    const data = await res.json()
-    return data.isFriend as boolean
-  }, [])
-
-  // 「友だち追加する」リンクをタップしたときの処理
-  // ※ preventDefault しないことで iOS Universal Links が正常に動作する
-  //   （Universal Links = Safari を離れずに LINE アプリを直接開く仕組み）
-  // タップした瞬間にこのページを人数選択へ進めておくことで、
-  // LINE から戻ってきたときに追加操作なしですぐ注文へ進める
-  const handleFriendAddClick = useCallback(() => {
-    sessionStorage.setItem(LINE_ADD_KEY, '1')
-    setStatus('party-size')
-    // ブラウザのデフォルト動作（リンク遷移）はそのまま実行される
-    // iOS/LINE インストール済み → Universal Link でLINEが開き Safari 側は人数選択画面のまま残る
-    // Universal Link が効かず line.me へ遷移した場合 → 戻る操作で復帰 → pageshow + sessionStorage で人数選択へ
-  }, [])
-
-  // ─── 戻り検知ハンドラ群（マウント時に一度だけ設定）───────────────────
-  // Android Chrome の bfcache 復元時も確実に動作するよう
-  // status ではなく sessionStorage を直接確認する
-
-  // ① pageshow: bfcache からのページ復元（Android Chrome で最も確実）
-  useEffect(() => {
-    const onPageShow = () => {
-      if (sessionStorage.getItem(LINE_ADD_KEY)) {
-        sessionStorage.removeItem(LINE_ADD_KEY)
-        setStatus('party-size')
-      }
-    }
-    window.addEventListener('pageshow', onPageShow)
-    return () => window.removeEventListener('pageshow', onPageShow)
-  }, [])
-
-  // ② visibilitychange: LINE アプリを閉じてブラウザタブに戻ったとき
-  useEffect(() => {
-    const onVisible = () => {
-      if (document.visibilityState !== 'visible') return
-      if (sessionStorage.getItem(LINE_ADD_KEY)) {
-        sessionStorage.removeItem(LINE_ADD_KEY)
-        setStatus('party-size')
-      }
-    }
-    document.addEventListener('visibilitychange', onVisible)
-    return () => document.removeEventListener('visibilitychange', onVisible)
-  }, [])
-
-  // ③ focus: タブ切り替えで戻ったときのバックアップ
-  useEffect(() => {
-    const onFocus = () => {
-      if (sessionStorage.getItem(LINE_ADD_KEY)) {
-        sessionStorage.removeItem(LINE_ADD_KEY)
-        setStatus('party-size')
-      }
-    }
-    window.addEventListener('focus', onFocus)
-    return () => window.removeEventListener('focus', onFocus)
-  }, [])
-
-  // 初期化ロジック
   useEffect(() => {
     if (!tableId) {
       setStatus('error-no-seat')
       return
     }
 
-    // ページ遷移後に戻ってきた場合（sessionStorageフラグ）
-    if (sessionStorage.getItem(LINE_ADD_KEY)) {
-      sessionStorage.removeItem(LINE_ADD_KEY)
-      setStatus('party-size')
-      return
-    }
-
-    // LIFF_ID 未設定 → 通常Web動作
+    // LIFF未設定 → LINE IDなしでそのまま進む
     if (!LIFF_ID) {
-      setStatus(ADD_FRIEND_URL ? 'friend-add' : 'party-size')
+      setStatus('party-size')
       return
     }
 
@@ -123,80 +45,29 @@ export default function OrderAccessGuard({ tableId, children, onUserIdReady, onP
         const liff = (await import('@line/liff')).default
         await liff.init({ liffId: LIFF_ID })
 
-        if (cancelled) return
-
-        // LINEアプリ外（通常ブラウザ）→ 友だち追加ボタン画面へ
-        if (!liff.isInClient()) {
-          setStatus(ADD_FRIEND_URL ? 'friend-add' : 'party-size')
-          return
+        // LINEアプリ内でログイン済みの場合のみLINE IDを取得する。
+        // 取得できなくても注文は妨げない（LINE通知が届かないだけ）。
+        if (!cancelled && liff.isInClient() && liff.isLoggedIn()) {
+          const profile = await liff.getProfile()
+          if (!cancelled) onUserIdReady?.(profile.userId)
         }
-
-        // LINEアプリ内 → ログイン確認
-        if (!liff.isLoggedIn()) {
-          setStatus('logging-in')
-          liff.login({ redirectUri: window.location.href })
-          return
-        }
-
-        const profile = await liff.getProfile()
-        if (cancelled) return
-
-        const uid = profile.userId
-        setUserId(uid)
-        onUserIdReady?.(uid)
-        setStatus('checking-friend')
-
-        const isFriend = await checkFriend(uid)
-        if (cancelled) return
-
-        setStatus(isFriend ? 'party-size' : 'not-friend')
       } catch {
-        if (cancelled) return
-        // LIFF失敗 → 友だち追加ボタン画面（またはそのまま）
-        setStatus(ADD_FRIEND_URL ? 'friend-add' : 'party-size')
+        // LIFF失敗時もそのまま注文へ進む
+      } finally {
+        if (!cancelled) setStatus('party-size')
       }
     }
 
     init()
     return () => { cancelled = true }
-  }, [tableId, checkFriend, onUserIdReady])
-
-  const handleRecheck = useCallback(async () => {
-    if (!userId) return
-    setRecheckError(null)
-    setStatus('checking-friend')
-    try {
-      const isFriend = await checkFriend(userId)
-      setStatus(isFriend ? 'party-size' : 'not-friend')
-    } catch {
-      setStatus('not-friend')
-      setRecheckError('確認に失敗しました。もう一度お試しください。')
-    }
-  }, [userId, checkFriend])
-
-  // LINE アイコン
-  const LineIcon = () => (
-    <div className="flex justify-center">
-      <div className="w-16 h-16 rounded-2xl bg-[#06C755] flex items-center justify-center">
-        <svg viewBox="0 0 24 24" className="w-10 h-10 fill-white">
-          <path d="M19.365 9.863c.349 0 .63.285.63.631 0 .345-.281.63-.63.63H17.61v1.125h1.755c.349 0 .63.283.63.63 0 .344-.281.629-.63.629h-2.386c-.345 0-.627-.285-.627-.629V8.108c0-.345.282-.63.63-.63h2.386c.346 0 .627.285.627.63 0 .349-.281.63-.63.63H17.61v1.125h1.755zm-3.855 3.016c0 .27-.174.51-.432.596-.064.021-.133.031-.199.031-.211 0-.391-.09-.51-.25l-2.443-3.317v2.94c0 .344-.279.629-.631.629-.346 0-.626-.285-.626-.629V8.108c0-.27.173-.51.43-.595.06-.023.136-.033.194-.033.195 0 .375.104.495.254l2.462 3.33V8.108c0-.345.282-.63.63-.63.345 0 .63.285.63.63v4.771zm-5.741 0c0 .344-.282.629-.631.629-.345 0-.627-.285-.627-.629V8.108c0-.345.282-.63.627-.63.349 0 .631.285.631.63v4.771zm-2.466.629H4.917c-.345 0-.63-.285-.63-.629V8.108c0-.345.285-.63.63-.63.348 0 .63.285.63.63v4.141h1.756c.348 0 .629.283.629.63 0 .344-.281.629-.629.629M24 10.314C24 4.943 18.615.572 12 .572S0 4.943 0 10.314c0 4.811 4.27 8.842 10.035 9.608.391.082.923.258 1.058.59.12.301.079.766.038 1.08l-.164 1.02c-.045.301-.24 1.186 1.049.645 1.291-.539 6.916-4.078 9.436-6.975C23.176 14.393 24 12.458 24 10.314" />
-        </svg>
-      </div>
-    </div>
-  )
+  }, [tableId, onUserIdReady])
 
   // --- ローディング ---
-  if (
-    status === 'initializing' ||
-    status === 'logging-in' ||
-    status === 'checking-friend'
-  ) {
+  if (status === 'initializing') {
     return (
       <div className="min-h-dvh flex flex-col items-center justify-center gap-3 bg-cream-50 p-8">
         <div className="w-10 h-10 border-4 border-brown-300 border-t-brown-600 rounded-full animate-spin" />
-        <p className="text-brown-500 text-base">
-          {status === 'logging-in' ? 'LINEログイン画面へ移動中...' : '読み込み中...'}
-        </p>
+        <p className="text-brown-500 text-base">読み込み中...</p>
       </div>
     )
   }
@@ -209,84 +80,6 @@ export default function OrderAccessGuard({ tableId, children, onUserIdReady, onP
           <p className="text-2xl mb-3">⚠️</p>
           <p className="text-brown-700 text-lg font-semibold mb-2">席情報が確認できませんでした</p>
           <p className="text-brown-500 text-sm">卓上のQRコードを読み直してください。</p>
-        </div>
-      </div>
-    )
-  }
-
-  // --- 友だち追加ボタン画面（通常ブラウザ）---
-  if (status === 'friend-add') {
-    return (
-      <div className="min-h-dvh flex flex-col items-center justify-center p-6 bg-cream-50">
-        <div className="w-full max-w-sm bg-white rounded-2xl shadow-md p-6 space-y-5">
-          <LineIcon />
-          <div className="text-center space-y-2">
-            <h1 className="text-xl font-bold text-brown-800">
-              LINE公式アカウントのご登録
-            </h1>
-            <div className="text-sm text-brown-500 leading-relaxed space-y-1">
-              <p>友だち追加でお得な情報をお届けします。</p>
-              <p>追加がすんでこの画面に戻ると、<br />そのまま注文にお進みいただけます。</p>
-              <p className="text-xs text-brown-400">※トーク画面では注文できません</p>
-            </div>
-          </div>
-
-          <div className="space-y-3">
-            <a
-              href={ADD_FRIEND_URL}
-              onClick={handleFriendAddClick}
-              className="block w-full py-3 rounded-xl bg-[#06C755] text-white font-semibold text-base text-center active:opacity-80"
-            >
-              友だち追加する
-            </a>
-            <button
-              onClick={() => setStatus('party-size')}
-              className="w-full py-2 text-sm text-brown-400"
-            >
-              すでに追加済みの方はこちら →
-            </button>
-          </div>
-        </div>
-      </div>
-    )
-  }
-
-  // --- 友だち未追加（LINEアプリ内・検証済み）---
-  if (status === 'not-friend') {
-    return (
-      <div className="min-h-dvh flex flex-col items-center justify-center p-6 bg-cream-50">
-        <div className="w-full max-w-sm bg-white rounded-2xl shadow-md p-6 space-y-5">
-          <LineIcon />
-          <div className="text-center space-y-2">
-            <h1 className="text-xl font-bold text-brown-800">注文前にLINE追加をお願いします</h1>
-            <p className="text-sm text-brown-500 leading-relaxed">
-              この席から注文するには、LINE公式アカウントの友だち追加が必要です。<br />
-              追加後に下のボタンから注文へ進めます。
-            </p>
-          </div>
-          {recheckError && <p className="text-center text-xs text-red-500">{recheckError}</p>}
-          <div className="space-y-3">
-            {ADD_FRIEND_URL ? (
-              <a
-                href={ADD_FRIEND_URL}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="block w-full py-3 rounded-xl bg-[#06C755] text-white font-semibold text-base text-center active:opacity-80"
-              >
-                友だち追加する
-              </a>
-            ) : (
-              <p className="text-center text-xs text-brown-400">
-                ※ 友だち追加URLが設定されていません
-              </p>
-            )}
-            <button
-              onClick={handleRecheck}
-              className="w-full py-3 rounded-xl border-2 border-brown-600 text-brown-700 font-semibold text-base active:opacity-80"
-            >
-              追加後、注文へ進む
-            </button>
-          </div>
         </div>
       </div>
     )
