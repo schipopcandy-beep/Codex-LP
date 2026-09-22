@@ -9,7 +9,7 @@ import {
   DRINK_TIMING_LABELS,
   DRINK_CATEGORY,
   getLunchPlateSurcharge,
-  LUNCH_PLATE_SECOND_NIGIRI_PRICE,
+  lunchPlateNigiriCount,
 } from '@/lib/types'
 import LunchPlateSelector from '@/components/customer/LunchPlateSelector'
 
@@ -21,7 +21,13 @@ interface Props {
   allProducts?: Product[]
   /** ランチプレート1枚ごとのおにぎり選択（配列長 = ランチプレート枚数） */
   lunchNigiriPerPlate?: LunchNigiriUnit[][]
+  /** カート内のランチプレートを1枚ずつに展開したもの（lunchNigiriPerPlate と同じ順序） */
+  lunchPlateEntries?: Product[]
   onLunchNigiriChange?: (index: number, next: LunchNigiriUnit[]) => void
+  /** カートの個数変更（delta: +1 / -1） */
+  onQuantityChange?: (item: CartItem, delta: number) => void
+  /** カートから商品を削除 */
+  onItemDelete?: (item: CartItem) => void
   /** ドリンクのタイミング変更 */
   onDrinkTimingChange?: (productId: string, timing: DrinkTiming) => void
   /** 商品をカートに追加（豚汁おすすめ用） */
@@ -36,7 +42,10 @@ export default function Cart({
   isSubmitting,
   allProducts = [],
   lunchNigiriPerPlate = [],
+  lunchPlateEntries = [],
   onLunchNigiriChange,
+  onQuantityChange,
+  onItemDelete,
   onDrinkTimingChange,
   onAddItem,
   tonjiruProduct,
@@ -58,26 +67,29 @@ export default function Cart({
   }
 
   const baseTotal = calcCartTotal(items)
-  // ランチプレート追加分: 種類別加算 + 2個目 +200円 + とろろ昆布変更 +50円
+  // ランチプレート追加分: おにぎりの種類別加算 + とろろ昆布変更 +50円
+  // （おにぎりの個数分の料金は商品価格そのものに含まれる）
   const lunchSurcharge = lunchNigiriPerPlate.flatMap((units) =>
-    units.map((unit, i) => {
+    units.map((unit) => {
       const product = allProducts.find((p) => p.id === unit.productId)
       const surcharge = product ? getLunchPlateSurcharge(product) : 0
-      return (
-        surcharge +
-        (i === 1 ? LUNCH_PLATE_SECOND_NIGIRI_PRICE : 0) +
-        (unit.tororo ? TOPPING_PRICE : 0)
-      )
+      return surcharge + (unit.tororo ? TOPPING_PRICE : 0)
     })
   ).reduce((s, v) => s + v, 0)
   const total = baseTotal + lunchSurcharge
 
   const totalCount = items.reduce((s, i) => s + i.quantity, 0)
 
+  /** i枚目のプレートで選ぶおにぎりの個数 */
+  const requiredNigiri = (i: number) => {
+    const plate = lunchPlateEntries[i]
+    return plate ? lunchPlateNigiriCount(plate) : 1
+  }
+
   const lunchPlateCount = lunchNigiriPerPlate.length
   const lunchPlateReady =
     lunchPlateCount === 0 ||
-    lunchNigiriPerPlate.every((units) => units.length >= 1)
+    lunchNigiriPerPlate.every((units, i) => units.length === requiredNigiri(i))
 
   const drinkItems = items.filter((item) => item.product.category === DRINK_CATEGORY)
   const drinksReady = drinkItems.every((item) => item.timing != null)
@@ -122,6 +134,11 @@ export default function Cart({
                 className="w-full h-40 object-cover rounded-xl"
               />
               <h3 className="text-xl font-bold text-brown-800">ご一緒に豚汁はいかがですか？</h3>
+              {tonjiruProduct && (
+                <p className="text-lg font-bold text-brown-700 tabular-nums">
+                  ¥{tonjiruProduct.price.toLocaleString()}
+                </p>
+              )}
               <p className="text-sm text-brown-500">
                 おにぎりとの相性抜群です。
               </p>
@@ -179,7 +196,7 @@ export default function Cart({
                     className="space-y-1.5"
                   >
                     <div className="flex justify-between items-start gap-2">
-                      <div className="flex-1">
+                      <div className="flex-1 min-w-0">
                         <p className="font-bold text-base text-brown-800">
                           {item.product.name}
                           {item.with_topping && (
@@ -196,6 +213,44 @@ export default function Cart({
                         ¥{subtotal.toLocaleString()}
                       </p>
                     </div>
+
+                    {/* 個数変更・削除 */}
+                    {(onQuantityChange || onItemDelete) && (
+                      <div className="flex items-center justify-between gap-2">
+                        {onQuantityChange && (
+                          <div className="flex items-center gap-3">
+                            <button
+                              type="button"
+                              onClick={() => onQuantityChange(item, -1)}
+                              aria-label="1つ減らす"
+                              className="w-8 h-8 rounded-full border border-brown-400 text-brown-600 font-bold text-xl leading-none flex items-center justify-center active:bg-brown-100"
+                            >
+                              −
+                            </button>
+                            <span className="w-5 text-center font-bold text-brown-800 tabular-nums">
+                              {item.quantity}
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => onQuantityChange(item, 1)}
+                              aria-label="1つ増やす"
+                              className="w-8 h-8 rounded-full border border-brown-400 text-brown-600 font-bold text-xl leading-none flex items-center justify-center active:bg-brown-100"
+                            >
+                              ＋
+                            </button>
+                          </div>
+                        )}
+                        {onItemDelete && (
+                          <button
+                            type="button"
+                            onClick={() => onItemDelete(item)}
+                            className="text-xs text-brown-400 underline underline-offset-2 px-1 py-1"
+                          >
+                            削除
+                          </button>
+                        )}
+                      </div>
+                    )}
 
                     {/* ドリンクのタイミング選択 */}
                     {isDrink && onDrinkTimingChange && (
@@ -231,6 +286,7 @@ export default function Cart({
                     key={i}
                     products={allProducts}
                     units={units}
+                    required={requiredNigiri(i)}
                     plateLabel={lunchPlateCount > 1 ? `${i + 1}枚目` : undefined}
                     onChange={(next) => onLunchNigiriChange(i, next)}
                   />
@@ -256,7 +312,7 @@ export default function Cart({
               </p>
               {lunchPlateCount > 0 && !lunchPlateReady && (
                 <p className="text-center text-sm text-amber-700 font-medium">
-                  ランチプレートのおにぎり（1〜2個）を選んでから注文できます
+                  ランチプレートのおにぎりを選んでから注文できます
                 </p>
               )}
               {!drinksReady && (

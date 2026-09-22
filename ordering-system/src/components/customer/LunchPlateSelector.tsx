@@ -3,26 +3,25 @@
 import type { Product, LunchNigiriUnit } from '@/lib/types'
 import {
   getLunchPlateSurcharge,
-  LUNCH_PLATE_SECOND_NIGIRI_PRICE,
   TOPPING_PRICE,
   TOPPING_CART_LABEL,
 } from '@/lib/types'
 
 interface Props {
   products: Product[]
-  /** このプレートで選択中のおにぎり（最大2個） */
+  /** このプレートで選択中のおにぎり */
   units: LunchNigiriUnit[]
   onChange: (next: LunchNigiriUnit[]) => void
+  /** このプレートで選ぶおにぎりの個数 */
+  required: number
   /** 複数枚時のラベル（例: "1枚目"） */
   plateLabel?: string
 }
 
-const MAX_UNITS = 2
-
-export default function LunchPlateSelector({ products, units, onChange, plateLabel }: Props) {
+export default function LunchPlateSelector({ products, units, onChange, required, plateLabel }: Props) {
   const nigiri = products.filter((p) => p.category === 'おにぎり' && !p.is_sold_out)
   const totalSelected = units.length
-  const canAdd = totalSelected < MAX_UNITS
+  const canAdd = totalSelected < required
 
   const countOf = (productId: string) =>
     units.filter((u) => u.productId === productId).length
@@ -48,17 +47,16 @@ export default function LunchPlateSelector({ products, units, onChange, plateLab
     <div className="mt-3 p-3 bg-amber-50 rounded-xl border border-amber-200 space-y-3">
       <div className="flex items-center justify-between">
         <p className="font-bold text-brown-800 text-sm">
-          {plateLabel ? `${plateLabel}：` : ''}おにぎりを選んでください（1〜2個）
+          {plateLabel ? `${plateLabel}：` : ''}おにぎりを{required}個選んでください
         </p>
-        {totalSelected === 0 ? (
-          <span className="text-xs text-amber-700 font-medium">1個以上選択</span>
+        {totalSelected < required ? (
+          <span className="text-xs text-amber-700 font-medium">
+            あと{required - totalSelected}個
+          </span>
         ) : (
-          <span className="text-xs text-matcha-600 font-medium">選択中 {totalSelected}個 ✓</span>
+          <span className="text-xs text-matcha-600 font-medium">選択済み ✓</span>
         )}
       </div>
-      <p className="text-xs text-brown-500 -mt-1">
-        おにぎり1個 ¥1,300／2個 ¥1,500（2個目 +¥{LUNCH_PLATE_SECOND_NIGIRI_PRICE}）
-      </p>
 
       <div className="space-y-2">
         {nigiri.map((product) => {

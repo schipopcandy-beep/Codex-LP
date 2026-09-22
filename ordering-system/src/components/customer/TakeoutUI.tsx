@@ -6,7 +6,7 @@ import Image from 'next/image'
 import ProductCard from '@/components/customer/ProductCard'
 import TakeoutCart from '@/components/customer/TakeoutCart'
 import type { Product, CartItem } from '@/lib/types'
-import { storageUrl, LUNCH_PLATE_NAME, DRINK_CATEGORY, TAKEOUT_TABLE_ID } from '@/lib/types'
+import { storageUrl, isLunchPlate, DRINK_CATEGORY, TAKEOUT_TABLE_ID } from '@/lib/types'
 
 interface Props {
   lineUserId?: string | null
@@ -46,7 +46,7 @@ export default function TakeoutUI({ lineUserId }: Props) {
         // ランチプレートを除外し、同名商品の重複を除去（DB重複対策）
         const seen = new Set<string>()
         const unique = data.filter((p) => {
-          if (p.name === LUNCH_PLATE_NAME) return false
+          if (isLunchPlate(p)) return false
           if (seen.has(p.name)) return false
           seen.add(p.name)
           return true
@@ -89,6 +89,30 @@ export default function TakeoutUI({ lineUserId }: Props) {
           break
         }
       }
+      return next
+    })
+  }, [])
+
+  /** カートの個数変更（delta: +1 / -1）。0個になった行は削除する */
+  const handleCartQuantityChange = useCallback((item: CartItem, delta: number) => {
+    const key = cartKey(item.product.id, item.with_topping)
+    setCartMap((prev) => {
+      const next = new Map(prev)
+      const existing = next.get(key)
+      if (!existing) return prev
+      const quantity = existing.quantity + delta
+      if (quantity <= 0) next.delete(key)
+      else next.set(key, { ...existing, quantity })
+      return next
+    })
+  }, [])
+
+  /** カートから商品を削除する */
+  const handleCartItemDelete = useCallback((item: CartItem) => {
+    const key = cartKey(item.product.id, item.with_topping)
+    setCartMap((prev) => {
+      const next = new Map(prev)
+      next.delete(key)
       return next
     })
   }, [])
@@ -236,6 +260,8 @@ export default function TakeoutUI({ lineUserId }: Props) {
         pickupTime={pickupTime}
         onPickupSelect={handlePickupSelect}
         onAddItem={handleAdd}
+        onQuantityChange={handleCartQuantityChange}
+        onItemDelete={handleCartItemDelete}
         tonjiruProduct={tonjiruProduct}
       />
     </div>

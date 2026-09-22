@@ -40,7 +40,9 @@ const PRODUCTS = [
   { name: '極み筋子',         price: 600,  description: '店主こだわりの逸品 青森県からお取り寄せ',         category: 'おにぎり', sort_order: 150, is_sold_out: false, topping_available: true  },
   { name: 'しゃけ筋子',       price: 650,  description: '海からの贈り物を口いっぱいに',                   category: 'おにぎり', sort_order: 160, is_sold_out: false, topping_available: true  },
   { name: 'おにぎり屋のみそ汁', price: 400, description: null,                                            category: 'サイド',   sort_order: 170, is_sold_out: false, topping_available: false },
-  { name: 'ランチプレート',   price: 1500, description: null,                                             category: 'ランチ',   sort_order: 180, is_sold_out: false, topping_available: false },
+  { name: '限定おにぎり',     price: 600,  description: '本日の具材はお席のチラシをご覧ください',          category: 'おにぎり', sort_order: 165, is_sold_out: false, topping_available: true  },
+  { name: 'ランチプレート（おにぎり1個）', price: 1300, description: '選べるおにぎり1個とおかずの盛り合わせ', category: 'ランチ', sort_order: 180, is_sold_out: false, topping_available: false },
+  { name: 'ランチプレート（おにぎり2個）', price: 1500, description: '選べるおにぎり2個とおかずの盛り合わせ', category: 'ランチ', sort_order: 181, is_sold_out: false, topping_available: false },
 ]
 
 async function main() {

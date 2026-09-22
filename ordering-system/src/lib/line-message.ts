@@ -28,12 +28,21 @@ export async function replyLineMessage(replyToken: string, text: string): Promis
   })
 }
 
-/** テキストメッセージを1件送信する */
-export async function sendLineMessage(lineUserId: string, text: string): Promise<void> {
+/**
+ * テキストメッセージを1件送信する
+ *
+ * LINE APIは送信できない場合でもHTTPエラーを返すだけなので、
+ * 原因（トークン切れ・友だち未追加など）がログに残るようにしている。
+ * 送信できた場合は true を返す。
+ */
+export async function sendLineMessage(lineUserId: string, text: string): Promise<boolean> {
   const token = process.env.LINE_CHANNEL_ACCESS_TOKEN
-  if (!token) return
+  if (!token) {
+    console.error('LINE送信スキップ: LINE_CHANNEL_ACCESS_TOKEN が未設定です')
+    return false
+  }
 
-  await fetch(LINE_API, {
+  const res = await fetch(LINE_API, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -44,6 +53,15 @@ export async function sendLineMessage(lineUserId: string, text: string): Promise
       messages: [{ type: 'text', text }],
     }),
   })
+
+  if (!res.ok) {
+    // 401/403: トークン不正・失効 / 400: 友だち未追加やブロックなど
+    const detail = await res.text().catch(() => '')
+    console.error(`LINE送信失敗 status=${res.status} user=${lineUserId} body=${detail}`)
+    return false
+  }
+
+  return true
 }
 
 /**

@@ -108,16 +108,28 @@ export const DRINK_TIMING_LABELS: Record<DrinkTiming, string> = {
   after: '食後',
 }
 
-/** ランチプレートの商品名（DBの name と一致させること） */
-export const LUNCH_PLATE_NAME = 'ランチプレート'
+/**
+ * ランチプレートの商品名（DBの name と一致させること）
+ * おにぎりの個数ごとに別商品として登録する
+ */
+export const LUNCH_PLATE_NAME_PREFIX = 'ランチプレート'
+export const LUNCH_PLATE_1_NAME = 'ランチプレート（おにぎり1個）'
+export const LUNCH_PLATE_2_NAME = 'ランチプレート（おにぎり2個）'
+
+/** ランチプレート商品かどうか */
+export function isLunchPlate(product: Product): boolean {
+  return product.name.startsWith(LUNCH_PLATE_NAME_PREFIX)
+}
+
+/** そのランチプレートで選ぶおにぎりの個数（商品名から判定、既定は1個） */
+export function lunchPlateNigiriCount(product: Product): number {
+  return product.name.includes('2個') ? 2 : 1
+}
 
 /** ランチ開始時刻（時・JST）。この時刻以降はランチプレートのみ注文可 */
 export const LUNCH_START_HOUR = 11
 /** ランチ終了時刻（時・JST）。null なら閉店まで */
 export const LUNCH_END_HOUR: number | null = 14
-
-/** ランチプレート2個目のおにぎり追加料金（1個 ¥1,300 / 2個 ¥1,500） */
-export const LUNCH_PLATE_SECOND_NIGIRI_PRICE = 200
 
 /** ランチタイムの表示用ラベル（例: "11:00〜14:00"） */
 export const LUNCH_TIME_LABEL =

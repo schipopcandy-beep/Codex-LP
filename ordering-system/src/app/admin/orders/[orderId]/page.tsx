@@ -12,7 +12,7 @@ import {
   TOPPING_PRICE,
   DRINK_CATEGORY,
   DRINK_TIMING_LABELS,
-  LUNCH_PLATE_NAME,
+  isLunchPlate,
   TAKEOUT_TABLE_ID,
   getStatusLabel,
   orderShortId,
@@ -105,8 +105,8 @@ export default function OrderDetailPage({ params }: Props) {
   const regularItems = items.filter(
     (i) => i.lunch_plate_index == null && i.product?.category !== DRINK_CATEGORY,
   )
-  const lunchPlateBaseItems = regularItems.filter((i) => i.product?.name === LUNCH_PLATE_NAME)
-  const otherItems = regularItems.filter((i) => i.product?.name !== LUNCH_PLATE_NAME)
+  const lunchPlateBaseItems = regularItems.filter((i) => i.product != null && isLunchPlate(i.product))
+  const otherItems = regularItems.filter((i) => i.product == null || !isLunchPlate(i.product))
   const lunchNigiriItems = items.filter((i) => i.lunch_plate_index != null)
   const drinkItems = items.filter((i) => i.product?.category === DRINK_CATEGORY)
 
