@@ -11,21 +11,16 @@ interface Props {
 
 type GuardStatus =
   | 'initializing'   // 起動中（LIFF初期化・LINE ID取得）
-  | 'logging-in'     // LINEログインへリダイレクト中
   | 'party-size'     // 人数選択
   | 'ready'
   | 'error-no-seat'
 
 const LIFF_ID = process.env.NEXT_PUBLIC_LIFF_ID ?? ''
 
-/** sessionStorage キー: LINEログインを一度試したフラグ（リダイレクトループ防止） */
-const LOGIN_TRIED_KEY = 'orihaya-order-login-tried'
-
 /**
  * 店内注文の入口。
- * 友だち追加は求めないが、来店記録・通知のためにLINE IDを取得する。
- * カメラでQRを読んで通常ブラウザで開かれた場合はLINEログインへ一度だけ誘導し、
- * ログインが成立しなかった場合はLINE IDなしで注文を続行する。
+ * 友だち追加もLINEログインも求めず、席が特定できたら人数選択→注文へ進む。
+ * LINEアプリ内など、すでにログイン済みの場合のみ来店記録用にLINE IDを取得する。
  */
 export default function OrderAccessGuard({ tableId, children, onUserIdReady, onPartySizeReady }: Props) {
   const [status, setStatus] = useState<GuardStatus>('initializing')
@@ -52,23 +47,15 @@ export default function OrderAccessGuard({ tableId, children, onUserIdReady, onP
 
         if (cancelled) return
 
-        if (!liff.isLoggedIn()) {
-          // 一度リダイレクトしても未ログインのまま戻った場合（ログインを断った等）は
-          // それ以上ループさせず、LINE IDなしで注文へ進む
-          if (sessionStorage.getItem(LOGIN_TRIED_KEY)) {
-            setStatus('party-size')
-            return
-          }
-          sessionStorage.setItem(LOGIN_TRIED_KEY, '1')
-          setStatus('logging-in')
-          liff.login({ redirectUri: window.location.href })
-          return
+        // 外部ブラウザでの liff.login() は LINE 側で 400 Bad Request になり
+        // 注文画面へ進めなくなるため行わない（LINE Login チャネルの
+        // コールバックURL設定が必要。設定後に再度有効化すること）。
+        // すでにログイン済みの場合のみIDを取得し、取れなくても注文は妨げない。
+        if (liff.isLoggedIn()) {
+          const profile = await liff.getProfile()
+          if (cancelled) return
+          onUserIdReady?.(profile.userId)
         }
-
-        sessionStorage.removeItem(LOGIN_TRIED_KEY)
-        const profile = await liff.getProfile()
-        if (cancelled) return
-        onUserIdReady?.(profile.userId)
         setStatus('party-size')
       } catch {
         // LIFF失敗時はLINE IDなしでそのまま注文へ進む
@@ -81,13 +68,11 @@ export default function OrderAccessGuard({ tableId, children, onUserIdReady, onP
   }, [tableId, onUserIdReady])
 
   // --- ローディング ---
-  if (status === 'initializing' || status === 'logging-in') {
+  if (status === 'initializing') {
     return (
       <div className="min-h-dvh flex flex-col items-center justify-center gap-3 bg-cream-50 p-8">
         <div className="w-10 h-10 border-4 border-brown-300 border-t-brown-600 rounded-full animate-spin" />
-        <p className="text-brown-500 text-base">
-          {status === 'logging-in' ? 'LINEログイン画面へ移動中...' : '読み込み中...'}
-        </p>
+        <p className="text-brown-500 text-base">読み込み中...</p>
       </div>
     )
   }
