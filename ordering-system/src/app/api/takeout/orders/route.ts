@@ -128,6 +128,8 @@ export async function POST(req: NextRequest) {
     await sendLineMessage(line_user_id, message).catch((err) =>
       console.error('LINE push message failed:', err),
     )
+  } else {
+    console.warn(`LINE送信なし: line_user_id が取得できていません order=${orderId}`)
   }
 
   return NextResponse.json({ order_id: orderId }, { status: 201 })

@@ -10,10 +10,10 @@ import type { Product, CartItem, DrinkTiming, LunchNigiriUnit } from '@/lib/type
 import {
   TABLE_NAMES,
   storageUrl,
-  LUNCH_PLATE_NAME,
+  isLunchPlate,
+  lunchPlateNigiriCount,
   LUNCH_START_HOUR,
   LUNCH_TIME_LABEL,
-  LUNCH_PLATE_SECOND_NIGIRI_PRICE,
   isLunchTimeNow,
   isAfterLunchNow,
   getLunchPlateSurcharge,
@@ -47,9 +47,9 @@ export default function OrderUI({ tableId, lineUserId, partySize, buildCompleteH
 
   const nigiriProducts = products.filter((p) => p.category === 'おにぎり')
   const drinkProducts = products.filter((p) => p.category === DRINK_CATEGORY)
-  const lunchPlateProducts = products.filter((p) => p.name === LUNCH_PLATE_NAME)
+  const lunchPlateProducts = products.filter(isLunchPlate)
   const sideProducts = products.filter(
-    (p) => p.category !== 'おにぎり' && p.category !== DRINK_CATEGORY && p.name !== LUNCH_PLATE_NAME,
+    (p) => p.category !== 'おにぎり' && p.category !== DRINK_CATEGORY && !isLunchPlate(p),
   )
   const tonjiruProduct = products.find((p) => p.name.includes('豚汁'))
 
@@ -58,10 +58,11 @@ export default function OrderUI({ tableId, lineUserId, partySize, buildCompleteH
   /** 14:00以降はランチプレート自体を非表示にする */
   const isAfterLunch = isAfterLunchNow()
 
-  /** カート内のランチプレート枚数 */
-  const lunchPlateCount = cartItems
-    .filter((item) => item.product.name === LUNCH_PLATE_NAME)
-    .reduce((sum, item) => sum + item.quantity, 0)
+  /** カート内のランチプレートを1枚ずつに展開した配列（lunchNigiriPerPlate と同じ順序） */
+  const lunchPlateEntries = cartItems
+    .filter((item) => isLunchPlate(item.product))
+    .flatMap((item) => Array.from({ length: item.quantity }, () => item.product))
+  const lunchPlateCount = lunchPlateEntries.length
 
   // ランチプレート枚数に合わせて配列長を同期
   useEffect(() => {
@@ -169,24 +170,53 @@ export default function OrderUI({ tableId, lineUserId, partySize, buildCompleteH
     })
   }, [])
 
+  /** カート内の行のキー（おにぎり系とドリンクでキーの作り方が違う） */
+  const itemKey = (item: CartItem) =>
+    item.product.category === DRINK_CATEGORY
+      ? drinkKey(item.product.id)
+      : cartKey(item.product.id, item.with_topping)
+
+  /** カートの個数変更（delta: +1 / -1）。0個になった行は削除する */
+  const handleCartQuantityChange = useCallback((item: CartItem, delta: number) => {
+    const key = itemKey(item)
+    setCartMap((prev) => {
+      const next = new Map(prev)
+      const existing = next.get(key)
+      if (!existing) return prev
+      const quantity = existing.quantity + delta
+      if (quantity <= 0) next.delete(key)
+      else next.set(key, { ...existing, quantity })
+      return next
+    })
+  }, [])
+
+  /** カートから商品を削除する */
+  const handleCartItemDelete = useCallback((item: CartItem) => {
+    const key = itemKey(item)
+    setCartMap((prev) => {
+      const next = new Map(prev)
+      next.delete(key)
+      return next
+    })
+  }, [])
+
   const handleSubmit = useCallback(async () => {
     if (cartItems.length === 0) return
     setIsSubmitting(true)
 
     try {
       // ランチプレートのおにぎり選択をアイテムに変換（プレート番号を付与）
-      // 2個目のおにぎりには +200円（1個 ¥1,300 / 2個 ¥1,500）
+      // おにぎりの個数は商品（1個用/2個用）の価格に含まれるため、
+      // ここで加算するのは種類ごとの追加料金のみ
       const lunchNigiriItems = lunchNigiriPerPlate.flatMap((units, plateIndex) =>
-        units.flatMap((unit, unitIndex) => {
+        units.flatMap((unit) => {
           const product = products.find((p) => p.id === unit.productId)
           if (!product) return []
           return [{
             product_id: unit.productId,
             product_name: product.name,
             quantity: 1,
-            unit_price:
-              getLunchPlateSurcharge(product) +
-              (unitIndex === 1 ? LUNCH_PLATE_SECOND_NIGIRI_PRICE : 0),
+            unit_price: getLunchPlateSurcharge(product),
             with_topping: unit.tororo,
             timing: null,
             lunch_plate_index: plateIndex,
@@ -266,6 +296,14 @@ export default function OrderUI({ tableId, lineUserId, partySize, buildCompleteH
           sizes="100vw"
         />
         <div className="absolute inset-0 bg-brown-900/30" />
+      </div>
+
+      {/* 注文のお願い */}
+      <div className="max-w-2xl mx-auto px-3 pt-4">
+        <p className="text-sm font-medium text-brown-700 bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 leading-relaxed">
+          お一人様2つ以上のおにぎりのご注文をお願いいたします。<br />
+          <span className="text-xs text-brown-500">（ランチプレートを除く）</span>
+        </p>
       </div>
 
       <main className="max-w-2xl mx-auto px-3 py-4 space-y-6">
@@ -398,6 +436,9 @@ export default function OrderUI({ tableId, lineUserId, partySize, buildCompleteH
         isSubmitting={isSubmitting}
         allProducts={products}
         lunchNigiriPerPlate={lunchNigiriPerPlate}
+        lunchPlateEntries={lunchPlateEntries}
+        onQuantityChange={handleCartQuantityChange}
+        onItemDelete={handleCartItemDelete}
         onLunchNigiriChange={handleLunchNigiriChange}
         onDrinkTimingChange={handleDrinkTimingChange}
         onAddItem={handleAdd}

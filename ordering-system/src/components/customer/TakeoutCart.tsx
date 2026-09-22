@@ -16,6 +16,10 @@ interface Props {
   onAddItem?: (product: Product, withTopping: boolean) => void
   /** おすすめする豚汁商品（渡された場合のみポップアップ表示） */
   tonjiruProduct?: Product
+  /** カートの個数変更（delta: +1 / -1） */
+  onQuantityChange?: (item: CartItem, delta: number) => void
+  /** カートから商品を削除 */
+  onItemDelete?: (item: CartItem) => void
 }
 
 export default function TakeoutCart({
@@ -27,6 +31,8 @@ export default function TakeoutCart({
   onPickupSelect,
   onAddItem,
   tonjiruProduct,
+  onQuantityChange,
+  onItemDelete,
 }: Props) {
   const [isOpen, setIsOpen] = useState(false)
   const [confirmed, setConfirmed] = useState(false)
@@ -89,6 +95,11 @@ export default function TakeoutCart({
                 className="w-full h-40 object-cover rounded-xl"
               />
               <h3 className="text-xl font-bold text-brown-800">ご一緒に豚汁はいかがですか？</h3>
+              {tonjiruProduct && (
+                <p className="text-lg font-bold text-brown-700 tabular-nums">
+                  ¥{tonjiruProduct.price.toLocaleString()}
+                </p>
+              )}
               <p className="text-sm text-brown-500">
                 おにぎりとの相性抜群です。
               </p>
@@ -146,24 +157,64 @@ export default function TakeoutCart({
                   return (
                     <div
                       key={`${item.product.id}-${item.with_topping}`}
-                      className="flex justify-between items-start gap-2"
+                      className="space-y-1.5"
                     >
-                      <div className="flex-1">
-                        <p className="font-bold text-base text-brown-800">
-                          {item.product.name}
-                          {item.with_topping && (
-                            <span className="ml-1 text-sm text-brown-500 font-normal">
-                              （{TOPPING_CART_LABEL}）
-                            </span>
-                          )}
-                        </p>
-                        <p className="text-sm text-brown-500">
-                          ¥{(item.product.price + toppingCost).toLocaleString()} × {item.quantity}
+                      <div className="flex justify-between items-start gap-2">
+                        <div className="flex-1 min-w-0">
+                          <p className="font-bold text-base text-brown-800">
+                            {item.product.name}
+                            {item.with_topping && (
+                              <span className="ml-1 text-sm text-brown-500 font-normal">
+                                （{TOPPING_CART_LABEL}）
+                              </span>
+                            )}
+                          </p>
+                          <p className="text-sm text-brown-500">
+                            ¥{(item.product.price + toppingCost).toLocaleString()} × {item.quantity}
+                          </p>
+                        </div>
+                        <p className="font-bold text-brown-700 tabular-nums whitespace-nowrap">
+                          ¥{subtotal.toLocaleString()}
                         </p>
                       </div>
-                      <p className="font-bold text-brown-700 tabular-nums whitespace-nowrap">
-                        ¥{subtotal.toLocaleString()}
-                      </p>
+
+                      {/* 個数変更・削除 */}
+                      {(onQuantityChange || onItemDelete) && (
+                        <div className="flex items-center justify-between gap-2">
+                          {onQuantityChange && (
+                            <div className="flex items-center gap-3">
+                              <button
+                                type="button"
+                                onClick={() => onQuantityChange(item, -1)}
+                                aria-label="1つ減らす"
+                                className="w-8 h-8 rounded-full border border-brown-400 text-brown-600 font-bold text-xl leading-none flex items-center justify-center active:bg-brown-100"
+                              >
+                                −
+                              </button>
+                              <span className="w-5 text-center font-bold text-brown-800 tabular-nums">
+                                {item.quantity}
+                              </span>
+                              <button
+                                type="button"
+                                onClick={() => onQuantityChange(item, 1)}
+                                aria-label="1つ増やす"
+                                className="w-8 h-8 rounded-full border border-brown-400 text-brown-600 font-bold text-xl leading-none flex items-center justify-center active:bg-brown-100"
+                              >
+                                ＋
+                              </button>
+                            </div>
+                          )}
+                          {onItemDelete && (
+                            <button
+                              type="button"
+                              onClick={() => onItemDelete(item)}
+                              className="text-xs text-brown-400 underline underline-offset-2 px-1 py-1"
+                            >
+                              削除
+                            </button>
+                          )}
+                        </div>
+                      )}
                     </div>
                   )
                 })}
