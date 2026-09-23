@@ -91,6 +91,9 @@ export function orderShortId(orderId: string): string {
     .toString().padStart(4, '0')
 }
 
+/** 限定おにぎりの商品名（DBの name と一致させること） */
+export const LIMITED_ONIGIRI_NAME = '限定おにぎり'
+
 export const TOPPING_NAME = 'とろろ昆布'
 export const TOPPING_PRICE = 50
 
@@ -176,11 +179,13 @@ export interface LunchNigiriUnit {
 
 /**
  * ランチプレート選択時のおにぎり追加料金
- * しゃけ筋子: +200円 / 筋子: +100円 / 450円以上: +50円 / その他: 0円
+ * しゃけ筋子: +200円 / 筋子: +100円 / 限定おにぎり: +100円 /
+ * 450円以上: +50円 / その他: 0円
  */
 export function getLunchPlateSurcharge(product: Product): number {
   if (product.name === 'しゃけ筋子') return 200
   if (product.name.includes('筋子')) return 100   // 筋子・極み筋子など
+  if (product.name === LIMITED_ONIGIRI_NAME) return 100
   if (product.price >= 450) return 50
   return 0
 }
