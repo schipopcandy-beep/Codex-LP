@@ -128,8 +128,10 @@ export function lunchPlateNigiriCount(product: Product): number {
 
 /** ランチ開始時刻（時・JST）。この時刻以降はランチプレートのみ注文可 */
 export const LUNCH_START_HOUR = 11
-/** ランチ終了時刻（時・JST）。null なら閉店まで */
+/** ランチ終了時刻（時・JST）。null なら閉店まで。これ以降は単品おにぎりも注文可 */
 export const LUNCH_END_HOUR: number | null = 14
+/** ランチプレートの販売終了時刻（時・JST）。これ以降はグレーアウト表示 */
+export const LUNCH_PLATE_END_HOUR = 15
 
 /** ランチタイムの表示用ラベル（例: "11:00〜14:00"） */
 export const LUNCH_TIME_LABEL =
@@ -154,9 +156,15 @@ export function isLunchTimeNow(): boolean {
   return true
 }
 
-/** ランチタイム終了後（この時間以降はランチプレートを非表示にする） */
-export function isAfterLunchNow(): boolean {
-  return LUNCH_END_HOUR !== null && jstHourNow() >= LUNCH_END_HOUR
+/** ランチプレートが注文できる時間帯か（11:00〜15:00） */
+export function isLunchPlateOrderable(): boolean {
+  const hour = jstHourNow()
+  return hour >= LUNCH_START_HOUR && hour < LUNCH_PLATE_END_HOUR
+}
+
+/** ランチプレートの販売が終了したか（15:00以降） */
+export function isLunchPlateClosed(): boolean {
+  return jstHourNow() >= LUNCH_PLATE_END_HOUR
 }
 
 /** ランチプレート1枚分のおにぎり1個の選択内容 */
