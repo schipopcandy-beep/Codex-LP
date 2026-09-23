@@ -48,13 +48,12 @@ export async function POST(req: NextRequest) {
   let orderId: string
 
   if (existingOrder) {
-    // 既存の伝票に追加
+    // 既存の伝票に追加。厨房が追加分に気づけるようステータスを「追加」に戻す
     orderId = existingOrder.id
 
-    // updated_at を更新
     await supabase
       .from('orders')
-      .update({ updated_at: new Date().toISOString() })
+      .update({ status: 'added', updated_at: new Date().toISOString() })
       .eq('id', orderId)
   } else {
     // 新しい伝票を作成

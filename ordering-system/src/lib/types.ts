@@ -61,10 +61,11 @@ export interface AvailableDay {
   slots: string[] // ["07:30", "08:00", ...]
 }
 
-export type OrderStatus = 'new' | 'preparing' | 'served' | 'paid'
+export type OrderStatus = 'new' | 'added' | 'preparing' | 'served' | 'paid'
 
 export const ORDER_STATUS_LABELS: Record<OrderStatus, string> = {
   new: '新規',
+  added: '追加',
   preparing: '調理中',
   served: '提供済み',
   paid: '会計済み',
@@ -73,6 +74,7 @@ export const ORDER_STATUS_LABELS: Record<OrderStatus, string> = {
 /** テイクアウト用ステータスラベル（提供済み → 準備済み） */
 export const TAKEOUT_STATUS_LABELS: Record<OrderStatus, string> = {
   new: '新規',
+  added: '追加',
   preparing: '調理中',
   served: '準備済み',
   paid: '会計済み',
@@ -93,6 +95,17 @@ export function orderShortId(orderId: string): string {
 
 /** 限定おにぎりの商品名（DBの name と一致させること） */
 export const LIMITED_ONIGIRI_NAME = '限定おにぎり'
+
+/** おにぎりのカテゴリ名（DBの category と一致させること） */
+export const NIGIRI_CATEGORY = 'おにぎり'
+
+/**
+ * 海苔→とろろ昆布への変更を選べる商品か
+ * おにぎりはすべて対象（DBの topping_available は参照しない）
+ */
+export function isToppingSelectable(product: Product): boolean {
+  return product.category === NIGIRI_CATEGORY
+}
 
 export const TOPPING_NAME = 'とろろ昆布'
 export const TOPPING_PRICE = 50
@@ -136,6 +149,12 @@ export const LUNCH_END_HOUR: number | null = 14
 /** ランチプレートの販売終了時刻（時・JST）。これ以降はグレーアウト表示 */
 export const LUNCH_PLATE_END_HOUR = 15
 
+/**
+ * テスト期間中のみ true。ランチプレートを時間帯に関係なく注文できるようにする。
+ * ※2026年10月上旬をめどに false に戻し、11:00〜15:00 の販売に戻すこと
+ */
+export const LUNCH_PLATE_ALWAYS_AVAILABLE = true
+
 /** ランチタイムの表示用ラベル（例: "11:00〜14:00"） */
 export const LUNCH_TIME_LABEL =
   LUNCH_END_HOUR !== null
@@ -161,12 +180,14 @@ export function isLunchTimeNow(): boolean {
 
 /** ランチプレートが注文できる時間帯か（11:00〜15:00） */
 export function isLunchPlateOrderable(): boolean {
+  if (LUNCH_PLATE_ALWAYS_AVAILABLE) return true
   const hour = jstHourNow()
   return hour >= LUNCH_START_HOUR && hour < LUNCH_PLATE_END_HOUR
 }
 
 /** ランチプレートの販売が終了したか（15:00以降） */
 export function isLunchPlateClosed(): boolean {
+  if (LUNCH_PLATE_ALWAYS_AVAILABLE) return false
   return jstHourNow() >= LUNCH_PLATE_END_HOUR
 }
 

@@ -24,7 +24,7 @@ interface Props {
   params: Promise<{ orderId: string }>
 }
 
-const STATUS_FLOW: OrderStatus[] = ['new', 'preparing', 'served', 'paid']
+const STATUS_FLOW: OrderStatus[] = ['new', 'added', 'preparing', 'served', 'paid']
 
 export default function OrderDetailPage({ params }: Props) {
   const { orderId } = use(params)
@@ -119,6 +119,15 @@ export default function OrderDetailPage({ params }: Props) {
   }
   const plateCount = lunchPlateBaseItems.reduce((s, i) => s + i.quantity, 0)
 
+  // 最初の注文より後に入った明細を「追加」として扱う
+  // （伝票作成から1分以内のものは最初の注文とみなす）
+  const firstOrderedAt = items.length
+    ? Math.min(...items.map((i) => new Date(i.created_at).getTime()))
+    : 0
+  const isAdditional = (item: OrderItem) =>
+    new Date(item.created_at).getTime() - firstOrderedAt > 60_000
+  const additionalCount = items.filter(isAdditional).length
+
   return (
     <div className="p-4 md:p-6 max-w-2xl mx-auto">
       {/* ナビゲーション */}
@@ -185,14 +194,19 @@ export default function OrderDetailPage({ params }: Props) {
 
       {/* 注文明細 */}
       <div className="card p-4 mb-4">
-        <h2 className="font-bold text-lg text-brown-700 mb-3 border-b border-cream-300 pb-2">
-          注文明細
+        <h2 className="font-bold text-lg text-brown-700 mb-3 border-b border-cream-300 pb-2 flex items-center justify-between">
+          <span>注文明細</span>
+          {additionalCount > 0 && (
+            <span className="text-sm font-bold text-rose-700 bg-rose-50 border border-rose-200 rounded-full px-3 py-0.5">
+              追加注文 {additionalCount}件
+            </span>
+          )}
         </h2>
         <div className="space-y-4">
 
           {/* 通常アイテム */}
           {otherItems.map((item) => (
-            <ItemRow key={item.id} item={item} />
+            <ItemRow key={item.id} item={item} additional={isAdditional(item)} />
           ))}
 
           {/* ランチプレート */}
@@ -301,13 +315,16 @@ export default function OrderDetailPage({ params }: Props) {
   )
 }
 
-function ItemRow({ item }: { item: OrderItem }) {
+function ItemRow({ item, additional }: { item: OrderItem; additional?: boolean }) {
   const toppingCost = item.with_topping ? TOPPING_PRICE : 0
   const subtotal = (item.unit_price + toppingCost) * item.quantity
   return (
     <div className="flex justify-between items-start">
       <div className="flex-1">
         <p className="text-base font-bold text-brown-800">
+          {additional && (
+            <span className="text-sm text-rose-600 mr-1">［追加］</span>
+          )}
           {item.product?.name ?? '不明商品'}
         </p>
         {item.with_topping && (

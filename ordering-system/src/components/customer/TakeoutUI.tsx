@@ -67,28 +67,22 @@ export default function TakeoutUI({ lineUserId }: Props) {
       const key = cartKey(product.id, withTopping)
       const existing = next.get(key)
       if (existing) {
-        next.set(key, { ...existing, quantity: existing.quantity + 1, with_topping: withTopping })
+        next.set(key, { ...existing, quantity: existing.quantity + 1 })
       } else {
-        const oppositeKey = cartKey(product.id, !withTopping)
-        if (next.has(oppositeKey)) next.delete(oppositeKey)
         next.set(key, { product, quantity: 1, with_topping: withTopping })
       }
       return next
     })
   }, [])
 
-  const handleRemove = useCallback((product: Product) => {
+  const handleRemove = useCallback((product: Product, withTopping: boolean) => {
     setCartMap((prev) => {
       const next = new Map(prev)
-      for (const withTopping of [true, false]) {
-        const key = cartKey(product.id, withTopping)
-        const existing = next.get(key)
-        if (existing) {
-          if (existing.quantity > 1) next.set(key, { ...existing, quantity: existing.quantity - 1 })
-          else next.delete(key)
-          break
-        }
-      }
+      const key = cartKey(product.id, withTopping)
+      const existing = next.get(key)
+      if (!existing) return prev
+      if (existing.quantity > 1) next.set(key, { ...existing, quantity: existing.quantity - 1 })
+      else next.delete(key)
       return next
     })
   }, [])
@@ -207,16 +201,14 @@ export default function TakeoutUI({ lineUserId }: Props) {
               <h1 className="section-title mb-4 px-1">おにぎり</h1>
               <div className="grid grid-cols-2 gap-3">
                 {nigiriProducts.map((product) => {
-                  const withTopping = cartMap.get(cartKey(product.id, true))?.with_topping ?? false
-                  const quantity =
-                    (cartMap.get(cartKey(product.id, false))?.quantity ?? 0) +
-                    (cartMap.get(cartKey(product.id, true))?.quantity ?? 0)
+                  const quantity = cartMap.get(cartKey(product.id, false))?.quantity ?? 0
+                  const toppingQuantity = cartMap.get(cartKey(product.id, true))?.quantity ?? 0
                   return (
                     <ProductCard
                       key={product.id}
                       product={product}
                       quantity={quantity}
-                      withTopping={withTopping}
+                      toppingQuantity={toppingQuantity}
                       onAdd={handleAdd}
                       onRemove={handleRemove}
                     />
@@ -232,14 +224,12 @@ export default function TakeoutUI({ lineUserId }: Props) {
                 <div className="grid grid-cols-2 gap-3">
                   {sideProducts.map((product) => {
                     const quantity =
-                      (cartMap.get(cartKey(product.id, false))?.quantity ?? 0) +
-                      (cartMap.get(cartKey(product.id, true))?.quantity ?? 0)
+                      cartMap.get(cartKey(product.id, false))?.quantity ?? 0
                     return (
                       <ProductCard
                         key={product.id}
                         product={product}
                         quantity={quantity}
-                        withTopping={false}
                         onAdd={handleAdd}
                         onRemove={handleRemove}
                       />

@@ -16,9 +16,10 @@ import {
 } from '@/lib/types'
 import StatusBadge from './StatusBadge'
 
-/** バッジタップで循環させる順序: 新規 → 調理中 → 提供済み → 新規 */
+/** バッジタップで循環させる順序: 新規/追加 → 調理中 → 提供済み → 新規 */
 const NEXT_STATUS: Record<OrderStatus, OrderStatus> = {
   new: 'preparing',
+  added: 'preparing',
   preparing: 'served',
   served: 'new',
   paid: 'paid',
@@ -53,6 +54,14 @@ export default function OrderCard({ order, onStatusChanged }: Props) {
   }
   const items = order.order_items ?? []
   const total = calcOrderTotal(items)
+
+  // 最初の注文より後に入った明細を「追加」として扱う。
+  // 伝票作成から1分以内に入ったものは最初の注文とみなす。
+  const firstOrderedAt = items.length
+    ? Math.min(...items.map((i) => new Date(i.created_at).getTime()))
+    : 0
+  const isAdditional = (item: { created_at: string }) =>
+    new Date(item.created_at).getTime() - firstOrderedAt > 60_000
   const tableName = TABLE_NAMES[order.table_id] ?? order.table_id
   const isTakeout = order.table_id === TAKEOUT_TABLE_ID
   const createdAt = new Date(order.created_at).toLocaleTimeString('ja-JP', {
@@ -114,6 +123,9 @@ export default function OrderCard({ order, onStatusChanged }: Props) {
             return (
               <p key={item.id} className="text-sm text-brown-600 flex justify-between">
                 <span>
+                  {isAdditional(item) && (
+                    <span className="text-rose-600 font-bold mr-1">［追加］</span>
+                  )}
                   {item.product?.name ?? '不明'}
                   {item.with_topping && (
                     <span className="text-brown-400 ml-1">{TOPPING_CART_LABEL}</span>

@@ -113,9 +113,15 @@ export default function AdminDashboard() {
       return true
     })
     if (tab === 'takeout' || tab === 'all') {
-      // 時間の近い順（テイクアウトは受取時間、イートインは注文時間で並べる）
+      // イートインを先に、その下にテイクアウトを並べる。
+      // それぞれの中は時間の近い順（テイクアウトは受取時間、イートインは注文時間）
       const sortKey = (o: Order) => o.pickup_at ?? o.created_at ?? ''
-      return [...base].sort((a, b) => sortKey(a).localeCompare(sortKey(b)))
+      return [...base].sort((a, b) => {
+        const aTakeout = a.table_id === TAKEOUT_TABLE_ID ? 1 : 0
+        const bTakeout = b.table_id === TAKEOUT_TABLE_ID ? 1 : 0
+        if (aTakeout !== bTakeout) return aTakeout - bTakeout
+        return sortKey(a).localeCompare(sortKey(b))
+      })
     }
     return base
   })()
