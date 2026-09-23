@@ -13,7 +13,6 @@ import {
   isLunchPlate,
   lunchPlateNigiriCount,
   LUNCH_START_HOUR,
-  LUNCH_TIME_LABEL,
   LUNCH_PLATE_END_HOUR,
   isLunchTimeNow,
   isLunchPlateOrderable,
@@ -55,7 +54,7 @@ export default function OrderUI({ tableId, lineUserId, partySize, buildCompleteH
   )
   const tonjiruProduct = products.find((p) => p.name.includes('豚汁'))
 
-  /** ランチタイム判定（11:00〜14:00）。ランチ中はランチプレートのみ注文可 */
+  /** ランチタイム判定（11:00〜14:00）。注文の制限はなく、並び順の切り替えにのみ使う */
   const isLunchTime = isLunchTimeNow()
   /** ランチプレートの注文可否（11:00〜15:00） */
   const plateOrderable = isLunchPlateOrderable()
@@ -322,7 +321,7 @@ export default function OrderUI({ tableId, lineUserId, partySize, buildCompleteH
               <h1 className="section-title mb-1 px-1">ランチプレート</h1>
               <p className={`text-xs mb-3 px-1 ${plateOrderable ? 'text-brown-500' : 'text-amber-700 font-medium'}`}>
                 {plateOrderable
-                  ? `ランチタイム限定（${LUNCH_TIME_LABEL}）／おにぎり1個 ¥1,300・2個 ¥1,500`
+                  ? `${LUNCH_START_HOUR}:00〜${LUNCH_PLATE_END_HOUR}:00 限定／おにぎり1個 ¥1,300・2個 ¥1,500`
                   : plateClosed
                     ? `本日のランチプレートは終了しました（${LUNCH_START_HOUR}:00〜${LUNCH_PLATE_END_HOUR}:00）`
                     : `ご注文は ${LUNCH_START_HOUR}:00 からです`}
@@ -349,13 +348,8 @@ export default function OrderUI({ tableId, lineUserId, partySize, buildCompleteH
 
           const nigiriSection = (
             <section key="nigiri">
-              <h2 className="section-title mb-1 px-1">おにぎり</h2>
-              {isLunchTime && (
-                <p className="text-xs text-amber-700 font-medium mb-3 px-1">
-                  ランチタイム（{LUNCH_TIME_LABEL}）はランチプレートのみのご注文となります
-                </p>
-              )}
-              <div className={`grid grid-cols-2 gap-3 ${isLunchTime ? 'opacity-50 pointer-events-none' : 'mt-3'}`}>
+              <h2 className="section-title mb-3 px-1">おにぎり</h2>
+              <div className="grid grid-cols-2 gap-3">
                 {nigiriProducts.map((product) => {
                   const withTopping = cartMap.get(cartKey(product.id, true))?.with_topping ?? false
                   const quantity =
@@ -379,7 +373,7 @@ export default function OrderUI({ tableId, lineUserId, partySize, buildCompleteH
           const sideSection = sideProducts.length > 0 && (
             <section key="side">
               <h2 className="section-title mb-3 px-1">サイド</h2>
-              <div className={`grid grid-cols-2 gap-3 ${isLunchTime ? 'opacity-50 pointer-events-none' : ''}`}>
+              <div className="grid grid-cols-2 gap-3">
                 {sideProducts.map((product) => {
                   const quantity =
                     (cartMap.get(cartKey(product.id, false))?.quantity ?? 0) +
@@ -418,6 +412,7 @@ export default function OrderUI({ tableId, lineUserId, partySize, buildCompleteH
 
           // ランチ中: プレート → ドリンク → おにぎり → サイド
           // 通常時:   プレート → おにぎり → サイド → ドリンク
+          // ※ランチ中も全商品を注文できる。並び順だけを入れ替えている
           return isLunchTime ? (
             <>
               {lunchPlateSection}
@@ -448,7 +443,7 @@ export default function OrderUI({ tableId, lineUserId, partySize, buildCompleteH
         onLunchNigiriChange={handleLunchNigiriChange}
         onDrinkTimingChange={handleDrinkTimingChange}
         onAddItem={handleAdd}
-        tonjiruProduct={isLunchTime ? undefined : tonjiruProduct}
+        tonjiruProduct={tonjiruProduct}
       />
     </div>
   )
