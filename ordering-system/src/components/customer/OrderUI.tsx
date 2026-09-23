@@ -14,8 +14,10 @@ import {
   lunchPlateNigiriCount,
   LUNCH_START_HOUR,
   LUNCH_TIME_LABEL,
+  LUNCH_PLATE_END_HOUR,
   isLunchTimeNow,
-  isAfterLunchNow,
+  isLunchPlateOrderable,
+  isLunchPlateClosed,
   getLunchPlateSurcharge,
   DRINK_CATEGORY,
 } from '@/lib/types'
@@ -55,8 +57,10 @@ export default function OrderUI({ tableId, lineUserId, partySize, buildCompleteH
 
   /** ランチタイム判定（11:00〜14:00）。ランチ中はランチプレートのみ注文可 */
   const isLunchTime = isLunchTimeNow()
-  /** 14:00以降はランチプレート自体を非表示にする */
-  const isAfterLunch = isAfterLunchNow()
+  /** ランチプレートの注文可否（11:00〜15:00） */
+  const plateOrderable = isLunchPlateOrderable()
+  /** 15:00以降は販売終了。非表示にはせずグレーアウトで残す */
+  const plateClosed = isLunchPlateClosed()
 
   /** カート内のランチプレートを1枚ずつに展開した配列（lunchNigiriPerPlate と同じ順序） */
   const lunchPlateEntries = cartItems
@@ -301,7 +305,7 @@ export default function OrderUI({ tableId, lineUserId, partySize, buildCompleteH
       {/* 注文のお願い */}
       <div className="max-w-2xl mx-auto px-3 pt-4">
         <p className="text-sm font-medium text-brown-700 bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 leading-relaxed">
-          お一人様2つ以上のおにぎりのご注文をお願いいたします。<br />
+          おひとり様2つ以上のおにぎりのご注文をお願いいたします。<br />
           <span className="text-xs text-brown-500">（ランチプレートを除く）</span>
         </p>
       </div>
@@ -313,15 +317,17 @@ export default function OrderUI({ tableId, lineUserId, partySize, buildCompleteH
           </div>
         ) : (() => {
           // ─ 各セクションを変数化し、ランチタイム中はドリンクをおにぎりの上に表示する ─
-          const lunchPlateSection = !isAfterLunch && lunchPlateProducts.length > 0 && (
+          const lunchPlateSection = lunchPlateProducts.length > 0 && (
             <section key="lunch-plate">
               <h1 className="section-title mb-1 px-1">ランチプレート</h1>
-              <p className={`text-xs mb-3 px-1 ${isLunchTime ? 'text-brown-500' : 'text-amber-700 font-medium'}`}>
-                {isLunchTime
+              <p className={`text-xs mb-3 px-1 ${plateOrderable ? 'text-brown-500' : 'text-amber-700 font-medium'}`}>
+                {plateOrderable
                   ? `ランチタイム限定（${LUNCH_TIME_LABEL}）／おにぎり1個 ¥1,300・2個 ¥1,500`
-                  : `ご注文は ${LUNCH_START_HOUR}:00 からです`}
+                  : plateClosed
+                    ? `本日のランチプレートは終了しました（${LUNCH_START_HOUR}:00〜${LUNCH_PLATE_END_HOUR}:00）`
+                    : `ご注文は ${LUNCH_START_HOUR}:00 からです`}
               </p>
-              <div className={`grid grid-cols-2 gap-3 ${!isLunchTime ? 'opacity-50 pointer-events-none' : ''}`}>
+              <div className={`grid grid-cols-2 gap-3 ${!plateOrderable ? 'opacity-50 pointer-events-none' : ''}`}>
                 {lunchPlateProducts.map((product) => {
                   const quantity =
                     (cartMap.get(cartKey(product.id, false))?.quantity ?? 0) +
