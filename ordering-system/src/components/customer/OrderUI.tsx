@@ -14,6 +14,7 @@ import {
   lunchPlateNigiriCount,
   LUNCH_START_HOUR,
   LUNCH_PLATE_END_HOUR,
+  LUNCH_PLATE_ALWAYS_AVAILABLE,
   isLunchTimeNow,
   isLunchPlateOrderable,
   isLunchPlateClosed,
@@ -94,35 +95,33 @@ export default function OrderUI({ tableId, lineUserId, partySize, buildCompleteH
       })
   }, [])
 
-  /** おにぎり・ランチプレート用 */
+  /**
+   * おにぎり・ランチプレート用
+   * とろろ昆布あり・なしは別々の行として持つので、同じおにぎりを
+   * 「変更するもの」「そのままのもの」に分けて注文できる
+   */
   const handleAdd = useCallback((product: Product, withTopping: boolean) => {
     setCartMap((prev) => {
       const next = new Map(prev)
       const key = cartKey(product.id, withTopping)
       const existing = next.get(key)
       if (existing) {
-        next.set(key, { ...existing, quantity: existing.quantity + 1, with_topping: withTopping })
+        next.set(key, { ...existing, quantity: existing.quantity + 1 })
       } else {
-        const oppositeKey = cartKey(product.id, !withTopping)
-        if (next.has(oppositeKey)) next.delete(oppositeKey)
         next.set(key, { product, quantity: 1, with_topping: withTopping })
       }
       return next
     })
   }, [])
 
-  const handleRemove = useCallback((product: Product) => {
+  const handleRemove = useCallback((product: Product, withTopping: boolean) => {
     setCartMap((prev) => {
       const next = new Map(prev)
-      for (const withTopping of [true, false]) {
-        const key = cartKey(product.id, withTopping)
-        const existing = next.get(key)
-        if (existing) {
-          if (existing.quantity > 1) next.set(key, { ...existing, quantity: existing.quantity - 1 })
-          else next.delete(key)
-          break
-        }
-      }
+      const key = cartKey(product.id, withTopping)
+      const existing = next.get(key)
+      if (!existing) return prev
+      if (existing.quantity > 1) next.set(key, { ...existing, quantity: existing.quantity - 1 })
+      else next.delete(key)
       return next
     })
   }, [])
@@ -304,7 +303,7 @@ export default function OrderUI({ tableId, lineUserId, partySize, buildCompleteH
       {/* 注文のお願い */}
       <div className="max-w-2xl mx-auto px-3 pt-4">
         <p className="text-sm font-medium text-brown-700 bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 leading-relaxed">
-          おひとり様2つ以上のおにぎりのご注文をお願いいたします。<br />
+          おひとり様2点以上のご注文をお願いいたします。<br />
           <span className="text-xs text-brown-500">（ランチプレートを除く）</span>
         </p>
       </div>
@@ -321,22 +320,19 @@ export default function OrderUI({ tableId, lineUserId, partySize, buildCompleteH
               <h1 className="section-title mb-1 px-1">ランチプレート</h1>
               <p className={`text-xs mb-3 px-1 ${plateOrderable ? 'text-brown-500' : 'text-amber-700 font-medium'}`}>
                 {plateOrderable
-                  ? `${LUNCH_START_HOUR}:00〜${LUNCH_PLATE_END_HOUR}:00 限定／おにぎり1個 ¥1,300・2個 ¥1,500`
+                  ? `おにぎり1個 ¥1,300・2個 ¥1,500${LUNCH_PLATE_ALWAYS_AVAILABLE ? '' : `（${LUNCH_START_HOUR}:00〜${LUNCH_PLATE_END_HOUR}:00 限定）`}`
                   : plateClosed
                     ? `本日のランチプレートは終了しました（${LUNCH_START_HOUR}:00〜${LUNCH_PLATE_END_HOUR}:00）`
                     : `ご注文は ${LUNCH_START_HOUR}:00 からです`}
               </p>
               <div className={`grid grid-cols-2 gap-3 ${!plateOrderable ? 'opacity-50 pointer-events-none' : ''}`}>
                 {lunchPlateProducts.map((product) => {
-                  const quantity =
-                    (cartMap.get(cartKey(product.id, false))?.quantity ?? 0) +
-                    (cartMap.get(cartKey(product.id, true))?.quantity ?? 0)
+                  const quantity = cartMap.get(cartKey(product.id, false))?.quantity ?? 0
                   return (
                     <ProductCard
                       key={product.id}
                       product={product}
                       quantity={quantity}
-                      withTopping={false}
                       onAdd={handleAdd}
                       onRemove={handleRemove}
                     />
@@ -351,16 +347,14 @@ export default function OrderUI({ tableId, lineUserId, partySize, buildCompleteH
               <h2 className="section-title mb-3 px-1">おにぎり</h2>
               <div className="grid grid-cols-2 gap-3">
                 {nigiriProducts.map((product) => {
-                  const withTopping = cartMap.get(cartKey(product.id, true))?.with_topping ?? false
-                  const quantity =
-                    (cartMap.get(cartKey(product.id, false))?.quantity ?? 0) +
-                    (cartMap.get(cartKey(product.id, true))?.quantity ?? 0)
+                  const quantity = cartMap.get(cartKey(product.id, false))?.quantity ?? 0
+                  const toppingQuantity = cartMap.get(cartKey(product.id, true))?.quantity ?? 0
                   return (
                     <ProductCard
                       key={product.id}
                       product={product}
                       quantity={quantity}
-                      withTopping={withTopping}
+                      toppingQuantity={toppingQuantity}
                       onAdd={handleAdd}
                       onRemove={handleRemove}
                     />
@@ -375,15 +369,12 @@ export default function OrderUI({ tableId, lineUserId, partySize, buildCompleteH
               <h2 className="section-title mb-3 px-1">サイド</h2>
               <div className="grid grid-cols-2 gap-3">
                 {sideProducts.map((product) => {
-                  const quantity =
-                    (cartMap.get(cartKey(product.id, false))?.quantity ?? 0) +
-                    (cartMap.get(cartKey(product.id, true))?.quantity ?? 0)
+                  const quantity = cartMap.get(cartKey(product.id, false))?.quantity ?? 0
                   return (
                     <ProductCard
                       key={product.id}
                       product={product}
                       quantity={quantity}
-                      withTopping={false}
                       onAdd={handleAdd}
                       onRemove={handleRemove}
                     />
@@ -429,6 +420,24 @@ export default function OrderUI({ tableId, lineUserId, partySize, buildCompleteH
             </>
           )
         })()}
+
+        {/* お持ち帰りの導線 */}
+        {!loading && (
+          <section className="pt-2">
+            <div className="rounded-2xl border border-cream-300 bg-white p-4 text-center space-y-2">
+              <p className="font-bold text-brown-800">お持ち帰りをご希望ですか？</p>
+              <p className="text-xs text-brown-500">
+                受取日時を指定してご注文いただけます
+              </p>
+              <a
+                href="/takeout"
+                className="block w-full py-3 rounded-xl border-2 border-brown-600 text-brown-700 font-bold text-base active:bg-cream-100"
+              >
+                テイクアウトで注文する →
+              </a>
+            </div>
+          </section>
+        )}
       </main>
 
       <Cart
