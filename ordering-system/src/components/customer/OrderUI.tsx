@@ -27,13 +27,15 @@ interface Props {
   lineUserId?: string | null
   partySize?: number | null
   buildCompleteHref: (orderId: string) => string
+  /** お持ち帰り注文の導線に渡す seat（例: t1）。未指定なら導線を出さない */
+  seat?: string
 }
 
 /** カートのキー: おにぎり系は topping で区別、ドリンクは固定キー */
 const cartKey = (productId: string, withTopping: boolean) => `${productId}-${withTopping}`
 const drinkKey = (productId: string) => `${productId}-drink`
 
-export default function OrderUI({ tableId, lineUserId, partySize, buildCompleteHref }: Props) {
+export default function OrderUI({ tableId, lineUserId, partySize, buildCompleteHref, seat }: Props) {
   const router = useRouter()
 
   const [products, setProducts] = useState<Product[]>([])
@@ -421,16 +423,16 @@ export default function OrderUI({ tableId, lineUserId, partySize, buildCompleteH
           )
         })()}
 
-        {/* お持ち帰りの導線 */}
-        {!loading && (
+        {/* お持ち帰りの導線（席が特定できている場合のみ） */}
+        {!loading && seat && (
           <section className="pt-2">
             <div className="rounded-2xl border border-cream-300 bg-white p-4 text-center space-y-2">
-              <p className="font-bold text-brown-800">お持ち帰りをご希望ですか？</p>
+              <p className="font-bold text-brown-800">お持ち帰りもご一緒にいかがですか？</p>
               <p className="text-xs text-brown-500">
-                受取日時を指定してご注文いただけます
+                お会計時にお渡しします
               </p>
               <a
-                href="/takeout"
+                href={`/takeout?seat=${encodeURIComponent(seat)}`}
                 className="block w-full py-3 rounded-xl border-2 border-brown-600 text-brown-700 font-bold text-base active:bg-cream-100"
               >
                 テイクアウトで注文する →
