@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import Link from 'next/link'
-import type { Order, OrderStatus } from '@/lib/types'
+import type { Order, OrderItem, OrderStatus } from '@/lib/types'
 import {
   calcOrderTotal,
   TABLE_NAMES,
@@ -13,6 +13,8 @@ import {
   TAKEOUT_TABLE_ID,
   orderShortId,
   formatScheduleDate,
+  getOrderBatchIndexes,
+  orderBatchLabel,
 } from '@/lib/types'
 import StatusBadge from './StatusBadge'
 
@@ -55,13 +57,13 @@ export default function OrderCard({ order, onStatusChanged }: Props) {
   const items = order.order_items ?? []
   const total = calcOrderTotal(items)
 
-  // 最初の注文より後に入った明細を「追加」として扱う。
-  // 伝票作成から1分以内に入ったものは最初の注文とみなす。
-  const firstOrderedAt = items.length
-    ? Math.min(...items.map((i) => new Date(i.created_at).getTime()))
-    : 0
-  const isAdditional = (item: { created_at: string }) =>
-    new Date(item.created_at).getTime() - firstOrderedAt > 60_000
+  // 明細を注文された回ごとに分ける（0 = 最初の注文, 1 = 追加1, 2 = 追加2…）
+  const batchIndexes = getOrderBatchIndexes(items)
+  const latestBatch = Math.max(0, ...items.map((i) => batchIndexes.get(i.id) ?? 0))
+
+  // 席から注文されたお持ち帰り分は、イートインの下にまとめて表示する
+  const eatinItems = items.filter((i) => i.lunch_plate_index == null && !i.is_takeout)
+  const takeoutItems = items.filter((i) => i.lunch_plate_index == null && i.is_takeout)
   const tableName = TABLE_NAMES[order.table_id] ?? order.table_id
   const isTakeout = order.table_id === TAKEOUT_TABLE_ID
   const createdAt = new Date(order.created_at).toLocaleTimeString('ja-JP', {
@@ -112,37 +114,33 @@ export default function OrderCard({ order, onStatusChanged }: Props) {
             className={`${updating ? 'opacity-50' : 'active:scale-95'} transition-transform`}
             title="タップでステータスを切り替え"
           >
-            <StatusBadge status={order.status} tableId={order.table_id} />
+            <StatusBadge
+              status={order.status}
+              tableId={order.table_id}
+              suffix={order.status === 'added' && latestBatch > 0 ? String(latestBatch) : undefined}
+            />
           </button>
         </div>
 
         <div className="space-y-1 mb-3">
-          {items.filter((i) => i.lunch_plate_index == null).slice(0, 3).map((item) => {
-            const isDrink = item.product?.category === DRINK_CATEGORY
-            const timingLabel = isDrink && item.timing ? DRINK_TIMING_LABELS[item.timing] : null
-            return (
-              <p key={item.id} className="text-sm text-brown-600 flex justify-between">
-                <span>
-                  {isAdditional(item) && (
-                    <span className="text-rose-600 font-bold mr-1">［追加］</span>
-                  )}
-                  {item.product?.name ?? '不明'}
-                  {item.with_topping && (
-                    <span className="text-brown-400 ml-1">{TOPPING_CART_LABEL}</span>
-                  )}
-                  {timingLabel && (
-                    <span className="text-blue-600 ml-1">（{timingLabel}）</span>
-                  )}
-                  <span className="text-brown-400 ml-1">×{item.quantity}</span>
-                </span>
-                <span className="tabular-nums">
-                  ¥{((item.unit_price + (item.with_topping ? TOPPING_PRICE : 0)) * item.quantity).toLocaleString()}
-                </span>
-              </p>
-            )
-          })}
-          {items.length > 3 && (
-            <p className="text-sm text-brown-400">他 {items.length - 3} 品…</p>
+          {eatinItems.slice(0, 3).map((item) => (
+            <ItemLine key={item.id} item={item} batch={batchIndexes.get(item.id) ?? 0} />
+          ))}
+          {eatinItems.length > 3 && (
+            <p className="text-sm text-brown-400">他 {eatinItems.length - 3} 品…</p>
+          )}
+
+          {/* 席から注文されたお持ち帰り分 */}
+          {takeoutItems.length > 0 && (
+            <div className="mt-2 pt-2 border-t border-dashed border-amber-300 space-y-1">
+              <p className="text-xs font-bold text-amber-700">お持ち帰り</p>
+              {takeoutItems.slice(0, 3).map((item) => (
+                <ItemLine key={item.id} item={item} batch={batchIndexes.get(item.id) ?? 0} />
+              ))}
+              {takeoutItems.length > 3 && (
+                <p className="text-sm text-brown-400">他 {takeoutItems.length - 3} 品…</p>
+              )}
+            </div>
           )}
         </div>
 
@@ -154,5 +152,33 @@ export default function OrderCard({ order, onStatusChanged }: Props) {
         </div>
       </div>
     </Link>
+  )
+}
+
+/** 明細1行（回番号と、とろろ昆布・ドリンクのタイミングを添える） */
+function ItemLine({ item, batch }: { item: OrderItem; batch: number }) {
+  const isDrink = item.product?.category === DRINK_CATEGORY
+  const timingLabel = isDrink && item.timing ? DRINK_TIMING_LABELS[item.timing] : null
+  const batchLabel = orderBatchLabel(batch)
+
+  return (
+    <p className="text-sm text-brown-600 flex justify-between">
+      <span>
+        {batchLabel && (
+          <span className="text-rose-600 font-bold mr-1">［{batchLabel}］</span>
+        )}
+        {item.product?.name ?? '不明'}
+        {item.with_topping && (
+          <span className="text-brown-400 ml-1">{TOPPING_CART_LABEL}</span>
+        )}
+        {timingLabel && (
+          <span className="text-blue-600 ml-1">（{timingLabel}）</span>
+        )}
+        <span className="text-brown-400 ml-1">×{item.quantity}</span>
+      </span>
+      <span className="tabular-nums">
+        ¥{((item.unit_price + (item.with_topping ? TOPPING_PRICE : 0)) * item.quantity).toLocaleString()}
+      </span>
+    </p>
   )
 }

@@ -15,6 +15,8 @@ interface OrderRequestBody {
     with_topping: boolean
     timing?: string | null
     lunch_plate_index?: number | null
+    /** 席から注文したお持ち帰り分 */
+    is_takeout?: boolean
   }>
 }
 
@@ -86,6 +88,7 @@ export async function POST(req: NextRequest) {
     with_topping: item.with_topping,
     ...(item.timing != null ? { timing: item.timing } : {}),
     ...(item.lunch_plate_index != null ? { lunch_plate_index: item.lunch_plate_index } : {}),
+    ...(item.is_takeout ? { is_takeout: true } : {}),
   }))
 
   const { error: insertError } = await supabase

@@ -10,11 +10,17 @@ import { storageUrl, isLunchPlate, DRINK_CATEGORY, TAKEOUT_TABLE_ID } from '@/li
 
 interface Props {
   lineUserId?: string | null
+  /** 席から来た場合の seat パラメータ（例: t1） */
+  seat?: string
+  /** 席から来た場合の卓ID。指定時はその卓の伝票にお持ち帰り分として加える */
+  seatTableId?: string | null
 }
 
 const cartKey = (productId: string, withTopping: boolean) => `${productId}-${withTopping}`
 
-export default function TakeoutUI({ lineUserId }: Props) {
+export default function TakeoutUI({ lineUserId, seat, seatTableId }: Props) {
+  /** 席からのお持ち帰り注文か（受取日時の指定もLINE通知も行わない） */
+  const isSeatOrder = !!seatTableId
   const router = useRouter()
 
   const [products, setProducts] = useState<Product[]>([])
@@ -115,23 +121,35 @@ export default function TakeoutUI({ lineUserId }: Props) {
     if (cartItems.length === 0) return
     setIsSubmitting(true)
 
+    const items = cartItems.map((item) => ({
+      product_id: item.product.id,
+      product_name: item.product.name,
+      quantity: item.quantity,
+      unit_price: item.product.price,
+      with_topping: item.with_topping,
+    }))
+
     try {
-      const res = await fetch('/api/takeout/orders', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          table_id: TAKEOUT_TABLE_ID,
-          line_user_id: lineUserId ?? undefined,
-          pickup_at: pickupDate && pickupTime ? `${pickupDate} ${pickupTime}` : undefined,
-          items: cartItems.map((item) => ({
-            product_id: item.product.id,
-            product_name: item.product.name,
-            quantity: item.quantity,
-            unit_price: item.product.price,
-            with_topping: item.with_topping,
-          })),
-        }),
-      })
+      // 席からのお持ち帰りは、その卓の伝票に加える（LINE通知は送らない）
+      const res = isSeatOrder
+        ? await fetch('/api/orders', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              table_id: seatTableId,
+              items: items.map((item) => ({ ...item, is_takeout: true })),
+            }),
+          })
+        : await fetch('/api/takeout/orders', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              table_id: TAKEOUT_TABLE_ID,
+              line_user_id: lineUserId ?? undefined,
+              pickup_at: pickupDate && pickupTime ? `${pickupDate} ${pickupTime}` : undefined,
+              items,
+            }),
+          })
 
       if (!res.ok) {
         const data = await res.json()
@@ -139,13 +157,17 @@ export default function TakeoutUI({ lineUserId }: Props) {
       }
 
       const { order_id } = await res.json()
-      router.push(`/takeout/complete?orderId=${encodeURIComponent(order_id)}`)
+      router.push(
+        isSeatOrder
+          ? `/order/complete?seat=${encodeURIComponent(seat ?? '')}&orderId=${encodeURIComponent(order_id)}`
+          : `/takeout/complete?orderId=${encodeURIComponent(order_id)}`,
+      )
     } catch (e) {
       alert((e as Error).message)
     } finally {
       setIsSubmitting(false)
     }
-  }, [cartItems, lineUserId, pickupDate, pickupTime, router])
+  }, [cartItems, lineUserId, pickupDate, pickupTime, router, isSeatOrder, seat, seatTableId])
 
   if (error) {
     return (
@@ -168,7 +190,7 @@ export default function TakeoutUI({ lineUserId }: Props) {
             className="object-contain h-10 w-auto"
           />
           <span className="text-sm font-semibold text-brown-600 bg-amber-100 px-3 py-1 rounded-full">
-            テイクアウト
+            {isSeatOrder ? 'お持ち帰り' : 'テイクアウト'}
           </span>
         </div>
       </header>
@@ -185,7 +207,9 @@ export default function TakeoutUI({ lineUserId }: Props) {
         />
         <div className="absolute inset-0 bg-brown-900/30" />
         <div className="absolute inset-0 flex items-center justify-center">
-          <p className="text-white text-lg font-bold drop-shadow">テイクアウト注文</p>
+          <p className="text-white text-lg font-bold drop-shadow">
+            {isSeatOrder ? 'お持ち帰りのご注文' : 'テイクアウト注文'}
+          </p>
         </div>
       </div>
 
@@ -252,6 +276,7 @@ export default function TakeoutUI({ lineUserId }: Props) {
         onAddItem={handleAdd}
         onQuantityChange={handleCartQuantityChange}
         onItemDelete={handleCartItemDelete}
+        isSeatOrder={isSeatOrder}
         tonjiruProduct={tonjiruProduct}
       />
     </div>

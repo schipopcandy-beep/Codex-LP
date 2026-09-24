@@ -3,6 +3,7 @@
 import { useState, use } from 'react'
 import OrderAccessGuard from '@/components/customer/OrderAccessGuard'
 import OrderUI from '@/components/customer/OrderUI'
+import { tableIdToSeat } from '@/lib/types'
 
 const VALID_TABLE_IDS = [
   'table-1', 'table-2', 'table-3', 'table-4',
@@ -30,6 +31,7 @@ export default function TableOrderPage({ params }: Props) {
       <OrderUI
         tableId={tableId}
         lineUserId={lineUserId}
+        seat={tableIdToSeat(tableId) ?? undefined}
         buildCompleteHref={(orderId) =>
           `/table/${tableId}/complete?orderId=${encodeURIComponent(orderId)}`
         }

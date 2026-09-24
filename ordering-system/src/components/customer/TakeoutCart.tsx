@@ -20,6 +20,8 @@ interface Props {
   onQuantityChange?: (item: CartItem, delta: number) => void
   /** カートから商品を削除 */
   onItemDelete?: (item: CartItem) => void
+  /** 席からのお持ち帰り注文（受取日時の指定は不要） */
+  isSeatOrder?: boolean
 }
 
 export default function TakeoutCart({
@@ -33,6 +35,7 @@ export default function TakeoutCart({
   tonjiruProduct,
   onQuantityChange,
   onItemDelete,
+  isSeatOrder = false,
 }: Props) {
   const [isOpen, setIsOpen] = useState(false)
   const [confirmed, setConfirmed] = useState(false)
@@ -40,7 +43,8 @@ export default function TakeoutCart({
 
   const total = calcCartTotal(items)
   const totalCount = items.reduce((s, i) => s + i.quantity, 0)
-  const pickupReady = !!(pickupDate && pickupTime)
+  // 席からのお持ち帰りは、その場でお渡しするため受取日時を選ばない
+  const pickupReady = isSeatOrder || !!(pickupDate && pickupTime)
   const canSubmit = pickupReady && confirmed
 
   const hasTonjiru = tonjiruProduct
@@ -220,8 +224,8 @@ export default function TakeoutCart({
                 })}
               </div>
 
-              {/* 受取日時選択 */}
-              <div className="border-t border-cream-300 pt-4">
+              {/* 受取日時選択（席からのお持ち帰りでは不要） */}
+              <div className={`border-t border-cream-300 pt-4 ${isSeatOrder ? 'hidden' : ''}`}>
                 <p className="font-bold text-brown-700 mb-1">受取日時を選択</p>
                 <p className="text-xs text-brown-400 mb-3">
                   ※ 注文から1時間後以降の時間帯のみ選択できます

@@ -13,6 +13,8 @@ import {
   DRINK_CATEGORY,
   DRINK_TIMING_LABELS,
   isLunchPlate,
+  getOrderBatchIndexes,
+  orderBatchLabel,
   TAKEOUT_TABLE_ID,
   getStatusLabel,
   orderShortId,
@@ -106,7 +108,10 @@ export default function OrderDetailPage({ params }: Props) {
     (i) => i.lunch_plate_index == null && i.product?.category !== DRINK_CATEGORY,
   )
   const lunchPlateBaseItems = regularItems.filter((i) => i.product != null && isLunchPlate(i.product))
-  const otherItems = regularItems.filter((i) => i.product == null || !isLunchPlate(i.product))
+  const nonPlateItems = regularItems.filter((i) => i.product == null || !isLunchPlate(i.product))
+  // 席から注文されたお持ち帰り分は、イートインの下にまとめて表示する
+  const otherItems = nonPlateItems.filter((i) => !i.is_takeout)
+  const seatTakeoutItems = nonPlateItems.filter((i) => i.is_takeout)
   const lunchNigiriItems = items.filter((i) => i.lunch_plate_index != null)
   const drinkItems = items.filter((i) => i.product?.category === DRINK_CATEGORY)
 
@@ -119,14 +124,10 @@ export default function OrderDetailPage({ params }: Props) {
   }
   const plateCount = lunchPlateBaseItems.reduce((s, i) => s + i.quantity, 0)
 
-  // 最初の注文より後に入った明細を「追加」として扱う
-  // （伝票作成から1分以内のものは最初の注文とみなす）
-  const firstOrderedAt = items.length
-    ? Math.min(...items.map((i) => new Date(i.created_at).getTime()))
-    : 0
-  const isAdditional = (item: OrderItem) =>
-    new Date(item.created_at).getTime() - firstOrderedAt > 60_000
-  const additionalCount = items.filter(isAdditional).length
+  // 明細を注文された回ごとに分ける（0 = 最初の注文, 1 = 追加1, 2 = 追加2…）
+  const batchIndexes = getOrderBatchIndexes(items)
+  const batchOf = (item: OrderItem) => batchIndexes.get(item.id) ?? 0
+  const additionalCount = Math.max(0, ...items.map(batchOf))
 
   return (
     <div className="p-4 md:p-6 max-w-2xl mx-auto">
@@ -198,7 +199,7 @@ export default function OrderDetailPage({ params }: Props) {
           <span>注文明細</span>
           {additionalCount > 0 && (
             <span className="text-sm font-bold text-rose-700 bg-rose-50 border border-rose-200 rounded-full px-3 py-0.5">
-              追加注文 {additionalCount}件
+              追加注文 {additionalCount}回
             </span>
           )}
         </h2>
@@ -206,7 +207,7 @@ export default function OrderDetailPage({ params }: Props) {
 
           {/* 通常アイテム */}
           {otherItems.map((item) => (
-            <ItemRow key={item.id} item={item} additional={isAdditional(item)} />
+            <ItemRow key={item.id} item={item} batch={batchOf(item)} />
           ))}
 
           {/* ランチプレート */}
@@ -256,6 +257,18 @@ export default function OrderDetailPage({ params }: Props) {
               </div>
             )
           })}
+
+          {/* 席から注文されたお持ち帰り分 */}
+          {seatTakeoutItems.length > 0 && (
+            <div className="pt-3 border-t border-dashed border-amber-300">
+              <p className="text-xs font-bold text-amber-700 mb-2">お持ち帰り</p>
+              <div className="space-y-3">
+                {seatTakeoutItems.map((item) => (
+                  <ItemRow key={item.id} item={item} batch={batchOf(item)} />
+                ))}
+              </div>
+            </div>
+          )}
 
           {/* ドリンク */}
           {drinkItems.length > 0 && (
@@ -315,15 +328,16 @@ export default function OrderDetailPage({ params }: Props) {
   )
 }
 
-function ItemRow({ item, additional }: { item: OrderItem; additional?: boolean }) {
+function ItemRow({ item, batch = 0 }: { item: OrderItem; batch?: number }) {
+  const batchLabel = orderBatchLabel(batch)
   const toppingCost = item.with_topping ? TOPPING_PRICE : 0
   const subtotal = (item.unit_price + toppingCost) * item.quantity
   return (
     <div className="flex justify-between items-start">
       <div className="flex-1">
         <p className="text-base font-bold text-brown-800">
-          {additional && (
-            <span className="text-sm text-rose-600 mr-1">［追加］</span>
+          {batchLabel && (
+            <span className="text-sm text-rose-600 mr-1">［{batchLabel}］</span>
           )}
           {item.product?.name ?? '不明商品'}
         </p>

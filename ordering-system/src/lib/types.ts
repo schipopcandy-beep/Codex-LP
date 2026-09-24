@@ -251,8 +251,37 @@ export interface OrderItem {
   timing?: DrinkTiming | null
   /** ランチプレート内おにぎりのプレート番号（0始まり）。null = 通常アイテム */
   lunch_plate_index?: number | null
+  /** 席から注文したお持ち帰り分。同じ伝票内でイートインと区別する */
+  is_takeout?: boolean
   created_at: string
   product?: Product
+}
+
+/** 同じ注文とみなす明細の時間差（ミリ秒） */
+const ORDER_BATCH_GAP_MS = 60_000
+
+/**
+ * 明細を「注文された回」ごとに分け、明細ID → 回番号 を返す
+ * 0 = 最初の注文 / 1 = 追加1 / 2 = 追加2 …
+ */
+export function getOrderBatchIndexes(items: OrderItem[]): Map<string, number> {
+  const sorted = [...items].sort((a, b) => a.created_at.localeCompare(b.created_at))
+  const indexes = new Map<string, number>()
+  let batch = 0
+  let prevTime: number | null = null
+
+  for (const item of sorted) {
+    const time = new Date(item.created_at).getTime()
+    if (prevTime !== null && time - prevTime > ORDER_BATCH_GAP_MS) batch++
+    indexes.set(item.id, batch)
+    prevTime = time
+  }
+  return indexes
+}
+
+/** 回番号のラベル（0 = 最初の注文なので空文字） */
+export function orderBatchLabel(batch: number): string {
+  return batch === 0 ? '' : `追加${batch}`
 }
 
 export interface CartItem {
@@ -312,4 +341,10 @@ export const SEAT_TO_TABLE_ID: Record<string, string> = {
 export function seatToTableId(seat: string | null | undefined): string | null {
   if (!seat) return null
   return SEAT_TO_TABLE_ID[seat] ?? null
+}
+
+/** 内部 tableId → QRコードの seat パラメータ（例: table-1 → t1） */
+export function tableIdToSeat(tableId: string | null | undefined): string | null {
+  if (!tableId) return null
+  return Object.entries(SEAT_TO_TABLE_ID).find(([, id]) => id === tableId)?.[0] ?? null
 }
