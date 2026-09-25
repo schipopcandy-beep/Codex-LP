@@ -55,7 +55,7 @@ function TakeoutCompleteContent() {
               <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
             </svg>
           </div>
-          <h1 className="font-serif text-3xl font-bold text-brown-700">
+          <h1 className="font-serif text-xl font-bold text-brown-700">
             ご注文ありがとうございます
           </h1>
           <p className="text-brown-500 text-sm">テイクアウト</p>

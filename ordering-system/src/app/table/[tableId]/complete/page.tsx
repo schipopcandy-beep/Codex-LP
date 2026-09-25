@@ -32,6 +32,9 @@ export default function CompletePage({ params }: Props) {
   const tableName = TABLE_NAMES[tableId] ?? tableId
   const items = order?.order_items ?? []
   const total = calcOrderTotal(items)
+  // 席から注文されたお持ち帰り分は分けて見せる
+  const eatinItems = items.filter((i) => !i.is_takeout)
+  const takeoutItems = items.filter((i) => i.is_takeout)
 
   return (
     <div className="min-h-dvh bg-cream-50 flex flex-col">
@@ -53,10 +56,15 @@ export default function CompletePage({ params }: Props) {
               <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
             </svg>
           </div>
-          <h1 className="font-serif text-3xl font-bold text-brown-700">
+          <h1 className="font-serif text-xl font-bold text-brown-700">
             ご注文ありがとうございます
           </h1>
           <p className="text-brown-500">{tableName}</p>
+          {takeoutItems.length > 0 && (
+            <p className="inline-block text-sm font-bold text-amber-800 bg-amber-100 border border-amber-200 rounded-full px-3 py-0.5">
+              お持ち帰りを含むご注文です
+            </p>
+          )}
           {order && <StatusBadge status={order.status} />}
         </div>
 
@@ -67,7 +75,7 @@ export default function CompletePage({ params }: Props) {
               ご注文内容
             </h2>
             <div className="space-y-2">
-              {items.map((item) => {
+              {eatinItems.map((item) => {
                 const toppingCost = item.with_topping ? TOPPING_PRICE : 0
                 const subtotal = (item.unit_price + toppingCost) * item.quantity
 
@@ -91,6 +99,36 @@ export default function CompletePage({ params }: Props) {
                 )
               })}
             </div>
+
+            {/* 席から注文されたお持ち帰り分 */}
+            {takeoutItems.length > 0 && (
+              <div className="pt-2 border-t border-dashed border-amber-300 space-y-2">
+                <p className="text-sm font-bold text-amber-700">お持ち帰り</p>
+                {takeoutItems.map((item) => {
+                  const toppingCost = item.with_topping ? TOPPING_PRICE : 0
+                  const subtotal = (item.unit_price + toppingCost) * item.quantity
+                  return (
+                    <div key={item.id} className="flex justify-between items-start">
+                      <div>
+                        <p className="text-base text-brown-800 font-medium">
+                          {item.product?.name ?? '不明'}
+                        </p>
+                        {item.with_topping && (
+                          <p className="text-sm text-brown-400">（{TOPPING_CART_LABEL}）</p>
+                        )}
+                        <p className="text-sm text-brown-400">
+                          ¥{(item.unit_price + toppingCost).toLocaleString()} × {item.quantity}
+                        </p>
+                      </div>
+                      <p className="font-bold text-brown-700 tabular-nums">
+                        ¥{subtotal.toLocaleString()}
+                      </p>
+                    </div>
+                  )
+                })}
+              </div>
+            )}
+
             <div className="flex justify-between items-center pt-2 border-t border-cream-300">
               <span className="font-bold text-lg text-brown-800">合計</span>
               <span className="font-bold text-2xl text-brown-700 tabular-nums">

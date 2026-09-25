@@ -257,24 +257,35 @@ export interface OrderItem {
   product?: Product
 }
 
-/** 同じ注文とみなす明細の時間差（ミリ秒） */
-const ORDER_BATCH_GAP_MS = 60_000
+/**
+ * 同じ注文とみなす明細の時間差（ミリ秒）
+ * 1回の注文の明細は同時に登録されるため、ごく短い差だけを許容する
+ */
+const ORDER_BATCH_GAP_MS = 2_000
 
 /**
  * 明細を「注文された回」ごとに分け、明細ID → 回番号 を返す
- * 0 = 最初の注文 / 1 = 追加1 / 2 = 追加2 …
+ * 0 = 1回目の注文 / 1 = 追加1（2回目）/ 2 = 追加2（3回目）…
+ *
+ * 回の区切りは、直前の明細ではなく「その回の最初の明細」からの差で判定する。
+ * 直前との差で判定すると、短い間隔で注文が続いたときに別々の回が
+ * ひとつにつながってしまうため。
  */
 export function getOrderBatchIndexes(items: OrderItem[]): Map<string, number> {
   const sorted = [...items].sort((a, b) => a.created_at.localeCompare(b.created_at))
   const indexes = new Map<string, number>()
   let batch = 0
-  let prevTime: number | null = null
+  let batchStartTime: number | null = null
 
   for (const item of sorted) {
     const time = new Date(item.created_at).getTime()
-    if (prevTime !== null && time - prevTime > ORDER_BATCH_GAP_MS) batch++
+    if (batchStartTime === null) {
+      batchStartTime = time
+    } else if (time - batchStartTime > ORDER_BATCH_GAP_MS) {
+      batch++
+      batchStartTime = time
+    }
     indexes.set(item.id, batch)
-    prevTime = time
   }
   return indexes
 }
