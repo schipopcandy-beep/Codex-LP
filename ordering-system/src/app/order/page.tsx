@@ -110,7 +110,6 @@ function OrderPageContent() {
         tableId={tableId}
         lineUserId={lineUserId}
         partySize={partySize}
-        seat={seat}
         buildCompleteHref={(orderId) =>
           `/order/complete?seat=${encodeURIComponent(seat)}&orderId=${encodeURIComponent(orderId)}`
         }

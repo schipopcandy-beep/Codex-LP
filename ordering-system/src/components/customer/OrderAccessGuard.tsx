@@ -18,6 +18,13 @@ type GuardStatus =
 const LIFF_ID = process.env.NEXT_PUBLIC_LIFF_ID ?? ''
 
 /**
+ * LINEの初期化を待つ上限（ミリ秒）
+ * LINE側の応答が返らないと「読み込み中」のまま進まなくなるため、
+ * 上限を過ぎたら先に人数選択を出す。
+ */
+const LIFF_TIMEOUT_MS = 5000
+
+/**
  * 店内注文の入口。
  * 友だち追加もLINEログインも求めず、席が特定できたら人数選択→注文へ進む。
  * LINEアプリ内など、すでにログイン済みの場合のみ来店記録用にLINE IDを取得する。
@@ -40,6 +47,15 @@ export default function OrderAccessGuard({ tableId, children, onUserIdReady, onP
 
     let cancelled = false
 
+    // 起動中のときだけ人数選択へ進める。
+    // 人数を選び終えた後に初期化が遅れて完了しても、画面を戻さないため
+    const proceed = () => {
+      if (!cancelled) setStatus((s) => (s === 'initializing' ? 'party-size' : s))
+    }
+
+    // LINEの応答が返らない場合でも、上限を過ぎたら先に進める
+    const timer = setTimeout(proceed, LIFF_TIMEOUT_MS)
+
     const init = async () => {
       try {
         const liff = (await import('@line/liff')).default
@@ -56,15 +72,19 @@ export default function OrderAccessGuard({ tableId, children, onUserIdReady, onP
           if (cancelled) return
           onUserIdReady?.(profile.userId)
         }
-        setStatus('party-size')
       } catch {
         // LIFF失敗時はLINE IDなしでそのまま注文へ進む
-        if (!cancelled) setStatus('party-size')
+      } finally {
+        clearTimeout(timer)
+        proceed()
       }
     }
 
     init()
-    return () => { cancelled = true }
+    return () => {
+      cancelled = true
+      clearTimeout(timer)
+    }
   }, [tableId, onUserIdReady])
 
   // --- ローディング ---

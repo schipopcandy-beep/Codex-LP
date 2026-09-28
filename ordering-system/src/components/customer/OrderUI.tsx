@@ -27,15 +27,17 @@ interface Props {
   lineUserId?: string | null
   partySize?: number | null
   buildCompleteHref: (orderId: string) => string
-  /** お持ち帰り注文の導線に渡す seat（例: t1）。未指定なら導線を出さない */
-  seat?: string
 }
 
-/** カートのキー: おにぎり系は topping で区別、ドリンクは固定キー */
-const cartKey = (productId: string, withTopping: boolean) => `${productId}-${withTopping}`
+/**
+ * カートのキー: おにぎり系は topping とお持ち帰りかどうかで区別、ドリンクは固定キー
+ * 同じ商品でも「店内」「お持ち帰り」は別の行として持つ
+ */
+const cartKey = (productId: string, withTopping: boolean, takeout = false) =>
+  `${productId}-${withTopping}${takeout ? '-takeout' : ''}`
 const drinkKey = (productId: string) => `${productId}-drink`
 
-export default function OrderUI({ tableId, lineUserId, partySize, buildCompleteHref, seat }: Props) {
+export default function OrderUI({ tableId, lineUserId, partySize, buildCompleteHref }: Props) {
   const router = useRouter()
 
   const [products, setProducts] = useState<Product[]>([])
@@ -43,6 +45,10 @@ export default function OrderUI({ tableId, lineUserId, partySize, buildCompleteH
   const [error, setError] = useState<string | null>(null)
   const [cartMap, setCartMap] = useState<Map<string, CartItem>>(new Map())
   const [isSubmitting, setIsSubmitting] = useState(false)
+
+  /** 今メニューから追加する分が、店内で食べるものかお持ち帰りか */
+  const [orderMode, setOrderMode] = useState<'eatin' | 'takeout'>('eatin')
+  const isTakeoutMode = orderMode === 'takeout'
 
   /** ランチプレート1枚ごとのおにぎり選択（1〜2個、とろろ昆布変更含む） */
   const [lunchNigiriPerPlate, setLunchNigiriPerPlate] = useState<LunchNigiriUnit[][]>([])
@@ -63,6 +69,14 @@ export default function OrderUI({ tableId, lineUserId, partySize, buildCompleteH
   const plateOrderable = isLunchPlateOrderable()
   /** 15:00以降は販売終了。非表示にはせずグレーアウトで残す */
   const plateClosed = isLunchPlateClosed()
+
+  /** 切り替えボタンに表示する、店内分・お持ち帰り分それぞれの点数 */
+  const eatinCount = cartItems
+    .filter((item) => !item.is_takeout)
+    .reduce((sum, item) => sum + item.quantity, 0)
+  const takeoutCount = cartItems
+    .filter((item) => item.is_takeout)
+    .reduce((sum, item) => sum + item.quantity, 0)
 
   /** カート内のランチプレートを1枚ずつに展開した配列（lunchNigiriPerPlate と同じ順序） */
   const lunchPlateEntries = cartItems
@@ -102,24 +116,29 @@ export default function OrderUI({ tableId, lineUserId, partySize, buildCompleteH
    * とろろ昆布あり・なしは別々の行として持つので、同じおにぎりを
    * 「変更するもの」「そのままのもの」に分けて注文できる
    */
-  const handleAdd = useCallback((product: Product, withTopping: boolean) => {
+  const addToCart = useCallback((product: Product, withTopping: boolean, takeout: boolean) => {
     setCartMap((prev) => {
       const next = new Map(prev)
-      const key = cartKey(product.id, withTopping)
+      const key = cartKey(product.id, withTopping, takeout)
       const existing = next.get(key)
       if (existing) {
         next.set(key, { ...existing, quantity: existing.quantity + 1 })
       } else {
-        next.set(key, { product, quantity: 1, with_topping: withTopping })
+        next.set(key, {
+          product,
+          quantity: 1,
+          with_topping: withTopping,
+          ...(takeout ? { is_takeout: true } : {}),
+        })
       }
       return next
     })
   }, [])
 
-  const handleRemove = useCallback((product: Product, withTopping: boolean) => {
+  const removeFromCart = useCallback((product: Product, withTopping: boolean, takeout: boolean) => {
     setCartMap((prev) => {
       const next = new Map(prev)
-      const key = cartKey(product.id, withTopping)
+      const key = cartKey(product.id, withTopping, takeout)
       const existing = next.get(key)
       if (!existing) return prev
       if (existing.quantity > 1) next.set(key, { ...existing, quantity: existing.quantity - 1 })
@@ -127,6 +146,21 @@ export default function OrderUI({ tableId, lineUserId, partySize, buildCompleteH
       return next
     })
   }, [])
+
+  /** メニューからの追加・削除は、選んでいるモード（店内／お持ち帰り）に入れる */
+  const handleAdd = useCallback(
+    (product: Product, withTopping: boolean) => addToCart(product, withTopping, isTakeoutMode),
+    [addToCart, isTakeoutMode],
+  )
+  const handleRemove = useCallback(
+    (product: Product, withTopping: boolean) => removeFromCart(product, withTopping, isTakeoutMode),
+    [removeFromCart, isTakeoutMode],
+  )
+  /** 豚汁のおすすめは店内分として追加する */
+  const handleAddEatin = useCallback(
+    (product: Product, withTopping: boolean) => addToCart(product, withTopping, false),
+    [addToCart],
+  )
 
   /** ドリンク用 */
   const handleAddDrink = useCallback((product: Product) => {
@@ -178,7 +212,7 @@ export default function OrderUI({ tableId, lineUserId, partySize, buildCompleteH
   const itemKey = (item: CartItem) =>
     item.product.category === DRINK_CATEGORY
       ? drinkKey(item.product.id)
-      : cartKey(item.product.id, item.with_topping)
+      : cartKey(item.product.id, item.with_topping, !!item.is_takeout)
 
   /** カートの個数変更（delta: +1 / -1）。0個になった行は削除する */
   const handleCartQuantityChange = useCallback((item: CartItem, delta: number) => {
@@ -243,6 +277,7 @@ export default function OrderUI({ tableId, lineUserId, partySize, buildCompleteH
               unit_price: item.product.price,
               with_topping: item.with_topping,
               timing: item.timing ?? null,
+              ...(item.is_takeout ? { is_takeout: true } : {}),
             })),
             ...lunchNigiriItems,
           ],
@@ -287,6 +322,36 @@ export default function OrderUI({ tableId, lineUserId, partySize, buildCompleteH
           />
           <p className="text-sm text-brown-400">{tableName}</p>
         </div>
+
+        {/* 追加先の切り替え。店内分とお持ち帰り分は同じ注文でまとめて確定できる */}
+        <div className="max-w-2xl mx-auto px-3 pb-2">
+          <div className="grid grid-cols-2 gap-1 bg-cream-200 rounded-xl p-1">
+            {(
+              [
+                ['eatin', '店内でお召し上がり', eatinCount],
+                ['takeout', 'お持ち帰り', takeoutCount],
+              ] as const
+            ).map(([mode, label, count]) => (
+              <button
+                key={mode}
+                type="button"
+                onClick={() => setOrderMode(mode)}
+                className={`py-2 rounded-lg text-sm font-bold transition-colors ${
+                  orderMode === mode
+                    ? mode === 'takeout'
+                      ? 'bg-amber-500 text-white shadow-sm'
+                      : 'bg-white text-brown-800 shadow-sm'
+                    : 'text-brown-500'
+                }`}
+              >
+                {label}
+                {count > 0 && (
+                  <span className="ml-1 text-xs tabular-nums">（{count}）</span>
+                )}
+              </button>
+            ))}
+          </div>
+        </div>
       </header>
 
       {/* 店内写真ヒーロー */}
@@ -311,6 +376,11 @@ export default function OrderUI({ tableId, lineUserId, partySize, buildCompleteH
       </div>
 
       <main className="max-w-2xl mx-auto px-3 py-4 space-y-6">
+        {isTakeoutMode && (
+          <p className="text-sm font-bold text-amber-800 bg-amber-100 border border-amber-300 rounded-xl px-4 py-3">
+            お持ち帰り分を選んでいます。店内のご注文と一緒に確定でき、お会計時にお渡しします。
+          </p>
+        )}
         {loading ? (
           <div className="flex items-center justify-center py-20">
             <p className="text-brown-400 text-lg">メニューを読み込み中...</p>
@@ -329,7 +399,8 @@ export default function OrderUI({ tableId, lineUserId, partySize, buildCompleteH
               </p>
               <div className={`grid grid-cols-2 gap-3 ${!plateOrderable ? 'opacity-50 pointer-events-none' : ''}`}>
                 {lunchPlateProducts.map((product) => {
-                  const quantity = cartMap.get(cartKey(product.id, false))?.quantity ?? 0
+                  const quantity =
+                    cartMap.get(cartKey(product.id, false, isTakeoutMode))?.quantity ?? 0
                   return (
                     <ProductCard
                       key={product.id}
@@ -349,8 +420,10 @@ export default function OrderUI({ tableId, lineUserId, partySize, buildCompleteH
               <h2 className="section-title mb-3 px-1">おにぎり</h2>
               <div className="grid grid-cols-2 gap-3">
                 {nigiriProducts.map((product) => {
-                  const quantity = cartMap.get(cartKey(product.id, false))?.quantity ?? 0
-                  const toppingQuantity = cartMap.get(cartKey(product.id, true))?.quantity ?? 0
+                  const quantity =
+                    cartMap.get(cartKey(product.id, false, isTakeoutMode))?.quantity ?? 0
+                  const toppingQuantity =
+                    cartMap.get(cartKey(product.id, true, isTakeoutMode))?.quantity ?? 0
                   return (
                     <ProductCard
                       key={product.id}
@@ -371,7 +444,8 @@ export default function OrderUI({ tableId, lineUserId, partySize, buildCompleteH
               <h2 className="section-title mb-3 px-1">サイド</h2>
               <div className="grid grid-cols-2 gap-3">
                 {sideProducts.map((product) => {
-                  const quantity = cartMap.get(cartKey(product.id, false))?.quantity ?? 0
+                  const quantity =
+                    cartMap.get(cartKey(product.id, false, isTakeoutMode))?.quantity ?? 0
                   return (
                     <ProductCard
                       key={product.id}
@@ -403,6 +477,16 @@ export default function OrderUI({ tableId, lineUserId, partySize, buildCompleteH
             </section>
           )
 
+          // お持ち帰り: おにぎり → サイド（ランチプレート・ドリンクは店内のみ）
+          if (isTakeoutMode) {
+            return (
+              <>
+                {nigiriSection}
+                {sideSection}
+              </>
+            )
+          }
+
           // ランチ中: プレート → ドリンク → おにぎり → サイド
           // 通常時:   プレート → おにぎり → サイド → ドリンク
           // ※ランチ中も全商品を注文できる。並び順だけを入れ替えている
@@ -423,20 +507,42 @@ export default function OrderUI({ tableId, lineUserId, partySize, buildCompleteH
           )
         })()}
 
-        {/* お持ち帰りの導線（席が特定できている場合のみ） */}
-        {!loading && seat && (
+        {/* お持ち帰りの導線。同じ画面で切り替えて、店内分と一緒に注文できる */}
+        {!loading && (
           <section className="pt-2">
             <div className="rounded-2xl border border-cream-300 bg-white p-4 text-center space-y-2">
-              <p className="font-bold text-brown-800">お持ち帰りもご一緒にいかがですか？</p>
-              <p className="text-xs text-brown-500">
-                お会計時にお渡しします
-              </p>
-              <a
-                href={`/takeout?seat=${encodeURIComponent(seat)}`}
-                className="block w-full py-3 rounded-xl border-2 border-brown-600 text-brown-700 font-bold text-base active:bg-cream-100"
-              >
-                テイクアウトで注文する →
-              </a>
+              {isTakeoutMode ? (
+                <>
+                  <p className="font-bold text-brown-800">店内でお召し上がりの分もございますか？</p>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setOrderMode('eatin')
+                      window.scrollTo({ top: 0, behavior: 'smooth' })
+                    }}
+                    className="block w-full py-3 rounded-xl border-2 border-brown-600 text-brown-700 font-bold text-base active:bg-cream-100"
+                  >
+                    店内のメニューに戻る
+                  </button>
+                </>
+              ) : (
+                <>
+                  <p className="font-bold text-brown-800">お持ち帰りもご一緒にいかがですか？</p>
+                  <p className="text-xs text-brown-500">
+                    店内のご注文と一緒に確定でき、お会計時にお渡しします
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setOrderMode('takeout')
+                      window.scrollTo({ top: 0, behavior: 'smooth' })
+                    }}
+                    className="block w-full py-3 rounded-xl border-2 border-amber-500 text-amber-700 font-bold text-base active:bg-amber-50"
+                  >
+                    お持ち帰りを追加する
+                  </button>
+                </>
+              )}
             </div>
           </section>
         )}
@@ -453,7 +559,7 @@ export default function OrderUI({ tableId, lineUserId, partySize, buildCompleteH
         onItemDelete={handleCartItemDelete}
         onLunchNigiriChange={handleLunchNigiriChange}
         onDrinkTimingChange={handleDrinkTimingChange}
-        onAddItem={handleAdd}
+        onAddItem={handleAddEatin}
         tonjiruProduct={tonjiruProduct}
       />
     </div>

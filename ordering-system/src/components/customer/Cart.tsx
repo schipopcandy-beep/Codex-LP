@@ -94,6 +94,104 @@ export default function Cart({
   const drinkItems = items.filter((item) => item.product.category === DRINK_CATEGORY)
   const drinksReady = drinkItems.every((item) => item.timing != null)
 
+  const eatinCartItems = items.filter((item) => !item.is_takeout)
+  const takeoutCartItems = items.filter((item) => item.is_takeout)
+
+  /** カート1行分（店内分・お持ち帰り分で共通） */
+  const renderCartItem = (item: CartItem) => {
+    const toppingCost = item.with_topping ? TOPPING_PRICE : 0
+    const subtotal = (item.product.price + toppingCost) * item.quantity
+    const isDrink = item.product.category === DRINK_CATEGORY
+
+    return (
+      <div
+        key={`${item.product.id}-${item.with_topping}-${item.timing ?? ''}-${item.is_takeout ? 'takeout' : ''}`}
+        className="space-y-1.5"
+      >
+        <div className="flex justify-between items-start gap-2">
+          <div className="flex-1 min-w-0">
+            <p className="font-bold text-base text-brown-800">
+              {item.product.name}
+              {item.with_topping && (
+                <span className="ml-1 text-sm text-brown-500 font-normal">
+                  （{TOPPING_CART_LABEL}）
+                </span>
+              )}
+            </p>
+            <p className="text-sm text-brown-500">
+              ¥{(item.product.price + toppingCost).toLocaleString()} × {item.quantity}
+            </p>
+          </div>
+          <p className="font-bold text-brown-700 tabular-nums whitespace-nowrap">
+            ¥{subtotal.toLocaleString()}
+          </p>
+        </div>
+
+        {/* 個数変更・削除 */}
+        {(onQuantityChange || onItemDelete) && (
+          <div className="flex items-center justify-between gap-2">
+            {onQuantityChange && (
+              <div className="flex items-center gap-3">
+                <button
+                  type="button"
+                  onClick={() => onQuantityChange(item, -1)}
+                  aria-label="1つ減らす"
+                  className="w-8 h-8 rounded-full border border-brown-400 text-brown-600 font-bold text-xl leading-none flex items-center justify-center active:bg-brown-100"
+                >
+                  −
+                </button>
+                <span className="w-5 text-center font-bold text-brown-800 tabular-nums">
+                  {item.quantity}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => onQuantityChange(item, 1)}
+                  aria-label="1つ増やす"
+                  className="w-8 h-8 rounded-full border border-brown-400 text-brown-600 font-bold text-xl leading-none flex items-center justify-center active:bg-brown-100"
+                >
+                  ＋
+                </button>
+              </div>
+            )}
+            {onItemDelete && (
+              <button
+                type="button"
+                onClick={() => onItemDelete(item)}
+                className="text-xs text-brown-400 underline underline-offset-2 px-1 py-1"
+              >
+                削除
+              </button>
+            )}
+          </div>
+        )}
+
+        {/* ドリンクのタイミング選択 */}
+        {isDrink && onDrinkTimingChange && (
+          <div className="flex items-center gap-1.5">
+            <span className="text-xs text-brown-500 mr-1">タイミング：</span>
+            {(['before', 'with', 'after'] as const).map((t) => (
+              <button
+                key={t}
+                type="button"
+                onClick={() => onDrinkTimingChange(item.product.id, t)}
+                className={`px-3 py-1 rounded-full text-xs font-semibold border transition-colors ${
+                  item.timing === t
+                    ? 'bg-brown-600 text-white border-brown-600'
+                    : 'bg-white text-brown-600 border-brown-300 active:bg-cream-100'
+                }`}
+              >
+                {DRINK_TIMING_LABELS[t]}
+              </button>
+            ))}
+            {!item.timing && (
+              <span className="text-xs text-amber-600 ml-1">要選択</span>
+            )}
+          </div>
+        )}
+      </div>
+    )
+  }
+
   if (totalCount === 0) return null
 
   return (
@@ -185,99 +283,7 @@ export default function Cart({
             </div>
 
             <div className="overflow-y-auto flex-1 px-4 py-3 space-y-3">
-              {items.map((item) => {
-                const toppingCost = item.with_topping ? TOPPING_PRICE : 0
-                const subtotal = (item.product.price + toppingCost) * item.quantity
-                const isDrink = item.product.category === DRINK_CATEGORY
-
-                return (
-                  <div
-                    key={`${item.product.id}-${item.with_topping}-${item.timing ?? ''}`}
-                    className="space-y-1.5"
-                  >
-                    <div className="flex justify-between items-start gap-2">
-                      <div className="flex-1 min-w-0">
-                        <p className="font-bold text-base text-brown-800">
-                          {item.product.name}
-                          {item.with_topping && (
-                            <span className="ml-1 text-sm text-brown-500 font-normal">
-                              （{TOPPING_CART_LABEL}）
-                            </span>
-                          )}
-                        </p>
-                        <p className="text-sm text-brown-500">
-                          ¥{(item.product.price + toppingCost).toLocaleString()} × {item.quantity}
-                        </p>
-                      </div>
-                      <p className="font-bold text-brown-700 tabular-nums whitespace-nowrap">
-                        ¥{subtotal.toLocaleString()}
-                      </p>
-                    </div>
-
-                    {/* 個数変更・削除 */}
-                    {(onQuantityChange || onItemDelete) && (
-                      <div className="flex items-center justify-between gap-2">
-                        {onQuantityChange && (
-                          <div className="flex items-center gap-3">
-                            <button
-                              type="button"
-                              onClick={() => onQuantityChange(item, -1)}
-                              aria-label="1つ減らす"
-                              className="w-8 h-8 rounded-full border border-brown-400 text-brown-600 font-bold text-xl leading-none flex items-center justify-center active:bg-brown-100"
-                            >
-                              −
-                            </button>
-                            <span className="w-5 text-center font-bold text-brown-800 tabular-nums">
-                              {item.quantity}
-                            </span>
-                            <button
-                              type="button"
-                              onClick={() => onQuantityChange(item, 1)}
-                              aria-label="1つ増やす"
-                              className="w-8 h-8 rounded-full border border-brown-400 text-brown-600 font-bold text-xl leading-none flex items-center justify-center active:bg-brown-100"
-                            >
-                              ＋
-                            </button>
-                          </div>
-                        )}
-                        {onItemDelete && (
-                          <button
-                            type="button"
-                            onClick={() => onItemDelete(item)}
-                            className="text-xs text-brown-400 underline underline-offset-2 px-1 py-1"
-                          >
-                            削除
-                          </button>
-                        )}
-                      </div>
-                    )}
-
-                    {/* ドリンクのタイミング選択 */}
-                    {isDrink && onDrinkTimingChange && (
-                      <div className="flex items-center gap-1.5">
-                        <span className="text-xs text-brown-500 mr-1">タイミング：</span>
-                        {(['before', 'with', 'after'] as const).map((t) => (
-                          <button
-                            key={t}
-                            type="button"
-                            onClick={() => onDrinkTimingChange(item.product.id, t)}
-                            className={`px-3 py-1 rounded-full text-xs font-semibold border transition-colors ${
-                              item.timing === t
-                                ? 'bg-brown-600 text-white border-brown-600'
-                                : 'bg-white text-brown-600 border-brown-300 active:bg-cream-100'
-                            }`}
-                          >
-                            {DRINK_TIMING_LABELS[t]}
-                          </button>
-                        ))}
-                        {!item.timing && (
-                          <span className="text-xs text-amber-600 ml-1">要選択</span>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                )
-              })}
+              {eatinCartItems.map(renderCartItem)}
 
               {/* ランチプレート おにぎり選択（プレート別） */}
               {lunchPlateCount > 0 && onLunchNigiriChange &&
@@ -292,6 +298,14 @@ export default function Cart({
                   />
                 ))
               }
+
+              {/* 店内のご注文と一緒に頼んだお持ち帰り分 */}
+              {takeoutCartItems.length > 0 && (
+                <div className="pt-3 border-t border-dashed border-amber-300 space-y-3">
+                  <p className="text-sm font-bold text-amber-700">お持ち帰り（お会計時にお渡し）</p>
+                  {takeoutCartItems.map(renderCartItem)}
+                </div>
+              )}
             </div>
 
             <div className="px-4 py-4 border-t border-cream-300 space-y-3">

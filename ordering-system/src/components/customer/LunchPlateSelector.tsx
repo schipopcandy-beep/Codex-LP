@@ -3,6 +3,7 @@
 import type { Product, LunchNigiriUnit } from '@/lib/types'
 import {
   getLunchPlateSurcharge,
+  isToppingSelectable,
   TOPPING_PRICE,
   TOPPING_CART_LABEL,
 } from '@/lib/types'
@@ -99,12 +100,15 @@ export default function LunchPlateSelector({ products, units, onChange, required
         })}
       </div>
 
-      {/* 選択したおにぎりごとの とろろ昆布変更（topping_available の商品のみ） */}
-      {units.some((u) => products.find((p) => p.id === u.productId)?.topping_available) && (
+      {/* 選択したおにぎりごとの とろろ昆布変更（単品と同じく全おにぎりが対象） */}
+      {units.some((u) => {
+        const product = products.find((p) => p.id === u.productId)
+        return product != null && isToppingSelectable(product)
+      }) && (
         <div className="border-t border-amber-200 pt-2 space-y-1.5">
           {units.map((unit, i) => {
             const product = products.find((p) => p.id === unit.productId)
-            if (!product || !product.topping_available) return null
+            if (!product || !isToppingSelectable(product)) return null
             return (
               <label
                 key={`${unit.productId}-${i}`}

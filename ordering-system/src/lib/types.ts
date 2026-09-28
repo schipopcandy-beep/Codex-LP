@@ -300,6 +300,8 @@ export interface CartItem {
   quantity: number
   with_topping: boolean
   timing?: DrinkTiming   // ドリンクのみ
+  /** 店内注文と一緒に頼むお持ち帰り分 */
+  is_takeout?: boolean
 }
 
 export function calcCartTotal(items: CartItem[]): number {
