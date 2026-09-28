@@ -88,7 +88,9 @@ export async function POST(req: NextRequest) {
     with_topping: item.with_topping,
     ...(item.timing != null ? { timing: item.timing } : {}),
     ...(item.lunch_plate_index != null ? { lunch_plate_index: item.lunch_plate_index } : {}),
-    ...(item.is_takeout ? { is_takeout: true } : {}),
+    // 複数行をまとめて登録するとき、ある行にだけ付いた項目は他の行では
+    // 既定値ではなく空（null）になるため、全行に明示して入れる
+    is_takeout: !!item.is_takeout,
   }))
 
   const { error: insertError } = await supabase
