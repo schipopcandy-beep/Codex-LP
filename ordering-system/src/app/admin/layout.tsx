@@ -22,6 +22,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         </Link>
         <div className="flex gap-3 flex-wrap">
           <Link href="/admin" className="text-cream-200 hover:text-white text-sm font-medium transition-colors">注文一覧</Link>
+          <Link href="/admin/takeout-entry" className="text-cream-200 hover:text-white text-sm font-medium transition-colors">店頭テイクアウト</Link>
           <Link href="/admin/takeout-schedule" className="text-cream-200 hover:text-white text-sm font-medium transition-colors">受取日時</Link>
           <Link href="/admin/products" className="text-cream-200 hover:text-white text-sm font-medium transition-colors">商品</Link>
           <Link href="/admin/analytics" className="text-cream-200 hover:text-white text-sm font-medium transition-colors">分析</Link>

@@ -1,6 +1,6 @@
 'use client'
 
-import { Suspense, useState } from 'react'
+import { Suspense, useCallback, useState } from 'react'
 import { useSearchParams } from 'next/navigation'
 import TakeoutAccessGuard from '@/components/customer/TakeoutAccessGuard'
 import TakeoutUI from '@/components/customer/TakeoutUI'
@@ -13,10 +13,21 @@ function TakeoutPageContent() {
   const seatTableId = seat ? seatToTableId(seat) : null
 
   const [lineUserId, setLineUserId] = useState<string | null>(null)
+  const [lineDisplayName, setLineDisplayName] = useState<string | null>(null)
+
+  const handleUserIdReady = useCallback((userId: string, displayName?: string) => {
+    setLineUserId(userId)
+    setLineDisplayName(displayName ?? null)
+  }, [])
 
   return (
-    <TakeoutAccessGuard onUserIdReady={setLineUserId}>
-      <TakeoutUI lineUserId={lineUserId} seat={seat || undefined} seatTableId={seatTableId} />
+    <TakeoutAccessGuard onUserIdReady={handleUserIdReady}>
+      <TakeoutUI
+        lineUserId={lineUserId}
+        lineDisplayName={lineDisplayName}
+        seat={seat || undefined}
+        seatTableId={seatTableId}
+      />
     </TakeoutAccessGuard>
   )
 }

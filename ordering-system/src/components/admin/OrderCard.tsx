@@ -94,6 +94,9 @@ export default function OrderCard({ order, onStatusChanged }: Props) {
             ) : (
               <p className="text-sm text-amber-600">受取日時 未設定</p>
             )}
+            {order.customer_name && (
+              <p className="text-lg font-bold text-brown-800">{order.customer_name} 様</p>
+            )}
           </div>
         )}
 

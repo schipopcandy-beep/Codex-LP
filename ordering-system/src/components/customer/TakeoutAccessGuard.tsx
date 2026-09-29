@@ -3,7 +3,8 @@
 import { useEffect, useState } from 'react'
 
 interface Props {
-  onUserIdReady?: (userId: string) => void
+  /** LINE IDと表示名が取れたら呼ばれる（表示名は注文者名の初期値に使う） */
+  onUserIdReady?: (userId: string, displayName?: string) => void
   children: React.ReactNode
 }
 
@@ -97,7 +98,7 @@ export default function TakeoutAccessGuard({ onUserIdReady, children }: Props) {
 
         if (liff.isLoggedIn()) {
           const profile = await liff.getProfile()
-          if (!cancelled) onUserIdReady?.(profile.userId)
+          if (!cancelled) onUserIdReady?.(profile.userId, profile.displayName)
         }
         finish()
       } catch {

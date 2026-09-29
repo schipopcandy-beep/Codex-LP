@@ -10,6 +10,8 @@ import { storageUrl, isLunchPlate, DRINK_CATEGORY, TAKEOUT_TABLE_ID } from '@/li
 
 interface Props {
   lineUserId?: string | null
+  /** LINEの表示名。お名前欄の初期値に使う */
+  lineDisplayName?: string | null
   /** 席から来た場合の seat パラメータ（例: t1） */
   seat?: string
   /** 席から来た場合の卓ID。指定時はその卓の伝票にお持ち帰り分として加える */
@@ -18,7 +20,7 @@ interface Props {
 
 const cartKey = (productId: string, withTopping: boolean) => `${productId}-${withTopping}`
 
-export default function TakeoutUI({ lineUserId, seat, seatTableId }: Props) {
+export default function TakeoutUI({ lineUserId, lineDisplayName, seat, seatTableId }: Props) {
   /** 席からのお持ち帰り注文か（受取日時の指定もLINE通知も行わない） */
   const isSeatOrder = !!seatTableId
   const router = useRouter()
@@ -30,6 +32,13 @@ export default function TakeoutUI({ lineUserId, seat, seatTableId }: Props) {
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [pickupDate, setPickupDate] = useState<string | null>(null)
   const [pickupTime, setPickupTime] = useState<string | null>(null)
+  /** 注文者名。管理画面でお渡し相手を確認するために使う */
+  const [customerName, setCustomerName] = useState('')
+
+  // LINEの表示名が取れたら、未入力のときだけ初期値として入れる
+  useEffect(() => {
+    if (lineDisplayName) setCustomerName((prev) => prev || lineDisplayName)
+  }, [lineDisplayName])
 
   const handlePickupSelect = useCallback((date: string, time: string) => {
     setPickupDate(date)
@@ -147,6 +156,7 @@ export default function TakeoutUI({ lineUserId, seat, seatTableId }: Props) {
               table_id: TAKEOUT_TABLE_ID,
               line_user_id: lineUserId ?? undefined,
               pickup_at: pickupDate && pickupTime ? `${pickupDate} ${pickupTime}` : undefined,
+              customer_name: customerName.trim() || undefined,
               items,
             }),
           })
@@ -167,7 +177,7 @@ export default function TakeoutUI({ lineUserId, seat, seatTableId }: Props) {
     } finally {
       setIsSubmitting(false)
     }
-  }, [cartItems, lineUserId, pickupDate, pickupTime, router, isSeatOrder, seat, seatTableId])
+  }, [cartItems, lineUserId, pickupDate, pickupTime, customerName, router, isSeatOrder, seat, seatTableId])
 
   if (error) {
     return (
@@ -277,6 +287,8 @@ export default function TakeoutUI({ lineUserId, seat, seatTableId }: Props) {
         onQuantityChange={handleCartQuantityChange}
         onItemDelete={handleCartItemDelete}
         isSeatOrder={isSeatOrder}
+        customerName={customerName}
+        onCustomerNameChange={setCustomerName}
         tonjiruProduct={tonjiruProduct}
       />
     </div>
