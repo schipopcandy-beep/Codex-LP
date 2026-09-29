@@ -15,6 +15,10 @@ interface TakeoutOrderRequestBody {
   table_id: string
   line_user_id?: string
   pickup_at?: string  // "YYYY-MM-DD HH:MM"
+  /** お客様名（LINEの表示名、または店頭で店員が入力した名前） */
+  customer_name?: string
+  /** 店頭で店員が入力した注文（LINEの確認メッセージは送らない） */
+  staff_entry?: boolean
   items: TakeoutOrderItem[]
 }
 
@@ -65,7 +69,8 @@ function buildOrderMessage(
 
 export async function POST(req: NextRequest) {
   const body: TakeoutOrderRequestBody = await req.json()
-  const { table_id, line_user_id, pickup_at, items } = body
+  const { table_id, line_user_id, pickup_at, staff_entry, items } = body
+  const customerName = body.customer_name?.trim().slice(0, 50) || null
 
   if (!table_id || !items || items.length === 0) {
     return NextResponse.json(
@@ -90,6 +95,7 @@ export async function POST(req: NextRequest) {
   const newOrderData: Record<string, unknown> = { table_id, status: 'new' }
   if (line_user_id) newOrderData.line_user_id = line_user_id
   if (pickup_at) newOrderData.pickup_at = pickup_at
+  if (customerName) newOrderData.customer_name = customerName
 
   const { data: newOrder, error: createError } = await supabase
     .from('orders')
@@ -128,7 +134,7 @@ export async function POST(req: NextRequest) {
     await sendLineMessage(line_user_id, message).catch((err) =>
       console.error('LINE push message failed:', err),
     )
-  } else {
+  } else if (!staff_entry) {
     console.warn(`LINE送信なし: line_user_id が取得できていません order=${orderId}`)
   }
 

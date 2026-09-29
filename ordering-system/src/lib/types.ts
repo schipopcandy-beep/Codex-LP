@@ -237,6 +237,8 @@ export interface Order {
   created_at: string
   updated_at: string
   pickup_at?: string | null  // "YYYY-MM-DD HH:MM"（テイクアウトのみ）
+  /** テイクアウトのお客様名（LINEの表示名、または店頭で店員が入力した名前） */
+  customer_name?: string | null
   table?: Table
   order_items?: OrderItem[]
 }
