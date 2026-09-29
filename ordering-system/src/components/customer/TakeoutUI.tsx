@@ -10,7 +10,7 @@ import { storageUrl, isLunchPlate, DRINK_CATEGORY, TAKEOUT_TABLE_ID } from '@/li
 
 interface Props {
   lineUserId?: string | null
-  /** LINEの表示名。お名前欄の初期値に使う */
+  /** LINEの表示名。注文者名として管理画面にだけ表示する（お客様の画面には出さない） */
   lineDisplayName?: string | null
   /** 席から来た場合の seat パラメータ（例: t1） */
   seat?: string
@@ -32,13 +32,6 @@ export default function TakeoutUI({ lineUserId, lineDisplayName, seat, seatTable
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [pickupDate, setPickupDate] = useState<string | null>(null)
   const [pickupTime, setPickupTime] = useState<string | null>(null)
-  /** 注文者名。管理画面でお渡し相手を確認するために使う */
-  const [customerName, setCustomerName] = useState('')
-
-  // LINEの表示名が取れたら、未入力のときだけ初期値として入れる
-  useEffect(() => {
-    if (lineDisplayName) setCustomerName((prev) => prev || lineDisplayName)
-  }, [lineDisplayName])
 
   const handlePickupSelect = useCallback((date: string, time: string) => {
     setPickupDate(date)
@@ -156,7 +149,7 @@ export default function TakeoutUI({ lineUserId, lineDisplayName, seat, seatTable
               table_id: TAKEOUT_TABLE_ID,
               line_user_id: lineUserId ?? undefined,
               pickup_at: pickupDate && pickupTime ? `${pickupDate} ${pickupTime}` : undefined,
-              customer_name: customerName.trim() || undefined,
+              customer_name: lineDisplayName ?? undefined,
               items,
             }),
           })
@@ -177,7 +170,7 @@ export default function TakeoutUI({ lineUserId, lineDisplayName, seat, seatTable
     } finally {
       setIsSubmitting(false)
     }
-  }, [cartItems, lineUserId, pickupDate, pickupTime, customerName, router, isSeatOrder, seat, seatTableId])
+  }, [cartItems, lineUserId, lineDisplayName, pickupDate, pickupTime, router, isSeatOrder, seat, seatTableId])
 
   if (error) {
     return (
@@ -287,8 +280,6 @@ export default function TakeoutUI({ lineUserId, lineDisplayName, seat, seatTable
         onQuantityChange={handleCartQuantityChange}
         onItemDelete={handleCartItemDelete}
         isSeatOrder={isSeatOrder}
-        customerName={customerName}
-        onCustomerNameChange={setCustomerName}
         tonjiruProduct={tonjiruProduct}
       />
     </div>

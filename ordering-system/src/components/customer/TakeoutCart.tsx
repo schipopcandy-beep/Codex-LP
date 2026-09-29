@@ -22,9 +22,6 @@ interface Props {
   onItemDelete?: (item: CartItem) => void
   /** 席からのお持ち帰り注文（受取日時の指定は不要） */
   isSeatOrder?: boolean
-  /** 注文者名（席からのお持ち帰りでは使わない） */
-  customerName?: string
-  onCustomerNameChange?: (name: string) => void
 }
 
 export default function TakeoutCart({
@@ -39,8 +36,6 @@ export default function TakeoutCart({
   onQuantityChange,
   onItemDelete,
   isSeatOrder = false,
-  customerName = '',
-  onCustomerNameChange,
 }: Props) {
   const [isOpen, setIsOpen] = useState(false)
   const [confirmed, setConfirmed] = useState(false)
@@ -50,9 +45,7 @@ export default function TakeoutCart({
   const totalCount = items.reduce((s, i) => s + i.quantity, 0)
   // 席からのお持ち帰りは、その場でお渡しするため受取日時を選ばない
   const pickupReady = isSeatOrder || !!(pickupDate && pickupTime)
-  // お渡しの際に確認するため、テイクアウトではお名前を必須にする
-  const nameReady = isSeatOrder || customerName.trim().length > 0
-  const canSubmit = pickupReady && nameReady && confirmed
+  const canSubmit = pickupReady && confirmed
 
   const hasTonjiru = tonjiruProduct
     ? items.some((i) => i.product.id === tonjiruProduct.id)
@@ -231,24 +224,6 @@ export default function TakeoutCart({
                 })}
               </div>
 
-              {/* お名前（席からのお持ち帰りでは不要） */}
-              {!isSeatOrder && (
-                <div className="border-t border-cream-300 pt-4">
-                  <label className="block">
-                    <span className="font-bold text-brown-700">お名前</span>
-                    <span className="text-xs text-brown-400 ml-2">お受け取りの際に確認します</span>
-                    <input
-                      type="text"
-                      value={customerName}
-                      onChange={(e) => onCustomerNameChange?.(e.target.value)}
-                      maxLength={50}
-                      placeholder="例：織田"
-                      className="mt-2 w-full rounded-xl border border-cream-300 bg-white px-3 py-2 text-base text-brown-800"
-                    />
-                  </label>
-                </div>
-              )}
-
               {/* 受取日時選択（席からのお持ち帰りでは不要） */}
               <div className={`border-t border-cream-300 pt-4 ${isSeatOrder ? 'hidden' : ''}`}>
                 <p className="font-bold text-brown-700 mb-1">受取日時を選択</p>
@@ -276,11 +251,6 @@ export default function TakeoutCart({
                 {!pickupReady && (
                   <p className="text-center text-sm text-amber-700 font-medium">
                     受取日時を選んでから注文できます
-                  </p>
-                )}
-                {pickupReady && !nameReady && (
-                  <p className="text-center text-sm text-amber-700 font-medium">
-                    お名前を入力してから注文できます
                   </p>
                 )}
 
