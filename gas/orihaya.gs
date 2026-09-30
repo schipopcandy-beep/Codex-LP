@@ -21,6 +21,7 @@
  *   exportSalesAnalysis()    - 売上分析シートを更新（天気・競合・イベント付き）
  *   exportSalesForecast()    - 売上予測シートを更新（今後1か月）
  *   sendWeeklyFollowUp()     - 7日前来店者にLINEメッセージ送信（毎日トリガー推奨）
+ *   setupFollowUpTrigger()   - sendWeeklyFollowUp を毎日11時台に自動実行する設定（初回に1度だけ実行）
  */
 
 // ─── 設定 ───────────────────────────────────────────────────────
@@ -127,6 +128,19 @@ function utcRangeForJstDay(jstDate) {
   const start = new Date(jstMidnight.getTime() - 9 * 3600000).toISOString()
   const end   = new Date(jstMidnight.getTime() - 9 * 3600000 + 86400000).toISOString()
   return { start, end }
+}
+
+/**
+ * シートから読んだ日付を 'yyyy/MM/dd' の文字列にそろえる
+ * スプレッドシートは '2026/09/23' のような文字列を書き込むと自動で日付型に変えるため、
+ * 読み戻すと Date になる。文字列のまま比較すると一致しないので、ここで形をそろえる。
+ */
+function toDateKey(value) {
+  if (value instanceof Date) {
+    const tz = SpreadsheetApp.getActiveSpreadsheet().getSpreadsheetTimeZone()
+    return Utilities.formatDate(value, tz, 'yyyy/MM/dd')
+  }
+  return String(value).trim()
 }
 
 function nDaysAgoJst(n) {
@@ -454,12 +468,12 @@ function exportDailySummary() {
 // ─── 5. 来店記録 ─────────────────────────────────────────────────
 
 function exportVisitLog() {
-  const data = supabaseGet('orders', [
+  // 件数が増えても最新の来店が切り捨てられないよう全件取得する
+  const data = supabaseGetAll('orders', [
     ['select',       'line_user_id,created_at'],
     ['status',       'eq.paid'],
     ['line_user_id', 'not.is.null'],
     ['order',        'created_at.asc'],
-    ['limit',        5000],
   ])
 
   // line_user_id ごとに初回・最終来店日と来店回数を集計
@@ -485,6 +499,8 @@ function exportVisitLog() {
   const sheet   = getOrCreateSheet('来店記録')
   sheet.clearContents()
   const headers = ['LINE user ID', '初回来店日', '最終来店日', '来店回数']
+  // 日付列は文字列のまま保存する（日付型に変わると送信対象の判定がずれるため）
+  if (rows.length > 0) sheet.getRange(2, 2, rows.length, 2).setNumberFormat('@')
   sheet.getRange(1, 1, rows.length + 1, headers.length).setValues([headers, ...rows])
   styleHeader(sheet, headers.length)
   sheet.setColumnWidth(1, 240)
@@ -856,29 +872,34 @@ function sendWeeklyFollowUp() {
   const { lineToken } = getProps()
   if (!lineToken) { console.log('LINE_CHANNEL_ACCESS_TOKEN が未設定です'); return }
 
-  // 7日前の来店者を「来店記録」シートから取得
-  const targetDay     = nDaysAgoJst(7)
-  const targetDateStr = Utilities.formatDate(targetDay, 'Asia/Tokyo', 'yyyy/MM/dd')
+  // 送信前に来店記録を最新にする（refreshAll の実行タイミングに左右されないように）
+  exportVisitLog()
 
   const visitSheet = getOrCreateSheet('来店記録')
   if (visitSheet.getLastRow() <= 1) {
-    console.log('来店記録が空です。先に refreshAll() を実行してください')
+    console.log('来店記録が空です（LINE IDの付いた会計済みの注文がありません）')
     return
   }
+
+  // 最終来店日が7日前のユーザーに送る。
+  // 実行が止まった日があっても送り漏れないよう、9日前までさかのぼり、
+  // 送信ログにあるものは除く
+  const targetDateStrs = new Set(
+    [7, 8, 9].map(n => Utilities.formatDate(nDaysAgoJst(n), 'Asia/Tokyo', 'yyyy/MM/dd'))
+  )
 
   // 列構成: [LINE user ID, 初回来店日, 最終来店日, 来店回数]
-  // 最終来店日（列3）が7日前のユーザーに送信
   const visitData = visitSheet.getRange(2, 1, visitSheet.getLastRow() - 1, 3).getValues()
-  const userIds   = [...new Set(
-    visitData.filter(row => row[2] === targetDateStr && row[0]).map(row => String(row[0]))
-  )]
+  const targets = visitData
+    .map(row => ({ userId: String(row[0]).trim(), visitDate: toDateKey(row[2]) }))
+    .filter(t => t.userId && targetDateStrs.has(t.visitDate))
 
-  if (userIds.length === 0) {
-    console.log(`${targetDateStr}: 対象ユーザーなし`)
+  if (targets.length === 0) {
+    console.log(`対象ユーザーなし（来店日: ${[...targetDateStrs].join(', ')}）`)
     return
   }
 
-  console.log(`${targetDateStr}: 対象 ${userIds.length} 人`)
+  console.log(`対象 ${targets.length} 人`)
 
   // 送信済みログシートで重複送信を防ぐ
   const logSheet = getOrCreateSheet('送信ログ')
@@ -889,9 +910,10 @@ function sendWeeklyFollowUp() {
 
   const sentKeys = new Set()
   if (logSheet.getLastRow() > 1) {
-    const logData = logSheet.getRange(2, 1, logSheet.getLastRow() - 1, 3).getValues()
-    for (const [, visitDate, userId] of logData) {
-      sentKeys.add(`${visitDate}__${userId}`)
+    const logData = logSheet.getRange(2, 1, logSheet.getLastRow() - 1, 4).getValues()
+    for (const [, visitDate, userId, result] of logData) {
+      // 送信に失敗した分は、次回あらためて送る
+      if (String(result) === 'OK') sentKeys.add(`${toDateKey(visitDate)}__${String(userId).trim()}`)
     }
   }
 
@@ -899,8 +921,8 @@ function sendWeeklyFollowUp() {
   let sentCount = 0
   let skipCount = 0
 
-  for (const userId of userIds) {
-    const key = `${targetDateStr}__${userId}`
+  for (const { userId, visitDate } of targets) {
+    const key = `${visitDate}__${userId}`
     if (sentKeys.has(key)) { skipCount++; continue }
 
     let result = 'OK'
@@ -924,12 +946,31 @@ function sendWeeklyFollowUp() {
       result = `EXCEPTION: ${e.message}`
     }
 
-    logSheet.appendRow([nowJstStr, targetDateStr, userId, result])
+    // 来店日は文字列のまま残す（先頭の ' で日付型への自動変換を防ぐ）
+    logSheet.appendRow([nowJstStr, `'${visitDate}`, userId, result])
     sentCount++
     Utilities.sleep(200) // レート制限対策
   }
 
-  console.log(`フォローアップ送信完了: 送信${sentCount}件 / スキップ${skipCount}件（来店日: ${targetDateStr}）`)
+  console.log(`フォローアップ送信完了: 送信${sentCount}件 / スキップ${skipCount}件`)
+}
+
+// ─── 来店後メッセージの自動実行を設定する ─────────────────────────
+// 初回に1度だけ手動で実行する。毎日11時台に sendWeeklyFollowUp が動くようになる。
+// 何度実行しても、トリガーが重複しないよう作り直す。
+
+function setupFollowUpTrigger() {
+  for (const trigger of ScriptApp.getProjectTriggers()) {
+    if (trigger.getHandlerFunction() === 'sendWeeklyFollowUp') ScriptApp.deleteTrigger(trigger)
+  }
+  ScriptApp.newTrigger('sendWeeklyFollowUp')
+    .timeBased()
+    .everyDays(1)
+    .atHour(11)
+    .inTimezone('Asia/Tokyo')
+    .create()
+  console.log('来店後メッセージを毎日11時台に送る設定をしました')
+  SpreadsheetApp.getActiveSpreadsheet().toast('来店後メッセージを毎日11時台に送る設定をしました', '完了', 5)
 }
 
 // ─── テスト用: 自分だけにフォローアップメッセージを送信 ────────────
@@ -989,8 +1030,8 @@ function sendReengagementMessage() {
   // 来店記録: [LINE user ID, 初回来店日, 最終来店日, 来店回数]
   const visitData = visitSheet.getRange(2, 1, visitSheet.getLastRow() - 1, 3).getValues()
   const targets = visitData
-    .filter(row => row[0] && row[2] && row[2] <= thresholdStr)
-    .map(row => ({ userId: String(row[0]), lastVisit: String(row[2]) }))
+    .map(row => ({ userId: String(row[0]).trim(), lastVisit: toDateKey(row[2]) }))
+    .filter(t => t.userId && t.lastVisit && t.lastVisit <= thresholdStr)
 
   if (targets.length === 0) {
     console.log(`30日以上未来店のユーザーなし（閾値: ${thresholdStr}）`)
@@ -1008,7 +1049,7 @@ function sendReengagementMessage() {
   if (logSheet.getLastRow() > 1) {
     const logData = logSheet.getRange(2, 2, logSheet.getLastRow() - 1, 2).getValues()
     for (const [userId, lastVisit] of logData) {
-      sentKeys.add(`${userId}__${lastVisit}`)
+      sentKeys.add(`${String(userId).trim()}__${toDateKey(lastVisit)}`)
     }
   }
 
@@ -1044,7 +1085,7 @@ function sendReengagementMessage() {
       result = `EXCEPTION: ${e.message}`
     }
 
-    logSheet.appendRow([nowJstStr, userId, lastVisit, result])
+    logSheet.appendRow([nowJstStr, userId, `'${lastVisit}`, result])
     sentCount++
     Utilities.sleep(200)
   }
