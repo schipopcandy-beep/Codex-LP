@@ -15,7 +15,22 @@ type GuardStatus =
   | 'ready'
   | 'error-no-seat'
 
-const LIFF_ID = process.env.NEXT_PUBLIC_LIFF_ID ?? ''
+/**
+ * 店内注文用のLIFF ID（エンドポイント: https://codex-lp-k187.vercel.app/order）
+ * テイクアウト用のLIFF（NEXT_PUBLIC_LIFF_ID）はエンドポイントが /takeout のため、
+ * /order でLINEログインすると戻り先が範囲外になり 400 Bad Request になる。
+ * そのため店内注文には専用のLIFFを使う。LIFF IDは公開されても問題ない値。
+ */
+const LIFF_ID = process.env.NEXT_PUBLIC_ORDER_LIFF_ID || '2009693463-xVibg5DN'
+
+/** このLIFFでLINEログインしてよい画面（エンドポイントの範囲内） */
+const LOGIN_PATH_PREFIX = '/order'
+
+/** LINEログインを一度試したかどうか（ログインを断った場合に繰り返さないため） */
+const LOGIN_TRIED_KEY = 'orihaya-order-login-tried'
+
+/** LINEログイン画面への移動を待つ上限（ミリ秒）。過ぎたらLINE IDなしで進める */
+const LOGIN_REDIRECT_TIMEOUT_MS = 12000
 
 /**
  * LINEの初期化を待つ上限（ミリ秒）
@@ -24,10 +39,29 @@ const LIFF_ID = process.env.NEXT_PUBLIC_LIFF_ID ?? ''
  */
 const LIFF_TIMEOUT_MS = 5000
 
+function readLoginTried(): boolean {
+  try {
+    return sessionStorage.getItem(LOGIN_TRIED_KEY) === '1'
+  } catch {
+    // 記録できない環境では、ログイン画面へ繰り返し移らないよう「試した」扱いにする
+    return true
+  }
+}
+
+function writeLoginTried(value: boolean) {
+  try {
+    if (value) sessionStorage.setItem(LOGIN_TRIED_KEY, '1')
+    else sessionStorage.removeItem(LOGIN_TRIED_KEY)
+  } catch {
+    // 保存できなくても注文は続けられる
+  }
+}
+
 /**
  * 店内注文の入口。
- * 友だち追加もLINEログインも求めず、席が特定できたら人数選択→注文へ進む。
- * LINEアプリ内など、すでにログイン済みの場合のみ来店記録用にLINE IDを取得する。
+ * 来店後のLINEメッセージのためにLINE IDを取得してから、人数選択→注文へ進む。
+ * - カメラでQRを読んで普通のブラウザで開いた場合は、LINEログインを1回だけ挟む
+ * - ログインを断った・失敗した・応答がない場合も、LINE IDなしで注文は続けられる
  */
 export default function OrderAccessGuard({ tableId, children, onUserIdReady, onPartySizeReady }: Props) {
   const [status, setStatus] = useState<GuardStatus>('initializing')
@@ -53,30 +87,54 @@ export default function OrderAccessGuard({ tableId, children, onUserIdReady, onP
       if (!cancelled) setStatus((s) => (s === 'initializing' ? 'party-size' : s))
     }
 
+    let timedOut = false
+    let loginTimer: ReturnType<typeof setTimeout> | undefined
+
     // LINEの応答が返らない場合でも、上限を過ぎたら先に進める
-    const timer = setTimeout(proceed, LIFF_TIMEOUT_MS)
+    const timer = setTimeout(() => {
+      timedOut = true
+      proceed()
+    }, LIFF_TIMEOUT_MS)
 
     const init = async () => {
+      let redirecting = false
       try {
         const liff = (await import('@line/liff')).default
         await liff.init({ liffId: LIFF_ID })
 
         if (cancelled) return
 
-        // 外部ブラウザでの liff.login() は LINE 側で 400 Bad Request になり
-        // 注文画面へ進めなくなるため行わない（LINE Login チャネルの
-        // コールバックURL設定が必要。設定後に再度有効化すること）。
-        // すでにログイン済みの場合のみIDを取得し、取れなくても注文は妨げない。
         if (liff.isLoggedIn()) {
+          writeLoginTried(false)
           const profile = await liff.getProfile()
           if (cancelled) return
           onUserIdReady?.(profile.userId)
+          return
+        }
+
+        // 普通のブラウザで開かれた場合は、LINEログインを1回だけ挟む。
+        // ただし次の場合は行わない:
+        //  - LINEアプリの中（ログイン済みのはずで、ここに来るのは想定外）
+        //  - このLIFFの範囲外の画面（400 Bad Request になるため）
+        //  - すでに一度試した（ログインを断った場合に繰り返さない）
+        //  - 先に人数選択を出した後（操作中に画面が切り替わらないように）
+        const canLogin =
+          !liff.isInClient() &&
+          window.location.pathname.startsWith(LOGIN_PATH_PREFIX) &&
+          !readLoginTried() &&
+          !timedOut
+        if (canLogin) {
+          writeLoginTried(true)
+          redirecting = true
+          // 移動が進まないまま止まった場合は、LINE IDなしで先に進める
+          loginTimer = setTimeout(proceed, LOGIN_REDIRECT_TIMEOUT_MS)
+          liff.login({ redirectUri: window.location.href })
         }
       } catch {
         // LIFF失敗時はLINE IDなしでそのまま注文へ進む
       } finally {
         clearTimeout(timer)
-        proceed()
+        if (!redirecting) proceed()
       }
     }
 
@@ -84,6 +142,7 @@ export default function OrderAccessGuard({ tableId, children, onUserIdReady, onP
     return () => {
       cancelled = true
       clearTimeout(timer)
+      clearTimeout(loginTimer)
     }
   }, [tableId, onUserIdReady])
 
