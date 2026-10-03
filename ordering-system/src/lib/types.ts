@@ -335,10 +335,38 @@ export const TABLE_NAMES: Record<string, string> = {
   'takeout': 'テイクアウト',
 }
 
-/** QRコードの seat パラメータ → 内部 tableId 変換マップ
- *  例: t1 → table-1, c3 → counter-3
+/**
+ * 店内の席。全部でテーブル4卓・カウンター3卓。
+ * （TABLE_NAMES の counter-4 は過去の注文を表示するためだけに残している）
+ */
+export const SEAT_TABLE_IDS = [
+  'table-1', 'table-2', 'table-3', 'table-4',
+  'counter-1', 'counter-2', 'counter-3',
+] as const
+
+/**
+ * 各席のQRコードに入れる席コード → 内部 tableId
+ * 他の卓を選んで注文できないよう、推測しにくいランダムな文字列にしている。
+ * 変更する場合は、新しい席コードでQRコードを作り直すこと。
  */
 export const SEAT_TO_TABLE_ID: Record<string, string> = {
+  g5mw2x43: 'table-1',
+  kudjxqm7: 'table-2',
+  bz5pnez8: 'table-3',
+  '5hyt9hz7': 'table-4',
+  tdq47jf3: 'counter-1',
+  pyb548h6: 'counter-2',
+  nhmdzw7a: 'counter-3',
+}
+
+/**
+ * 以前のQRコードの席コード（t1〜t4、c1〜c3）を受け付けるか。
+ * 新しいQRコードへの貼り替えが終わるまでの間だけ true にしておく。
+ * ※貼り替えが終わったら false にすること（推測しやすく、他の卓で注文できてしまうため）
+ */
+export const LEGACY_SEAT_CODES_ENABLED = true
+
+const LEGACY_SEAT_TO_TABLE_ID: Record<string, string> = {
   t1: 'table-1',
   t2: 'table-2',
   t3: 'table-3',
@@ -346,16 +374,30 @@ export const SEAT_TO_TABLE_ID: Record<string, string> = {
   c1: 'counter-1',
   c2: 'counter-2',
   c3: 'counter-3',
-  c4: 'counter-4',
+}
+
+/** 店内注文のLIFF ID（エンドポイント: https://codex-lp-k187.vercel.app/order） */
+export const ORDER_LIFF_ID = process.env.NEXT_PUBLIC_ORDER_LIFF_ID || '2009693463-xVibg5DN'
+
+/**
+ * 席のQRコードに入れるURL
+ * LIFFのURLにすると、LINEアプリが入っているスマホではLINEアプリで開き、
+ * IDやパスワードを入れずにLINEの情報を受け取れる。
+ */
+export function seatQrUrl(seatCode: string): string {
+  return `https://liff.line.me/${ORDER_LIFF_ID}?seat=${encodeURIComponent(seatCode)}`
 }
 
 /**
- * seat パラメータ（例: "t1"）を tableId（例: "table-1"）に変換する。
+ * seat パラメータ（席コード）を tableId（例: "table-1"）に変換する。
  * 未知の値は null を返す。
  */
 export function seatToTableId(seat: string | null | undefined): string | null {
   if (!seat) return null
-  return SEAT_TO_TABLE_ID[seat] ?? null
+  return (
+    SEAT_TO_TABLE_ID[seat] ??
+    (LEGACY_SEAT_CODES_ENABLED ? LEGACY_SEAT_TO_TABLE_ID[seat] ?? null : null)
+  )
 }
 
 /** 内部 tableId → QRコードの seat パラメータ（例: table-1 → t1） */

@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { ORDER_LIFF_ID } from '@/lib/types'
 
 interface Props {
   tableId: string
@@ -21,7 +22,7 @@ type GuardStatus =
  * /order でLINEログインすると戻り先が範囲外になり 400 Bad Request になる。
  * そのため店内注文には専用のLIFFを使う。LIFF IDは公開されても問題ない値。
  */
-const LIFF_ID = process.env.NEXT_PUBLIC_ORDER_LIFF_ID || '2009693463-xVibg5DN'
+const LIFF_ID = ORDER_LIFF_ID
 
 /** このLIFFでLINEログインしてよい画面（エンドポイントの範囲内） */
 const LOGIN_PATH_PREFIX = '/order'

@@ -72,26 +72,21 @@ export async function sendLineMessage(lineUserId: string, text: string): Promise
  *
  * 送信内容:
  *   ① テキストメッセージ（自己紹介・できることの案内）
- *   ② ボタンテンプレート（注文・テイクアウトへの導線）
+ *   ② ボタンテンプレート（テイクアウトへの導線。店内注文はお席のQRコードから）
  *
  * 環境変数:
  *   NEXT_PUBLIC_LIFF_ID       - テイクアウト用LIFFのID（必須。エンドポイントは /takeout）
  *   LINE_CHANNEL_ACCESS_TOKEN - アクセストークン（必須）
- *   NEXT_PUBLIC_APP_URL       - アプリのURL（例: https://codex-lp-k187.vercel.app）
  */
 export async function sendWelcomeMessage(lineUserId: string): Promise<void> {
   const token = process.env.LINE_CHANNEL_ACCESS_TOKEN
   const liffId = process.env.NEXT_PUBLIC_LIFF_ID
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? ''
 
   if (!token || !liffId) return
 
   // テイクアウトはLIFFとして開く。LINEアプリが毎回ログイン情報を渡すため、
   // ブラウザに保存したログインの期限切れで読み込みが止まることがない
   const takeoutUrl = `https://liff.line.me/${liffId}`
-  // このLIFFのエンドポイントは /takeout なので、店内注文はLIFF経由にせず直接開く
-  // （LIFF経由で /order を指定すると /takeout/order になり開けない）
-  const orderUrl = `${appUrl}/order`
 
   await fetch(LINE_API, {
     method: 'POST',
@@ -117,23 +112,20 @@ export async function sendWelcomeMessage(lineUserId: string): Promise<void> {
             '・イベント・お知らせ',
             'などをお届けします🌸',
             '',
-            'ご来店の際は下のボタンからご注文いただけます。',
+            '店内でのご注文は、各お席のQRコードからどうぞ。',
+            'テイクアウトは下のボタンからご注文いただけます。',
             'またのお越しをお待ちしております😊',
           ].join('\n'),
         },
         // ② 注文導線ボタン
         {
           type: 'template',
-          altText: '席での注文・テイクアウトはこちらから',
+          altText: 'テイクアウトのご注文はこちらから',
           template: {
             type: 'buttons',
-            text: 'ご注文はこちらから承ります',
+            text: 'テイクアウトのご注文はこちらから承ります',
+            // 店内注文は他の卓を選べないよう、お席のQRコードからに限っている
             actions: [
-              {
-                type: 'uri',
-                label: '🍙 席で注文する（イートイン）',
-                uri: orderUrl,
-              },
               {
                 type: 'uri',
                 label: '📦 テイクアウトを注文する',
