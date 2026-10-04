@@ -2,22 +2,39 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
-import type { Product } from '@/lib/types'
+import type { NigiriOptions, OptionSoldOut, Product } from '@/lib/types'
 import {
   DRINK_CATEGORY,
+  EGG_YOLK_NAME,
   NIGIRI_CATEGORY,
+  NO_OPTIONS,
+  NO_OPTION_SOLD_OUT,
   TAKEOUT_TABLE_ID,
-  TOPPING_CART_LABEL,
-  TOPPING_PRICE,
+  TOPPING_NAME,
   isLunchPlate,
   isToppingSelectable,
+  optionLabel,
+  optionPrice,
   orderShortId,
 } from '@/lib/types'
 
-/** 商品ID と とろろ昆布の有無ごとの個数 */
+/** 商品ID とオプションの組み合わせごとの個数 */
 type Quantities = Record<string, number>
 
-const qtyKey = (productId: string, withTopping: boolean) => `${productId}-${withTopping}`
+const qtyKey = (productId: string, options: NigiriOptions) =>
+  `${productId}-${options.tororo}-${options.eggYolk}`
+
+/** オプションを付けた組み合わせ（「そのまま」以外） */
+const OPTION_COMBOS: { options: NigiriOptions; label: string; soldOut: (s: OptionSoldOut) => boolean }[] = [
+  { options: { tororo: true, eggYolk: false }, label: `${TOPPING_NAME}に変更`, soldOut: (s) => s.tororo },
+  { options: { tororo: false, eggYolk: true }, label: `${EGG_YOLK_NAME}を追加`, soldOut: (s) => s.egg_yolk },
+  {
+    options: { tororo: true, eggYolk: true },
+    label: `${TOPPING_NAME}に変更＋${EGG_YOLK_NAME}`,
+    soldOut: (s) => s.tororo || s.egg_yolk,
+  },
+]
+const ALL_COMBOS: NigiriOptions[] = [NO_OPTIONS, ...OPTION_COMBOS.map((c) => c.options)]
 
 /** 日本時間の今日の日付（YYYY-MM-DD）と現在時刻（HH:MM） */
 function jstNow(): { date: string; time: string } {
@@ -41,8 +58,11 @@ function jstNow(): { date: string; time: string } {
  */
 export default function TakeoutEntryPage() {
   const [products, setProducts] = useState<Product[]>([])
+  const [optionSoldOut, setOptionSoldOut] = useState<OptionSoldOut>(NO_OPTION_SOLD_OUT)
   const [loading, setLoading] = useState(true)
   const [quantities, setQuantities] = useState<Quantities>({})
+  /** オプションの入力欄を開いている商品 */
+  const [openOptions, setOpenOptions] = useState<Set<string>>(new Set())
   const [customerName, setCustomerName] = useState('')
   const [pickupMode, setPickupMode] = useState<'now' | 'later'>('now')
   const [pickupTime, setPickupTime] = useState(() => jstNow().time)
@@ -58,15 +78,19 @@ export default function TakeoutEntryPage() {
         setLoading(false)
       })
       .catch(() => setLoading(false))
+    fetch('/api/options')
+      .then((r) => (r.ok ? r.json() : NO_OPTION_SOLD_OUT))
+      .then((data: OptionSoldOut) => setOptionSoldOut(data))
+      .catch(() => {})
   }, [])
 
   const nigiriProducts = products.filter((p) => p.category === NIGIRI_CATEGORY)
   const otherProducts = products.filter((p) => p.category !== NIGIRI_CATEGORY)
 
-  const change = (productId: string, withTopping: boolean, delta: number) => {
+  const change = (productId: string, options: NigiriOptions, delta: number) => {
     setRegistered(null)
     setQuantities((prev) => {
-      const key = qtyKey(productId, withTopping)
+      const key = qtyKey(productId, options)
       const next = Math.max(0, (prev[key] ?? 0) + delta)
       return { ...prev, [key]: next }
     })
@@ -76,18 +100,17 @@ export default function TakeoutEntryPage() {
   const lines = useMemo(
     () =>
       products.flatMap((product) =>
-        [false, true].flatMap((withTopping) => {
-          const quantity = quantities[qtyKey(product.id, withTopping)] ?? 0
-          return quantity > 0 ? [{ product, withTopping, quantity }] : []
+        ALL_COMBOS.flatMap((options) => {
+          const quantity = quantities[qtyKey(product.id, options)] ?? 0
+          return quantity > 0
+            ? [{ product, options, quantity, with_topping: options.tororo, with_egg_yolk: options.eggYolk }]
+            : []
         }),
       ),
     [products, quantities],
   )
 
-  const total = lines.reduce(
-    (sum, l) => sum + (l.product.price + (l.withTopping ? TOPPING_PRICE : 0)) * l.quantity,
-    0,
-  )
+  const total = lines.reduce((sum, l) => sum + (l.product.price + optionPrice(l)) * l.quantity, 0)
   const totalCount = lines.reduce((sum, l) => sum + l.quantity, 0)
 
   const handleSubmit = async () => {
@@ -111,7 +134,8 @@ export default function TakeoutEntryPage() {
             product_name: l.product.name,
             quantity: l.quantity,
             unit_price: l.product.price,
-            with_topping: l.withTopping,
+            with_topping: l.with_topping,
+            with_egg_yolk: l.with_egg_yolk,
           })),
         }),
       })
@@ -122,6 +146,7 @@ export default function TakeoutEntryPage() {
       const { order_id } = await res.json()
       setRegistered(orderShortId(order_id))
       setQuantities({})
+      setOpenOptions(new Set())
       setCustomerName('')
       setPickupMode('now')
       setPickupTime(jstNow().time)
@@ -133,14 +158,22 @@ export default function TakeoutEntryPage() {
     }
   }
 
-  /** 1商品分の個数操作 */
-  const Stepper = ({ product, withTopping }: { product: Product; withTopping: boolean }) => {
-    const quantity = quantities[qtyKey(product.id, withTopping)] ?? 0
+  /** 1商品・1組み合わせ分の個数操作 */
+  const Stepper = ({
+    product,
+    options,
+    disabled = false,
+  }: {
+    product: Product
+    options: NigiriOptions
+    disabled?: boolean
+  }) => {
+    const quantity = quantities[qtyKey(product.id, options)] ?? 0
     return (
       <div className="flex items-center gap-2">
         <button
           type="button"
-          onClick={() => change(product.id, withTopping, -1)}
+          onClick={() => change(product.id, options, -1)}
           disabled={quantity === 0}
           className="w-9 h-9 rounded-full border border-brown-400 text-brown-600 font-bold text-xl leading-none flex items-center justify-center disabled:opacity-30 active:bg-cream-200"
           aria-label="減らす"
@@ -150,8 +183,8 @@ export default function TakeoutEntryPage() {
         <span className="w-6 text-center font-bold text-brown-800 tabular-nums">{quantity}</span>
         <button
           type="button"
-          onClick={() => change(product.id, withTopping, 1)}
-          disabled={product.is_sold_out}
+          onClick={() => change(product.id, options, 1)}
+          disabled={product.is_sold_out || disabled}
           className="w-9 h-9 rounded-full bg-brown-600 text-white font-bold text-xl leading-none flex items-center justify-center disabled:opacity-30 active:bg-brown-700"
           aria-label="増やす"
         >
@@ -161,31 +194,65 @@ export default function TakeoutEntryPage() {
     )
   }
 
-  const ProductRow = ({ product }: { product: Product }) => (
-    <div className={`py-3 border-b border-cream-200 space-y-2 ${product.is_sold_out ? 'opacity-50' : ''}`}>
-      <div className="flex items-center justify-between gap-3">
-        <div className="min-w-0">
-          <p className="font-bold text-brown-800">
-            {product.name}
-            {product.is_sold_out && <span className="ml-2 text-xs text-red-600">売り切れ</span>}
-          </p>
-          <p className="text-sm text-brown-500 tabular-nums">¥{product.price.toLocaleString()}</p>
+  const ProductRow = ({ product }: { product: Product }) => {
+    const hasOptions = isToppingSelectable(product)
+    const optionCount = OPTION_COMBOS.reduce(
+      (sum, c) => sum + (quantities[qtyKey(product.id, c.options)] ?? 0),
+      0,
+    )
+    // オプション付きの注文がある商品は、開いたままにする
+    const isOpen = hasOptions && (openOptions.has(product.id) || optionCount > 0)
+    const toggleOpen = () =>
+      setOpenOptions((prev) => {
+        const next = new Set(prev)
+        if (next.has(product.id)) next.delete(product.id)
+        else next.add(product.id)
+        return next
+      })
+
+    return (
+      <div className={`py-3 border-b border-cream-200 space-y-2 ${product.is_sold_out ? 'opacity-50' : ''}`}>
+        <div className="flex items-center justify-between gap-3">
+          <div className="min-w-0">
+            <p className="font-bold text-brown-800">
+              {product.name}
+              {product.is_sold_out && <span className="ml-2 text-xs text-red-600">売り切れ</span>}
+            </p>
+            <p className="text-sm text-brown-500 tabular-nums">
+              ¥{product.price.toLocaleString()}
+              {hasOptions && !product.is_sold_out && (
+                <button
+                  type="button"
+                  onClick={toggleOpen}
+                  disabled={optionCount > 0}
+                  className="ml-3 text-xs text-brown-500 underline underline-offset-2 disabled:no-underline"
+                >
+                  {isOpen ? 'オプションを閉じる' : 'オプション（とろろ昆布・漬け卵黄）'}
+                </button>
+              )}
+            </p>
+          </div>
+          <Stepper product={product} options={NO_OPTIONS} />
         </div>
-        <Stepper product={product} withTopping={false} />
+        {isOpen &&
+          OPTION_COMBOS.map((c) => {
+            const soldOut = c.soldOut(optionSoldOut)
+            return (
+              <div key={c.label} className="flex items-center justify-between gap-3 pl-3">
+                <p className={`text-sm ${soldOut ? 'text-brown-300' : 'text-brown-500'}`}>
+                  {c.label}（+¥{optionPrice({ with_topping: c.options.tororo, with_egg_yolk: c.options.eggYolk })}）
+                  {soldOut && <span className="ml-1 text-xs">売り切れ</span>}
+                </p>
+                <Stepper product={product} options={c.options} disabled={soldOut} />
+              </div>
+            )
+          })}
       </div>
-      {isToppingSelectable(product) && (
-        <div className="flex items-center justify-between gap-3 pl-3">
-          <p className="text-sm text-brown-500">
-            {TOPPING_CART_LABEL}（+¥{TOPPING_PRICE}）
-          </p>
-          <Stepper product={product} withTopping={true} />
-        </div>
-      )}
-    </div>
-  )
+    )
+  }
 
   return (
-    <div className="p-4 md:p-6 max-w-2xl mx-auto pb-40">
+    <div className="p-4 md:p-6 max-w-2xl mx-auto">
       <div className="flex items-center justify-between mb-2">
         <h1 className="section-title">店頭テイクアウト入力</h1>
         <Link href="/admin" className="text-sm text-brown-500 underline">
@@ -272,20 +339,21 @@ export default function TakeoutEntryPage() {
         </div>
       )}
 
-      {/* 合計と登録 */}
-      <div className="fixed bottom-0 left-0 right-0 z-40 bg-white border-t border-cream-300 shadow-lg">
-        <div className="max-w-2xl mx-auto px-4 py-3 space-y-2">
+      {/* 合計と登録。固定（fixed）だと横長の画面で一番下の商品が隠れるため、
+          ページの最後に場所を取る sticky にして、下までスクロールすれば全部見えるようにする */}
+      <div className="sticky bottom-0 z-40 -mx-4 md:-mx-6 bg-white border-t border-cream-300 shadow-lg">
+        <div className="px-4 py-3 space-y-2">
           {lines.length > 0 && (
-            <div className="max-h-28 overflow-y-auto text-sm text-brown-600 space-y-0.5">
+            <div className="max-h-[20vh] overflow-y-auto text-sm text-brown-600 space-y-0.5">
               {lines.map((l) => (
-                <p key={qtyKey(l.product.id, l.withTopping)} className="flex justify-between gap-2">
+                <p key={qtyKey(l.product.id, l.options)} className="flex justify-between gap-2">
                   <span>
                     {l.product.name}
-                    {l.withTopping && <span className="text-brown-400">（{TOPPING_CART_LABEL}）</span>}
+                    {optionLabel(l) && <span className="text-brown-400">（{optionLabel(l)}）</span>}
                     <span className="text-brown-400"> ×{l.quantity}</span>
                   </span>
                   <span className="tabular-nums">
-                    ¥{((l.product.price + (l.withTopping ? TOPPING_PRICE : 0)) * l.quantity).toLocaleString()}
+                    ¥{((l.product.price + optionPrice(l)) * l.quantity).toLocaleString()}
                   </span>
                 </p>
               ))}

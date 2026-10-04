@@ -5,7 +5,7 @@ import Link from 'next/link'
 import Image from 'next/image'
 import { useSearchParams } from 'next/navigation'
 import type { Order } from '@/lib/types'
-import { calcOrderTotal, TOPPING_CART_LABEL, TOPPING_PRICE, storageUrl, formatScheduleDate } from '@/lib/types'
+import { calcOrderTotal, optionLabel, optionPrice, storageUrl, formatScheduleDate } from '@/lib/types'
 
 function TakeoutCompleteContent() {
   const searchParams = useSearchParams()
@@ -90,7 +90,7 @@ function TakeoutCompleteContent() {
             </h2>
             <div className="space-y-2">
               {items.map((item) => {
-                const toppingCost = item.with_topping ? TOPPING_PRICE : 0
+                const toppingCost = optionPrice(item)
                 const subtotal = (item.unit_price + toppingCost) * item.quantity
 
                 return (
@@ -99,8 +99,8 @@ function TakeoutCompleteContent() {
                       <p className="text-base text-brown-800 font-medium">
                         {item.product?.name ?? '不明'}
                       </p>
-                      {item.with_topping && (
-                        <p className="text-sm text-brown-400">（{TOPPING_CART_LABEL}）</p>
+                      {optionLabel(item) && (
+                        <p className="text-sm text-brown-400">（{optionLabel(item)}）</p>
                       )}
                       <p className="text-sm text-brown-400">
                         ¥{(item.unit_price + toppingCost).toLocaleString()} × {item.quantity}

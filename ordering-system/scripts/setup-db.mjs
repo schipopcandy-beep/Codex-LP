@@ -61,7 +61,7 @@ const PRODUCTS = [
   { name: 'ツナマヨ',         price: 350,  description: 'ほぐしツナとマヨネーズのやさしい味わい',                   category: 'おにぎり', sort_order: 60,  is_sold_out: false, topping_available: true  },
   { name: '辛子明太子',       price: 400,  description: 'ピリッと辛い明太子をたっぷりと',                           category: 'おにぎり', sort_order: 70,  is_sold_out: false, topping_available: true  },
   { name: 'ルーロー',         price: 450,  description: '台湾風の甘辛八角煮込みを和えた個性派おにぎり',             category: 'おにぎり', sort_order: 80,  is_sold_out: false, topping_available: false },
-  { name: '海苔佃煮',         price: 300,  description: '海の風味豊かな佃煮がご飯に馴染む一品',                     category: 'おにぎり', sort_order: 90,  is_sold_out: false, topping_available: true  },
+  { name: '茎わかめ佃煮',         price: 300,  description: '海の風味豊かな佃煮がご飯に馴染む一品',                     category: 'おにぎり', sort_order: 90,  is_sold_out: false, topping_available: true  },
   { name: '鶏そぼろ',         price: 400,  description: '甘辛に炊いた鶏そぼろをたっぷり混ぜ込み',                  category: 'おにぎり', sort_order: 100, is_sold_out: false, topping_available: true  },
   { name: '萩のしそひじき',   price: 400,  description: '国産しそとひじきの風味豊かな混ぜ込みおにぎり',            category: 'おにぎり', sort_order: 110, is_sold_out: false, topping_available: true  },
   { name: '極み筋子',         price: 600,  description: '厳選した上質な筋子を惜しみなく使用した贅沢な一品',        category: 'おにぎり', sort_order: 120, is_sold_out: false, topping_available: true  },

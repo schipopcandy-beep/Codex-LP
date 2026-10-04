@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import type { CartItem, Product } from '@/lib/types'
-import { calcCartTotal, TOPPING_CART_LABEL, TOPPING_PRICE } from '@/lib/types'
+import { calcCartTotal, optionLabel, optionPrice } from '@/lib/types'
 import PickupDateTimePicker from '@/components/customer/PickupDateTimePicker'
 
 interface Props {
@@ -13,7 +13,7 @@ interface Props {
   pickupTime: string | null
   onPickupSelect: (date: string, time: string) => void
   /** 商品をカートに追加（豚汁おすすめ用） */
-  onAddItem?: (product: Product, withTopping: boolean) => void
+  onAddItem?: (product: Product) => void
   /** おすすめする豚汁商品（渡された場合のみポップアップ表示） */
   tonjiruProduct?: Product
   /** カートの個数変更（delta: +1 / -1） */
@@ -110,7 +110,7 @@ export default function TakeoutCart({
             </div>
             <button
               onClick={() => {
-                if (tonjiruProduct && onAddItem) onAddItem(tonjiruProduct, false)
+                if (tonjiruProduct && onAddItem) onAddItem(tonjiruProduct)
                 setShowTonjiruPopup(false)
                 setIsOpen(true)
               }}
@@ -156,20 +156,21 @@ export default function TakeoutCart({
               {/* 注文明細 */}
               <div className="space-y-3">
                 {items.map((item) => {
-                  const toppingCost = item.with_topping ? TOPPING_PRICE : 0
+                  const toppingCost = optionPrice(item)
+                  const options = optionLabel(item)
                   const subtotal = (item.product.price + toppingCost) * item.quantity
                   return (
                     <div
-                      key={`${item.product.id}-${item.with_topping}`}
+                      key={`${item.product.id}-${item.with_topping}-${!!item.with_egg_yolk}`}
                       className="space-y-1.5"
                     >
                       <div className="flex justify-between items-start gap-2">
                         <div className="flex-1 min-w-0">
                           <p className="font-bold text-base text-brown-800">
                             {item.product.name}
-                            {item.with_topping && (
+                            {options && (
                               <span className="ml-1 text-sm text-brown-500 font-normal">
-                                （{TOPPING_CART_LABEL}）
+                                （{options}）
                               </span>
                             )}
                           </p>

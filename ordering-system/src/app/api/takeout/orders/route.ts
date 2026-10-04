@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServiceRoleClient } from '@/lib/supabase/server'
-import { TOPPING_CART_LABEL, TOPPING_PRICE } from '@/lib/types'
+import { formatScheduleDate, generatePickupSlots, optionLabel, optionPrice } from '@/lib/types'
+import { getEffectiveDays } from '@/lib/business-hours'
 import { sendLineMessage } from '@/lib/line-message'
 
 interface TakeoutOrderItem {
@@ -9,6 +10,8 @@ interface TakeoutOrderItem {
   quantity: number
   unit_price: number
   with_topping: boolean
+  /** 漬け卵黄を追加 */
+  with_egg_yolk?: boolean
 }
 
 interface TakeoutOrderRequestBody {
@@ -34,12 +37,13 @@ function buildOrderMessage(
 
   let total = 0
   for (const item of items) {
-    const toppingCost = item.with_topping ? TOPPING_PRICE : 0
+    const toppingCost = optionPrice(item)
     const unitPrice = item.unit_price + toppingCost
     const subtotal = unitPrice * item.quantity
     total += subtotal
 
-    const toppingNote = item.with_topping ? `（${TOPPING_CART_LABEL}）` : ''
+    const options = optionLabel(item)
+    const toppingNote = options ? `（${options}）` : ''
     lines.push(`・${item.product_name}${toppingNote} ×${item.quantity}　¥${subtotal.toLocaleString()}`)
   }
 
@@ -81,6 +85,26 @@ export async function POST(req: NextRequest) {
 
   const supabase = createServiceRoleClient()
 
+  // お客様の予約は、休業日や営業時間外の受け取りを受け付けない
+  // （画面を開いた後に休業日に変更された場合などに備え、注文を受ける側でも確認する）
+  // 店頭で店員が入力した注文は、その場の判断を優先して確認しない
+  if (pickup_at && !staff_entry) {
+    const [pickupDate, pickupTime] = pickup_at.split(' ')
+    const [day] = await getEffectiveDays(supabase, [pickupDate])
+    if (!day || !day.is_open) {
+      return NextResponse.json(
+        { error: `${formatScheduleDate(pickupDate)}は休業日のため、ご予約を承れません。別の日をお選びください。` },
+        { status: 400 },
+      )
+    }
+    if (!generatePickupSlots(day.open_time, day.close_time).includes(pickupTime)) {
+      return NextResponse.json(
+        { error: `${formatScheduleDate(pickupDate)}の${pickupTime}は受け取りの時間外です。別の時間をお選びください。` },
+        { status: 400 },
+      )
+    }
+  }
+
   // line_user_id が提供された場合、line_users に存在しなければ先に登録する
   // （orders.line_user_id の外部キー制約対策）
   if (line_user_id) {
@@ -118,6 +142,7 @@ export async function POST(req: NextRequest) {
     quantity: item.quantity,
     unit_price: item.unit_price,
     with_topping: item.with_topping,
+    with_egg_yolk: !!item.with_egg_yolk,
   }))
 
   const { error: insertError } = await supabase

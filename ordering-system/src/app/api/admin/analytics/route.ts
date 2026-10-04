@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServiceRoleClient } from '@/lib/supabase/server'
+import { optionPrice } from '@/lib/types'
 
 function toJstTime(isoStr: string): string {
   const d = new Date(new Date(isoStr).getTime() + 9 * 60 * 60 * 1000)
@@ -60,8 +61,6 @@ export async function GET(req: NextRequest) {
     prevToUtc   = fromUtc
   }
 
-  const TOPPING_PRICE = 50
-
   let ordersQuery = supabase
     .from('orders')
     .select(`
@@ -74,6 +73,7 @@ export async function GET(req: NextRequest) {
         unit_price,
         quantity,
         with_topping,
+        with_egg_yolk,
         lunch_plate_index,
         product:products ( id, name, category )
       )
@@ -106,7 +106,7 @@ export async function GET(req: NextRequest) {
     weatherQuery,
     supabase
       .from('orders')
-      .select('id, party_size, order_items(unit_price, quantity, with_topping)')
+      .select('id, party_size, order_items(unit_price, quantity, with_topping, with_egg_yolk)')
       .eq('status', 'paid')
       .gte('created_at', prevFromUtc)
       .lt('created_at', prevToUtc),
@@ -132,7 +132,7 @@ export async function GET(req: NextRequest) {
     let orderRevenue = 0
 
     for (const item of order.order_items ?? []) {
-      const toppingCost = item.with_topping ? TOPPING_PRICE : 0
+      const toppingCost = optionPrice(item)
       const itemRevenue = (item.unit_price + toppingCost) * item.quantity
       orderRevenue += itemRevenue
 
@@ -173,8 +173,8 @@ export async function GET(req: NextRequest) {
   let prevOrderCount = 0
   for (const order of prevOrdersResult.data ?? []) {
     prevOrderCount++
-    for (const item of (order as { order_items?: { unit_price: number; quantity: number; with_topping: boolean }[] }).order_items ?? []) {
-      const tc = item.with_topping ? TOPPING_PRICE : 0
+    for (const item of (order as { order_items?: { unit_price: number; quantity: number; with_topping: boolean; with_egg_yolk?: boolean }[] }).order_items ?? []) {
+      const tc = optionPrice(item)
       prevRevenue += (item.unit_price + tc) * item.quantity
     }
   }

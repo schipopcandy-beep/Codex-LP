@@ -5,8 +5,15 @@ import { useRouter } from 'next/navigation'
 import Image from 'next/image'
 import ProductCard from '@/components/customer/ProductCard'
 import TakeoutCart from '@/components/customer/TakeoutCart'
-import type { Product, CartItem } from '@/lib/types'
-import { storageUrl, isLunchPlate, DRINK_CATEGORY, TAKEOUT_TABLE_ID } from '@/lib/types'
+import type { Product, CartItem, NigiriOptions, OptionSoldOut } from '@/lib/types'
+import {
+  storageUrl,
+  isLunchPlate,
+  DRINK_CATEGORY,
+  TAKEOUT_TABLE_ID,
+  NO_OPTIONS,
+  NO_OPTION_SOLD_OUT,
+} from '@/lib/types'
 
 interface Props {
   lineUserId?: string | null
@@ -18,7 +25,14 @@ interface Props {
   seatTableId?: string | null
 }
 
-const cartKey = (productId: string, withTopping: boolean) => `${productId}-${withTopping}`
+/** カートのキー。オプション（とろろ昆布・漬け卵黄）の組み合わせごとに別の行として持つ */
+const cartKey = (productId: string, options: NigiriOptions) =>
+  `${productId}-${options.tororo}${options.eggYolk ? '-egg' : ''}`
+
+const optionsOf = (item: CartItem): NigiriOptions => ({
+  tororo: item.with_topping,
+  eggYolk: !!item.with_egg_yolk,
+})
 
 export default function TakeoutUI({ lineUserId, lineDisplayName, seat, seatTableId }: Props) {
   /** 席からのお持ち帰り注文か（受取日時の指定もLINE通知も行わない） */
@@ -29,6 +43,8 @@ export default function TakeoutUI({ lineUserId, lineDisplayName, seat, seatTable
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [cartMap, setCartMap] = useState<Map<string, CartItem>>(new Map())
+  /** とろろ昆布・漬け卵黄の売り切れ状態 */
+  const [optionSoldOut, setOptionSoldOut] = useState<OptionSoldOut>(NO_OPTION_SOLD_OUT)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [pickupDate, setPickupDate] = useState<string | null>(null)
   const [pickupTime, setPickupTime] = useState<string | null>(null)
@@ -46,6 +62,10 @@ export default function TakeoutUI({ lineUserId, lineDisplayName, seat, seatTable
     (p) => p.category !== 'おにぎり' && p.category !== DRINK_CATEGORY,
   )
   const tonjiruProduct = products.find((p) => p.name.includes('豚汁'))
+
+  /** メニューのカードに出す、オプションの組み合わせごとの注文数 */
+  const quantityOf = (product: Product) => (options: NigiriOptions) =>
+    cartMap.get(cartKey(product.id, options))?.quantity ?? 0
 
   useEffect(() => {
     fetch('/api/products')
@@ -66,27 +86,37 @@ export default function TakeoutUI({ lineUserId, lineDisplayName, seat, seatTable
         setError('商品情報の取得に失敗しました')
         setLoading(false)
       })
+    // オプションの売り切れ状態（取れなければ全部選べる扱い）
+    fetch('/api/options')
+      .then((r) => (r.ok ? r.json() : NO_OPTION_SOLD_OUT))
+      .then((data: OptionSoldOut) => setOptionSoldOut(data))
+      .catch(() => {})
   }, [])
 
   /** おにぎり用 */
-  const handleAdd = useCallback((product: Product, withTopping: boolean) => {
+  const handleAdd = useCallback((product: Product, options: NigiriOptions = NO_OPTIONS) => {
     setCartMap((prev) => {
       const next = new Map(prev)
-      const key = cartKey(product.id, withTopping)
+      const key = cartKey(product.id, options)
       const existing = next.get(key)
       if (existing) {
         next.set(key, { ...existing, quantity: existing.quantity + 1 })
       } else {
-        next.set(key, { product, quantity: 1, with_topping: withTopping })
+        next.set(key, {
+          product,
+          quantity: 1,
+          with_topping: options.tororo,
+          with_egg_yolk: options.eggYolk,
+        })
       }
       return next
     })
   }, [])
 
-  const handleRemove = useCallback((product: Product, withTopping: boolean) => {
+  const handleRemove = useCallback((product: Product, options: NigiriOptions) => {
     setCartMap((prev) => {
       const next = new Map(prev)
-      const key = cartKey(product.id, withTopping)
+      const key = cartKey(product.id, options)
       const existing = next.get(key)
       if (!existing) return prev
       if (existing.quantity > 1) next.set(key, { ...existing, quantity: existing.quantity - 1 })
@@ -97,7 +127,7 @@ export default function TakeoutUI({ lineUserId, lineDisplayName, seat, seatTable
 
   /** カートの個数変更（delta: +1 / -1）。0個になった行は削除する */
   const handleCartQuantityChange = useCallback((item: CartItem, delta: number) => {
-    const key = cartKey(item.product.id, item.with_topping)
+    const key = cartKey(item.product.id, optionsOf(item))
     setCartMap((prev) => {
       const next = new Map(prev)
       const existing = next.get(key)
@@ -111,7 +141,7 @@ export default function TakeoutUI({ lineUserId, lineDisplayName, seat, seatTable
 
   /** カートから商品を削除する */
   const handleCartItemDelete = useCallback((item: CartItem) => {
-    const key = cartKey(item.product.id, item.with_topping)
+    const key = cartKey(item.product.id, optionsOf(item))
     setCartMap((prev) => {
       const next = new Map(prev)
       next.delete(key)
@@ -129,6 +159,7 @@ export default function TakeoutUI({ lineUserId, lineDisplayName, seat, seatTable
       quantity: item.quantity,
       unit_price: item.product.price,
       with_topping: item.with_topping,
+      with_egg_yolk: !!item.with_egg_yolk,
     }))
 
     try {
@@ -227,20 +258,16 @@ export default function TakeoutUI({ lineUserId, lineDisplayName, seat, seatTable
             <section>
               <h1 className="section-title mb-4 px-1">おにぎり</h1>
               <div className="grid grid-cols-2 gap-3">
-                {nigiriProducts.map((product) => {
-                  const quantity = cartMap.get(cartKey(product.id, false))?.quantity ?? 0
-                  const toppingQuantity = cartMap.get(cartKey(product.id, true))?.quantity ?? 0
-                  return (
-                    <ProductCard
-                      key={product.id}
-                      product={product}
-                      quantity={quantity}
-                      toppingQuantity={toppingQuantity}
-                      onAdd={handleAdd}
-                      onRemove={handleRemove}
-                    />
-                  )
-                })}
+                {nigiriProducts.map((product) => (
+                  <ProductCard
+                    key={product.id}
+                    product={product}
+                    getQuantity={quantityOf(product)}
+                    onAdd={handleAdd}
+                    onRemove={handleRemove}
+                    optionSoldOut={optionSoldOut}
+                  />
+                ))}
               </div>
             </section>
 
@@ -249,19 +276,15 @@ export default function TakeoutUI({ lineUserId, lineDisplayName, seat, seatTable
               <section>
                 <h2 className="section-title mb-3 px-1">サイド</h2>
                 <div className="grid grid-cols-2 gap-3">
-                  {sideProducts.map((product) => {
-                    const quantity =
-                      cartMap.get(cartKey(product.id, false))?.quantity ?? 0
-                    return (
-                      <ProductCard
-                        key={product.id}
-                        product={product}
-                        quantity={quantity}
-                        onAdd={handleAdd}
-                        onRemove={handleRemove}
-                      />
-                    )
-                  })}
+                  {sideProducts.map((product) => (
+                    <ProductCard
+                      key={product.id}
+                      product={product}
+                      getQuantity={quantityOf(product)}
+                      onAdd={handleAdd}
+                      onRemove={handleRemove}
+                    />
+                  ))}
                 </div>
               </section>
             )}

@@ -5,7 +5,7 @@ import Link from 'next/link'
 import Image from 'next/image'
 import { useSearchParams } from 'next/navigation'
 import type { Order } from '@/lib/types'
-import { calcOrderTotal, TABLE_NAMES, TOPPING_CART_LABEL, TOPPING_PRICE, storageUrl } from '@/lib/types'
+import { calcOrderTotal, TABLE_NAMES, optionLabel, optionPrice, storageUrl, groupLunchPlateNigiri } from '@/lib/types'
 import StatusBadge from '@/components/admin/StatusBadge'
 
 interface Props {
@@ -33,7 +33,9 @@ export default function CompletePage({ params }: Props) {
   const items = order?.order_items ?? []
   const total = calcOrderTotal(items)
   // 席から注文されたお持ち帰り分は分けて見せる
-  const eatinItems = items.filter((i) => !i.is_takeout)
+  // ランチプレート内のおにぎりは、プレートの下に字下げして見せる
+  const eatinItems = items.filter((i) => !i.is_takeout && i.lunch_plate_index == null)
+  const plateNigiri = groupLunchPlateNigiri(items)
   const takeoutItems = items.filter((i) => i.is_takeout)
 
   return (
@@ -76,17 +78,18 @@ export default function CompletePage({ params }: Props) {
             </h2>
             <div className="space-y-2">
               {eatinItems.map((item) => {
-                const toppingCost = item.with_topping ? TOPPING_PRICE : 0
+                const toppingCost = optionPrice(item)
                 const subtotal = (item.unit_price + toppingCost) * item.quantity
 
                 return (
-                  <div key={item.id} className="flex justify-between items-start">
+                  <div key={item.id}>
+                  <div className="flex justify-between items-start">
                     <div>
                       <p className="text-base text-brown-800 font-medium">
                         {item.product?.name ?? '不明'}
                       </p>
-                      {item.with_topping && (
-                        <p className="text-sm text-brown-400">（{TOPPING_CART_LABEL}）</p>
+                      {optionLabel(item) && (
+                        <p className="text-sm text-brown-400">（{optionLabel(item)}）</p>
                       )}
                       <p className="text-sm text-brown-400">
                         ¥{(item.unit_price + toppingCost).toLocaleString()} × {item.quantity}
@@ -95,6 +98,28 @@ export default function CompletePage({ params }: Props) {
                     <p className="font-bold text-brown-700 tabular-nums">
                       ¥{subtotal.toLocaleString()}
                     </p>
+                  </div>
+                  {(plateNigiri.get(item.id) ?? []).map((group, gi, all) => (
+                    <div key={gi} className="mt-1 ml-4 pl-3 border-l-2 border-amber-200 space-y-0.5">
+                      {all.length > 1 && (
+                        <p className="text-xs font-bold text-amber-700">{gi + 1}枚目</p>
+                      )}
+                      {group.map((n) => {
+                        const extra = n.unit_price + optionPrice(n)
+                        return (
+                          <p key={n.id} className="text-sm text-brown-600">
+                            {n.product?.name ?? '不明'}
+                            {optionLabel(n) && (
+                              <span className="text-brown-400 ml-1">（{optionLabel(n)}）</span>
+                            )}
+                            {extra > 0 && (
+                              <span className="text-amber-600 ml-1 text-xs">+¥{extra.toLocaleString()}</span>
+                            )}
+                          </p>
+                        )
+                      })}
+                    </div>
+                  ))}
                   </div>
                 )
               })}
@@ -105,7 +130,7 @@ export default function CompletePage({ params }: Props) {
               <div className="pt-2 border-t border-dashed border-amber-300 space-y-2">
                 <p className="text-sm font-bold text-amber-700">お持ち帰り</p>
                 {takeoutItems.map((item) => {
-                  const toppingCost = item.with_topping ? TOPPING_PRICE : 0
+                  const toppingCost = optionPrice(item)
                   const subtotal = (item.unit_price + toppingCost) * item.quantity
                   return (
                     <div key={item.id} className="flex justify-between items-start">
@@ -113,8 +138,8 @@ export default function CompletePage({ params }: Props) {
                         <p className="text-base text-brown-800 font-medium">
                           {item.product?.name ?? '不明'}
                         </p>
-                        {item.with_topping && (
-                          <p className="text-sm text-brown-400">（{TOPPING_CART_LABEL}）</p>
+                        {optionLabel(item) && (
+                          <p className="text-sm text-brown-400">（{optionLabel(item)}）</p>
                         )}
                         <p className="text-sm text-brown-400">
                           ¥{(item.unit_price + toppingCost).toLocaleString()} × {item.quantity}

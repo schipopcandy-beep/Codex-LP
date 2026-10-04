@@ -1,11 +1,11 @@
 'use client'
 
 import { useState } from 'react'
-import type { CartItem, Product, DrinkTiming, LunchNigiriUnit } from '@/lib/types'
+import type { CartItem, Product, DrinkTiming, LunchNigiriUnit, OptionSoldOut } from '@/lib/types'
 import {
   calcCartTotal,
-  TOPPING_PRICE,
-  TOPPING_CART_LABEL,
+  optionLabel,
+  optionPrice,
   DRINK_TIMING_LABELS,
   DRINK_CATEGORY,
   getLunchPlateSurcharge,
@@ -28,10 +28,12 @@ interface Props {
   onQuantityChange?: (item: CartItem, delta: number) => void
   /** カートから商品を削除 */
   onItemDelete?: (item: CartItem) => void
+  /** とろろ昆布・漬け卵黄の売り切れ状態（ランチプレートのおにぎり選択に使う） */
+  optionSoldOut?: OptionSoldOut
   /** ドリンクのタイミング変更 */
   onDrinkTimingChange?: (productId: string, timing: DrinkTiming) => void
   /** 商品をカートに追加（豚汁おすすめ用） */
-  onAddItem?: (product: Product, withTopping: boolean) => void
+  onAddItem?: (product: Product) => void
   /** おすすめする豚汁商品（渡された場合のみポップアップ表示） */
   tonjiruProduct?: Product
 }
@@ -46,6 +48,7 @@ export default function Cart({
   onLunchNigiriChange,
   onQuantityChange,
   onItemDelete,
+  optionSoldOut,
   onDrinkTimingChange,
   onAddItem,
   tonjiruProduct,
@@ -73,7 +76,7 @@ export default function Cart({
     units.map((unit) => {
       const product = allProducts.find((p) => p.id === unit.productId)
       const surcharge = product ? getLunchPlateSurcharge(product) : 0
-      return surcharge + (unit.tororo ? TOPPING_PRICE : 0)
+      return surcharge + optionPrice({ with_topping: unit.tororo, with_egg_yolk: unit.eggYolk })
     })
   ).reduce((s, v) => s + v, 0)
   const total = baseTotal + lunchSurcharge
@@ -99,22 +102,23 @@ export default function Cart({
 
   /** カート1行分（店内分・お持ち帰り分で共通） */
   const renderCartItem = (item: CartItem) => {
-    const toppingCost = item.with_topping ? TOPPING_PRICE : 0
+    const toppingCost = optionPrice(item)
     const subtotal = (item.product.price + toppingCost) * item.quantity
+    const options = optionLabel(item)
     const isDrink = item.product.category === DRINK_CATEGORY
 
     return (
       <div
-        key={`${item.product.id}-${item.with_topping}-${item.timing ?? ''}-${item.is_takeout ? 'takeout' : ''}`}
+        key={`${item.product.id}-${item.with_topping}-${!!item.with_egg_yolk}-${item.timing ?? ''}-${item.is_takeout ? 'takeout' : ''}`}
         className="space-y-1.5"
       >
         <div className="flex justify-between items-start gap-2">
           <div className="flex-1 min-w-0">
             <p className="font-bold text-base text-brown-800">
               {item.product.name}
-              {item.with_topping && (
+              {options && (
                 <span className="ml-1 text-sm text-brown-500 font-normal">
-                  （{TOPPING_CART_LABEL}）
+                  （{options}）
                 </span>
               )}
             </p>
@@ -243,7 +247,7 @@ export default function Cart({
             </div>
             <button
               onClick={() => {
-                if (tonjiruProduct && onAddItem) onAddItem(tonjiruProduct, false)
+                if (tonjiruProduct && onAddItem) onAddItem(tonjiruProduct)
                 setShowTonjiruPopup(false)
                 setIsOpen(true)
               }}
@@ -293,6 +297,7 @@ export default function Cart({
                     products={allProducts}
                     units={units}
                     required={requiredNigiri(i)}
+                    optionSoldOut={optionSoldOut}
                     plateLabel={lunchPlateCount > 1 ? `${i + 1}枚目` : undefined}
                     onChange={(next) => onLunchNigiriChange(i, next)}
                   />

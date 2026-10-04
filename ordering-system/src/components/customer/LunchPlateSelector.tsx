@@ -1,11 +1,14 @@
 'use client'
 
-import type { Product, LunchNigiriUnit } from '@/lib/types'
+import type { Product, LunchNigiriUnit, OptionSoldOut } from '@/lib/types'
 import {
   getLunchPlateSurcharge,
   isToppingSelectable,
+  NO_OPTION_SOLD_OUT,
   TOPPING_PRICE,
   TOPPING_CART_LABEL,
+  EGG_YOLK_PRICE,
+  EGG_YOLK_CART_LABEL,
 } from '@/lib/types'
 
 interface Props {
@@ -17,9 +20,18 @@ interface Props {
   required: number
   /** 複数枚時のラベル（例: "1枚目"） */
   plateLabel?: string
+  /** とろろ昆布・漬け卵黄の売り切れ状態 */
+  optionSoldOut?: OptionSoldOut
 }
 
-export default function LunchPlateSelector({ products, units, onChange, required, plateLabel }: Props) {
+export default function LunchPlateSelector({
+  products,
+  units,
+  onChange,
+  required,
+  plateLabel,
+  optionSoldOut = NO_OPTION_SOLD_OUT,
+}: Props) {
   const nigiri = products.filter((p) => p.category === 'おにぎり' && !p.is_sold_out)
   const totalSelected = units.length
   const canAdd = totalSelected < required
@@ -29,7 +41,7 @@ export default function LunchPlateSelector({ products, units, onChange, required
 
   const addUnit = (productId: string) => {
     if (!canAdd) return
-    onChange([...units, { productId, tororo: false }])
+    onChange([...units, { productId, tororo: false, eggYolk: false }])
   }
 
   const removeUnit = (productId: string) => {
@@ -40,8 +52,8 @@ export default function LunchPlateSelector({ products, units, onChange, required
     onChange(units.filter((_, i) => i !== realIdx))
   }
 
-  const toggleTororo = (index: number) => {
-    onChange(units.map((u, i) => (i === index ? { ...u, tororo: !u.tororo } : u)))
+  const toggleOption = (index: number, key: 'tororo' | 'eggYolk') => {
+    onChange(units.map((u, i) => (i === index ? { ...u, [key]: !u[key] } : u)))
   }
 
   return (
@@ -100,7 +112,7 @@ export default function LunchPlateSelector({ products, units, onChange, required
         })}
       </div>
 
-      {/* 選択したおにぎりごとの とろろ昆布変更（単品と同じく全おにぎりが対象） */}
+      {/* 選択したおにぎりごとのオプション（単品と同じく全おにぎりが対象） */}
       {units.some((u) => {
         const product = products.find((p) => p.id === u.productId)
         return product != null && isToppingSelectable(product)
@@ -109,24 +121,39 @@ export default function LunchPlateSelector({ products, units, onChange, required
           {units.map((unit, i) => {
             const product = products.find((p) => p.id === unit.productId)
             if (!product || !isToppingSelectable(product)) return null
+            const optionRows = [
+              { key: 'tororo' as const, label: TOPPING_CART_LABEL, price: TOPPING_PRICE, soldOut: optionSoldOut.tororo },
+              { key: 'eggYolk' as const, label: EGG_YOLK_CART_LABEL, price: EGG_YOLK_PRICE, soldOut: optionSoldOut.egg_yolk },
+            ]
             return (
-              <label
-                key={`${unit.productId}-${i}`}
-                className="flex items-center justify-between gap-2 cursor-pointer select-none"
-              >
-                <span className="text-sm text-brown-700">
+              <div key={`${unit.productId}-${i}`} className="flex items-start justify-between gap-2">
+                <span className="text-sm text-brown-700 pt-0.5">
                   {units.length > 1 ? `${i + 1}個目：` : ''}{product.name}
                 </span>
-                <span className="flex items-center gap-1.5 text-xs text-brown-600 whitespace-nowrap">
-                  <input
-                    type="checkbox"
-                    checked={unit.tororo}
-                    onChange={() => toggleTororo(i)}
-                    className="w-4 h-4 accent-brown-600"
-                  />
-                  {TOPPING_CART_LABEL}（+¥{TOPPING_PRICE}）
-                </span>
-              </label>
+                <div className="flex flex-col items-end gap-1">
+                  {optionRows.map((o) => {
+                    // 売り切れのオプションは選べない（選択済みでも外した扱いで表示する）
+                    const checked = !o.soldOut && !!unit[o.key]
+                    return (
+                      <label
+                        key={o.key}
+                        className={`flex items-center gap-1.5 text-xs whitespace-nowrap select-none ${
+                          o.soldOut ? 'text-brown-300' : 'text-brown-600 cursor-pointer'
+                        }`}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={checked}
+                          disabled={o.soldOut}
+                          onChange={() => toggleOption(i, o.key)}
+                          className="w-4 h-4 accent-brown-600"
+                        />
+                        {o.label}（+¥{o.price}）{o.soldOut && ' 売り切れ'}
+                      </label>
+                    )
+                  })}
+                </div>
+              </div>
             )
           })}
         </div>
