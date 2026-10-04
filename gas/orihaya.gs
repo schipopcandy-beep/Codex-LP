@@ -27,7 +27,8 @@
 // ─── 設定 ───────────────────────────────────────────────────────
 
 const CONFIG = {
-  TOPPING_PRICE: 50,
+  TOPPING_PRICE: 50,     // とろろ昆布に変更
+  EGG_YOLK_PRICE: 100,   // 漬け卵黄を追加
   FOLLOW_UP_MESSAGE: '先日は織はやにご来店いただきありがとうございました😊\nまたのご来店をお待ちしております！',
   SALES_DAYS: 30,        // 日次販売数の集計期間（日）
   SUMMARY_DAYS: 92,      // 日次サマリーの集計期間（日）約3ヶ月
@@ -52,6 +53,11 @@ function buildFollowUpMessages() {
   }
 
   return messages
+}
+
+/** 明細1行のオプション追加料金（とろろ昆布 +50円・漬け卵黄 +100円） */
+function optionPrice(item) {
+  return (item.with_topping ? CONFIG.TOPPING_PRICE : 0) + (item.with_egg_yolk ? CONFIG.EGG_YOLK_PRICE : 0)
 }
 
 function getProps() {
@@ -227,7 +233,7 @@ function exportHistoryForMonth(kind, offsetMonths) {
   const prefix    = isTakeout ? 'テイクアウト履歴' : '店内注文履歴'
 
   const data = supabaseGetAll('orders', [
-    ['select',     'id,created_at,pickup_at,table_id,order_items(unit_price,quantity,with_topping,products(name))'],
+    ['select',     'id,created_at,pickup_at,table_id,order_items(unit_price,quantity,with_topping,with_egg_yolk,products(name))'],
     ['table_id',   isTakeout ? 'eq.takeout' : 'neq.takeout'],
     ['status',     'eq.paid'],
     ['created_at', `gte.${month.startUtc}`],
@@ -267,7 +273,7 @@ function exportHistoryForMonth(kind, offsetMonths) {
     }
 
     for (const item of items) {
-      const unitPrice = item.unit_price + (item.with_topping ? CONFIG.TOPPING_PRICE : 0)
+      const unitPrice = item.unit_price + optionPrice(item)
       rows.push([
         ...baseCols,
         item.products?.name ?? '不明',
@@ -393,7 +399,7 @@ function exportDailySummary() {
   const { start: fromUtc } = utcRangeForJstDay(fromJst)
 
   const data = supabaseGetAll('orders', [
-    ['select',     'created_at,table_id,party_size,order_items(unit_price,quantity,with_topping,products(name))'],
+    ['select',     'created_at,table_id,party_size,order_items(unit_price,quantity,with_topping,with_egg_yolk,products(name))'],
     ['status',     'eq.paid'],
     ['created_at', `gte.${fromUtc}`],
     ['order',      'created_at.asc'],
@@ -419,7 +425,7 @@ function exportDailySummary() {
     }
 
     for (const item of order.order_items || []) {
-      const unitPrice = item.unit_price + (item.with_topping ? CONFIG.TOPPING_PRICE : 0)
+      const unitPrice = item.unit_price + optionPrice(item)
       day.sales += unitPrice * item.quantity
       const name = item.products?.name ?? '不明'
       day.productQty[name] = (day.productQty[name] ?? 0) + item.quantity
@@ -526,7 +532,7 @@ function exportSalesAnalysis() {
 
   // 日次売上
   const orders = supabaseGet('orders', [
-    ['select',     'created_at,order_items(unit_price,quantity,with_topping)'],
+    ['select',     'created_at,order_items(unit_price,quantity,with_topping,with_egg_yolk)'],
     ['status',     'eq.paid'],
     ['created_at', 'gte.' + fromUtc],
     ['order',      'created_at.asc'],
@@ -539,7 +545,7 @@ function exportSalesAnalysis() {
     const items = order.order_items || []
     for (let ii = 0; ii < items.length; ii++) {
       const item  = items[ii]
-      const price = item.unit_price + (item.with_topping ? CONFIG.TOPPING_PRICE : 0)
+      const price = item.unit_price + optionPrice(item)
       dailyRev[ds] = (dailyRev[ds] || 0) + price * item.quantity
     }
   }
@@ -652,7 +658,7 @@ function exportSalesForecast() {
   const { start: histFromUtc } = utcRangeForJstDay(histFromJst)
 
   const histOrders = supabaseGet('orders', [
-    ['select',     'created_at,order_items(unit_price,quantity,with_topping)'],
+    ['select',     'created_at,order_items(unit_price,quantity,with_topping,with_egg_yolk)'],
     ['status',     'eq.paid'],
     ['created_at', 'gte.' + histFromUtc],
   ])
@@ -664,7 +670,7 @@ function exportSalesForecast() {
     const items = order.order_items || []
     for (let ii = 0; ii < items.length; ii++) {
       const item  = items[ii]
-      const price = item.unit_price + (item.with_topping ? CONFIG.TOPPING_PRICE : 0)
+      const price = item.unit_price + optionPrice(item)
       histDailyRev[ds] = (histDailyRev[ds] || 0) + price * item.quantity
     }
   }

@@ -6,8 +6,8 @@ import type { Order, OrderItem, OrderStatus } from '@/lib/types'
 import {
   calcOrderTotal,
   TABLE_NAMES,
-  TOPPING_CART_LABEL,
-  TOPPING_PRICE,
+  optionLabel,
+  optionPrice,
   DRINK_CATEGORY,
   DRINK_TIMING_LABELS,
   TAKEOUT_TABLE_ID,
@@ -171,8 +171,8 @@ function ItemLine({ item, batch }: { item: OrderItem; batch: number }) {
           <span className="text-rose-600 font-bold mr-1">［{batchLabel}］</span>
         )}
         {item.product?.name ?? '不明'}
-        {item.with_topping && (
-          <span className="text-brown-400 ml-1">{TOPPING_CART_LABEL}</span>
+        {optionLabel(item) && (
+          <span className="text-brown-400 ml-1">{optionLabel(item)}</span>
         )}
         {timingLabel && (
           <span className="text-blue-600 ml-1">（{timingLabel}）</span>
@@ -180,7 +180,7 @@ function ItemLine({ item, batch }: { item: OrderItem; batch: number }) {
         <span className="text-brown-400 ml-1">×{item.quantity}</span>
       </span>
       <span className="tabular-nums">
-        ¥{((item.unit_price + (item.with_topping ? TOPPING_PRICE : 0)) * item.quantity).toLocaleString()}
+        ¥{((item.unit_price + (optionPrice(item))) * item.quantity).toLocaleString()}
       </span>
     </p>
   )

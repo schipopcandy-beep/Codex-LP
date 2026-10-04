@@ -8,8 +8,8 @@ import {
   calcOrderTotal,
   TABLE_NAMES,
   ORDER_STATUS_LABELS,
-  TOPPING_CART_LABEL,
-  TOPPING_PRICE,
+  optionLabel,
+  optionPrice,
   DRINK_CATEGORY,
   DRINK_TIMING_LABELS,
   isLunchPlate,
@@ -240,10 +240,13 @@ export default function OrderDetailPage({ params }: Props) {
                         <p className="text-xs text-brown-400">おにぎり未選択</p>
                       ) : (
                         nigiri.map((n) => {
-                          const surcharge = n.unit_price
+                          // おにぎりの種類による追加料金 ＋ オプション（とろろ昆布・漬け卵黄）
+                          const surcharge = n.unit_price + optionPrice(n)
+                          const options = optionLabel(n)
                           return (
                             <p key={n.id} className="text-sm text-brown-600">
                               {n.product?.name ?? '不明'}
+                              {options && <span className="text-brown-400 ml-1">（{options}）</span>}
                               {surcharge > 0 && (
                                 <span className="text-amber-600 ml-1 text-xs">+¥{surcharge}</span>
                               )}
@@ -333,7 +336,7 @@ export default function OrderDetailPage({ params }: Props) {
 
 function ItemRow({ item, batch = 0 }: { item: OrderItem; batch?: number }) {
   const batchLabel = orderBatchLabel(batch)
-  const toppingCost = item.with_topping ? TOPPING_PRICE : 0
+  const toppingCost = optionPrice(item)
   const subtotal = (item.unit_price + toppingCost) * item.quantity
   return (
     <div className="flex justify-between items-start">
@@ -344,8 +347,8 @@ function ItemRow({ item, batch = 0 }: { item: OrderItem; batch?: number }) {
           )}
           {item.product?.name ?? '不明商品'}
         </p>
-        {item.with_topping && (
-          <p className="text-sm text-brown-400">（{TOPPING_CART_LABEL}）</p>
+        {optionLabel(item) && (
+          <p className="text-sm text-brown-400">（{optionLabel(item)}）</p>
         )}
         <p className="text-sm text-brown-400">
           ¥{(item.unit_price + toppingCost).toLocaleString()} × {item.quantity}

@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServiceRoleClient } from '@/lib/supabase/server'
+import { optionPrice } from '@/lib/types'
 
 const JST = 9 * 60 * 60 * 1000
-const TOPPING_PRICE = 50
 const COMPETITOR_REDUCED_FACTOR = 1.12
 const EVENT_SCALE_FACTORS = [1.0, 1.03, 1.07, 1.12, 1.20, 1.30] // index = scale 0-5
 
@@ -76,7 +76,7 @@ export async function GET(req: NextRequest) {
     histOrdersRes, histWeatherRes, forecast,
   ] = await Promise.all([
     supabase.from('orders')
-      .select('created_at, order_items(unit_price, quantity, with_topping)')
+      .select('created_at, order_items(unit_price, quantity, with_topping, with_egg_yolk)')
       .eq('status', 'paid').gte('created_at', fromUtc).lt('created_at', toUtc),
     supabase.from('weather_log')
       .select('date, temp_max, temp_min, weather_main, weather_desc')
@@ -87,7 +87,7 @@ export async function GET(req: NextRequest) {
     supabase.from('sendai_events').select('id, name, date, end_date, scale')
       .gte('date', fromDateStr).lte('date', toDateStr),
     supabase.from('orders')
-      .select('created_at, order_items(unit_price, quantity, with_topping)')
+      .select('created_at, order_items(unit_price, quantity, with_topping, with_egg_yolk)')
       .eq('status', 'paid').gte('created_at', histFromUtc).lt('created_at', fromUtc),
     supabase.from('weather_log').select('date, weather_main')
       .gte('date', histFromStr).lt('date', fromDateStr),
@@ -97,9 +97,9 @@ export async function GET(req: NextRequest) {
   if (ordersRes.error) return NextResponse.json({ error: ordersRes.error.message }, { status: 500 })
 
   // ── Daily revenue for this month ──
-  type OrderRow = { created_at: string; order_items: { unit_price: number; quantity: number; with_topping: boolean }[] }
-  function calcRevenue(items: { unit_price: number; quantity: number; with_topping: boolean }[]) {
-    return items.reduce((s, i) => s + (i.unit_price + (i.with_topping ? TOPPING_PRICE : 0)) * i.quantity, 0)
+  type OrderRow = { created_at: string; order_items: { unit_price: number; quantity: number; with_topping: boolean; with_egg_yolk?: boolean }[] }
+  function calcRevenue(items: { unit_price: number; quantity: number; with_topping: boolean; with_egg_yolk?: boolean }[]) {
+    return items.reduce((s, i) => s + (i.unit_price + optionPrice(i)) * i.quantity, 0)
   }
 
   const dailyRev = new Map<string, { revenue: number; orders: number }>()

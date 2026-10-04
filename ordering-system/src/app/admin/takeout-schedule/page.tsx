@@ -1,35 +1,128 @@
 'use client'
 
-import { useEffect, useState } from 'react'
-import { TAKEOUT_DEFAULT_OPEN, TAKEOUT_DEFAULT_CLOSE } from '@/lib/types'
+import { useCallback, useEffect, useState } from 'react'
+import { WEEKDAY_NAMES, type EffectiveDay, type WeeklyHours } from '@/lib/business-hours'
 
-interface DaySchedule {
-  date: string
-  label: string
-  is_open: boolean
-  open_time: string
-  close_time: string
-  is_custom: boolean
+type DaySchedule = EffectiveDay & { label: string }
+
+/** 営業・休業の切り替えスイッチ */
+function OpenToggle({ isOpen, onChange }: { isOpen: boolean; onChange: (v: boolean) => void }) {
+  return (
+    <button
+      type="button"
+      onClick={() => onChange(!isOpen)}
+      className="flex items-center gap-2 select-none"
+      aria-pressed={isOpen}
+    >
+      <span className={`text-sm font-semibold ${isOpen ? 'text-matcha-600' : 'text-brown-400'}`}>
+        {isOpen ? '営業' : '休業'}
+      </span>
+      <span
+        className={`relative w-11 h-6 rounded-full transition-colors ${
+          isOpen ? 'bg-matcha-500' : 'bg-brown-300'
+        }`}
+      >
+        <span
+          className={`absolute top-1 left-1 w-4 h-4 rounded-full bg-white shadow transition-transform ${
+            isOpen ? 'translate-x-5' : 'translate-x-0'
+          }`}
+        />
+      </span>
+    </button>
+  )
 }
 
-export default function TakeoutSchedulePage() {
-  const [days, setDays] = useState<DaySchedule[]>([])
-  const [loading, setLoading] = useState(true)
-  const [saving, setSaving] = useState<string | null>(null) // 保存中の date
-  const [saved, setSaved] = useState<string | null>(null)   // 保存完了の date
-  const [local, setLocal] = useState<Map<string, DaySchedule>>(new Map())
+/** 開始・終了時刻の入力 */
+function TimeRange({
+  open,
+  close,
+  onChange,
+}: {
+  open: string
+  close: string
+  onChange: (patch: { open_time?: string; close_time?: string }) => void
+}) {
+  const inputClass = 'border border-cream-300 rounded-lg px-2 py-1 text-brown-800 text-sm bg-white'
+  return (
+    <div className="flex items-center gap-2 flex-wrap">
+      <input
+        type="time"
+        value={open}
+        onChange={(e) => onChange({ open_time: e.target.value })}
+        className={inputClass}
+        aria-label="開始"
+      />
+      <span className="text-brown-400">〜</span>
+      <input
+        type="time"
+        value={close}
+        onChange={(e) => onChange({ close_time: e.target.value })}
+        className={inputClass}
+        aria-label="終了"
+      />
+    </div>
+  )
+}
 
-  useEffect(() => {
-    fetch('/api/admin/takeout-schedule')
-      .then((r) => r.json())
-      .then((data: DaySchedule[]) => {
-        setDays(data)
-        setLocal(new Map(data.map((d) => [d.date, { ...d }])))
-        setLoading(false)
-      })
+/**
+ * 営業日・営業時間の管理
+ * - 曜日ごとの設定（定休日・ふだんの営業時間）
+ * - 日付ごとの設定（臨時休業・時間変更）。曜日の設定より優先される
+ * 休業の日は、テイクアウトの受け取り日として選べなくなる。
+ */
+export default function BusinessDaysPage() {
+  const [weekly, setWeekly] = useState<WeeklyHours[]>([])
+  const [days, setDays] = useState<DaySchedule[]>([])
+  const [local, setLocal] = useState<Map<string, DaySchedule>>(new Map())
+  const [loading, setLoading] = useState(true)
+  const [savingWeekly, setSavingWeekly] = useState(false)
+  const [busyDate, setBusyDate] = useState<string | null>(null)
+  const [message, setMessage] = useState<string | null>(null)
+
+  const load = useCallback(async () => {
+    const res = await fetch('/api/admin/takeout-schedule')
+    const data: { weekly: WeeklyHours[]; days: DaySchedule[] } = await res.json()
+    setWeekly(data.weekly)
+    setDays(data.days)
+    setLocal(new Map(data.days.map((d) => [d.date, { ...d }])))
+    setLoading(false)
   }, [])
 
-  const update = (date: string, patch: Partial<DaySchedule>) => {
+  useEffect(() => {
+    load()
+  }, [load])
+
+  const flash = (text: string) => {
+    setMessage(text)
+    setTimeout(() => setMessage(null), 2500)
+  }
+
+  const updateWeekly = (weekday: number, patch: Partial<WeeklyHours>) => {
+    setWeekly((prev) => prev.map((w) => (w.weekday === weekday ? { ...w, ...patch } : w)))
+  }
+
+  const saveWeekly = async () => {
+    setSavingWeekly(true)
+    try {
+      const res = await fetch('/api/admin/takeout-schedule', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ weekly }),
+      })
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}))
+        throw new Error(data.error ?? '保存に失敗しました')
+      }
+      await load()
+      flash('曜日ごとの設定を保存しました')
+    } catch (e) {
+      alert((e as Error).message)
+    } finally {
+      setSavingWeekly(false)
+    }
+  }
+
+  const updateDay = (date: string, patch: Partial<DaySchedule>) => {
     setLocal((prev) => {
       const next = new Map(prev)
       const cur = next.get(date)
@@ -38,10 +131,10 @@ export default function TakeoutSchedulePage() {
     })
   }
 
-  const save = async (date: string) => {
+  const saveDay = async (date: string) => {
     const d = local.get(date)
     if (!d) return
-    setSaving(date)
+    setBusyDate(date)
     try {
       const res = await fetch('/api/admin/takeout-schedule', {
         method: 'POST',
@@ -54,12 +147,28 @@ export default function TakeoutSchedulePage() {
         }),
       })
       if (!res.ok) throw new Error()
-      setSaved(date)
-      setTimeout(() => setSaved(null), 2000)
+      await load()
+      flash(`${d.label}を保存しました`)
     } catch {
       alert('保存に失敗しました')
     } finally {
-      setSaving(null)
+      setBusyDate(null)
+    }
+  }
+
+  const resetDay = async (date: string, label: string) => {
+    setBusyDate(date)
+    try {
+      const res = await fetch(`/api/admin/takeout-schedule?date=${encodeURIComponent(date)}`, {
+        method: 'DELETE',
+      })
+      if (!res.ok) throw new Error()
+      await load()
+      flash(`${label}を曜日の設定に戻しました`)
+    } catch {
+      alert('変更に失敗しました')
+    } finally {
+      setBusyDate(null)
     }
   }
 
@@ -73,79 +182,109 @@ export default function TakeoutSchedulePage() {
 
   return (
     <div className="p-4 md:p-6 max-w-2xl">
-      <h1 className="section-title mb-1">受取日時 管理</h1>
-      <p className="text-sm text-brown-400 mb-5">
-        デフォルト営業時間: {TAKEOUT_DEFAULT_OPEN} 〜 {TAKEOUT_DEFAULT_CLOSE}（設定なしの日はこの時間で表示されます）
+      <h1 className="section-title mb-1">営業日・営業時間</h1>
+      <p className="text-sm text-brown-500 mb-5">
+        休業の日は、テイクアウトの受け取り日として選べなくなります。営業時間はテイクアウトの受け取り時間に使われます。
       </p>
 
-      <div className="space-y-3">
-        {days.map((day) => {
-          const d = local.get(day.date) ?? day
-          const isSaving = saving === day.date
-          const isSaved = saved === day.date
+      {message && (
+        <div className="mb-4 p-3 rounded-xl bg-green-50 border border-green-300 text-sm text-brown-800">
+          {message}
+        </div>
+      )}
 
-          return (
-            <div key={day.date} className="card p-4 space-y-3">
-              <div className="flex items-center justify-between">
-                <p className="font-bold text-brown-800">{day.label}</p>
-                <label className="flex items-center gap-2 cursor-pointer select-none">
-                  <span className={`text-sm font-semibold ${d.is_open ? 'text-matcha-600' : 'text-brown-400'}`}>
-                    {d.is_open ? '営業' : '休業'}
-                  </span>
-                  <div
-                    onClick={() => update(day.date, { is_open: !d.is_open })}
-                    className={`relative w-11 h-6 rounded-full transition-colors cursor-pointer ${
-                      d.is_open ? 'bg-matcha-500' : 'bg-brown-300'
-                    }`}
-                  >
-                    <span
-                      className={`absolute top-1 left-1 w-4 h-4 rounded-full bg-white shadow transition-transform ${
-                        d.is_open ? 'translate-x-5' : 'translate-x-0'
-                      }`}
-                    />
-                  </div>
-                </label>
-              </div>
-
-              {d.is_open && (
-                <div className="flex items-center gap-3 flex-wrap">
-                  <div className="flex items-center gap-2">
-                    <label className="text-sm text-brown-500">開始</label>
-                    <input
-                      type="time"
-                      value={d.open_time}
-                      onChange={(e) => update(day.date, { open_time: e.target.value })}
-                      className="border border-cream-300 rounded-lg px-2 py-1 text-brown-800 text-sm bg-white"
-                    />
-                  </div>
-                  <span className="text-brown-400">〜</span>
-                  <div className="flex items-center gap-2">
-                    <label className="text-sm text-brown-500">終了</label>
-                    <input
-                      type="time"
-                      value={d.close_time}
-                      onChange={(e) => update(day.date, { close_time: e.target.value })}
-                      className="border border-cream-300 rounded-lg px-2 py-1 text-brown-800 text-sm bg-white"
-                    />
-                  </div>
-                </div>
-              )}
-
-              <button
-                onClick={() => save(day.date)}
-                disabled={isSaving}
-                className={`w-full py-2 rounded-xl text-sm font-semibold transition-colors ${
-                  isSaved
-                    ? 'bg-matcha-100 text-matcha-700 border border-matcha-300'
-                    : 'btn-primary'
-                } disabled:opacity-50`}
-              >
-                {isSaving ? '保存中...' : isSaved ? '保存しました ✓' : '保存する'}
-              </button>
+      {/* 曜日ごとの設定 */}
+      <section className="card p-4 mb-6 space-y-3">
+        <div>
+          <h2 className="font-bold text-brown-800">曜日ごとの設定（毎週）</h2>
+          <p className="text-xs text-brown-400">定休日やふだんの営業時間を設定します</p>
+        </div>
+        {weekly.map((w) => (
+          <div
+            key={w.weekday}
+            className="flex items-center justify-between gap-3 flex-wrap border-b border-cream-200 pb-3 last:border-b-0 last:pb-0"
+          >
+            <div className="flex items-center gap-3">
+              <span className="w-8 font-bold text-brown-800">{WEEKDAY_NAMES[w.weekday]}</span>
+              <OpenToggle isOpen={w.is_open} onChange={(v) => updateWeekly(w.weekday, { is_open: v })} />
             </div>
-          )
-        })}
-      </div>
+            {w.is_open && (
+              <TimeRange
+                open={w.open_time}
+                close={w.close_time}
+                onChange={(patch) => updateWeekly(w.weekday, patch)}
+              />
+            )}
+          </div>
+        ))}
+        <button
+          type="button"
+          onClick={saveWeekly}
+          disabled={savingWeekly}
+          className="btn-primary w-full py-2 text-sm disabled:opacity-50"
+        >
+          {savingWeekly ? '保存中...' : '曜日ごとの設定を保存する'}
+        </button>
+      </section>
+
+      {/* 日付ごとの設定 */}
+      <section>
+        <h2 className="font-bold text-brown-800">日付ごとの設定（臨時休業・時間変更）</h2>
+        <p className="text-xs text-brown-400 mb-3">
+          特定の日だけ休みにしたり、時間を変えたりできます。曜日ごとの設定より優先されます。
+        </p>
+
+        <div className="space-y-3">
+          {days.map((day) => {
+            const d = local.get(day.date) ?? day
+            const busy = busyDate === day.date
+            return (
+              <div key={day.date} className={`card p-4 space-y-3 ${!day.is_open ? 'bg-cream-100' : ''}`}>
+                <div className="flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-2">
+                    <p className="font-bold text-brown-800">{day.label}</p>
+                    {day.is_custom && (
+                      <span className="text-xs font-bold text-amber-800 bg-amber-100 border border-amber-200 rounded-full px-2 py-0.5">
+                        個別設定
+                      </span>
+                    )}
+                  </div>
+                  <OpenToggle isOpen={d.is_open} onChange={(v) => updateDay(day.date, { is_open: v })} />
+                </div>
+
+                {d.is_open && (
+                  <TimeRange
+                    open={d.open_time}
+                    close={d.close_time}
+                    onChange={(patch) => updateDay(day.date, patch)}
+                  />
+                )}
+
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() => saveDay(day.date)}
+                    disabled={busy}
+                    className="btn-primary flex-1 py-2 text-sm disabled:opacity-50"
+                  >
+                    {busy ? '保存中...' : 'この日を保存する'}
+                  </button>
+                  {day.is_custom && (
+                    <button
+                      type="button"
+                      onClick={() => resetDay(day.date, day.label)}
+                      disabled={busy}
+                      className="px-3 py-2 rounded-xl text-sm font-semibold border border-cream-300 text-brown-600 bg-white disabled:opacity-50"
+                    >
+                      曜日の設定に戻す
+                    </button>
+                  )}
+                </div>
+              </div>
+            )
+          })}
+        </div>
+      </section>
     </div>
   )
 }

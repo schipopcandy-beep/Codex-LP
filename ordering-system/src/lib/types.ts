@@ -99,6 +99,9 @@ export const LIMITED_ONIGIRI_NAME = '限定おにぎり'
 /** おにぎりのカテゴリ名（DBの category と一致させること） */
 export const NIGIRI_CATEGORY = 'おにぎり'
 
+/** テイクアウトだけで売る商品のカテゴリ名（店内注文のメニューには出さない） */
+export const TAKEOUT_ONLY_CATEGORY = 'テイクアウト限定'
+
 /**
  * 海苔→とろろ昆布への変更を選べる商品か
  * おにぎりはすべて対象（DBの topping_available は参照しない）
@@ -114,6 +117,52 @@ export const TOPPING_PRICE = 50
 export const TOPPING_CHANGE_LABEL = '海苔をとろろ昆布に変更'
 /** カート・明細で使う短い表記 */
 export const TOPPING_CART_LABEL = 'とろろ昆布に変更'
+
+/** 漬け卵黄（全おにぎりに付けられるオプション） */
+export const EGG_YOLK_NAME = '漬け卵黄'
+export const EGG_YOLK_PRICE = 100
+/** 注文画面で使う表記 */
+export const EGG_YOLK_CHANGE_LABEL = '漬け卵黄を追加'
+/** カート・明細で使う短い表記 */
+export const EGG_YOLK_CART_LABEL = '漬け卵黄追加'
+
+/** おにぎりのオプションの種類（売り切れ設定に使う） */
+export type OptionKey = 'tororo' | 'egg_yolk'
+export const OPTION_NAMES: Record<OptionKey, string> = {
+  tororo: TOPPING_NAME,
+  egg_yolk: EGG_YOLK_NAME,
+}
+export const OPTION_PRICES: Record<OptionKey, number> = {
+  tororo: TOPPING_PRICE,
+  egg_yolk: EGG_YOLK_PRICE,
+}
+/** オプションの売り切れ状態（true = 売り切れ） */
+export type OptionSoldOut = Record<OptionKey, boolean>
+export const NO_OPTION_SOLD_OUT: OptionSoldOut = { tororo: false, egg_yolk: false }
+
+/** おにぎり1個に付けるオプションの選び方 */
+export interface NigiriOptions {
+  /** 海苔→とろろ昆布に変更（+50円） */
+  tororo: boolean
+  /** 漬け卵黄を追加（+100円） */
+  eggYolk: boolean
+}
+export const NO_OPTIONS: NigiriOptions = { tororo: false, eggYolk: false }
+
+/** 明細1行のオプション追加料金（1個あたり） */
+export function optionPrice(item: { with_topping?: boolean | null; with_egg_yolk?: boolean | null }): number {
+  return (item.with_topping ? TOPPING_PRICE : 0) + (item.with_egg_yolk ? EGG_YOLK_PRICE : 0)
+}
+
+/** 明細に添えるオプションの表記（例: 「とろろ昆布に変更・漬け卵黄追加」）。なければ空文字 */
+export function optionLabel(item: { with_topping?: boolean | null; with_egg_yolk?: boolean | null }): string {
+  return [
+    item.with_topping ? TOPPING_CART_LABEL : null,
+    item.with_egg_yolk ? EGG_YOLK_CART_LABEL : null,
+  ]
+    .filter(Boolean)
+    .join('・')
+}
 
 export const DRINK_CATEGORY = 'ドリンク'
 
@@ -196,6 +245,8 @@ export interface LunchNigiriUnit {
   productId: string
   /** 海苔→とろろ昆布に変更（+50円） */
   tororo: boolean
+  /** 漬け卵黄を追加（+100円） */
+  eggYolk?: boolean
 }
 
 /**
@@ -250,6 +301,8 @@ export interface OrderItem {
   quantity: number
   unit_price: number
   with_topping: boolean
+  /** 漬け卵黄を追加（+100円） */
+  with_egg_yolk?: boolean
   timing?: DrinkTiming | null
   /** ランチプレート内おにぎりのプレート番号（0始まり）。null = 通常アイテム */
   lunch_plate_index?: number | null
@@ -292,6 +345,43 @@ export function getOrderBatchIndexes(items: OrderItem[]): Map<string, number> {
   return indexes
 }
 
+/**
+ * ランチプレートごとに、選ばれたおにぎりをまとめる
+ * 戻り値: ランチプレートの明細ID → プレート1枚ごとのおにぎりの明細
+ *
+ * おにぎりの明細には何枚目のプレートか（lunch_plate_index）しか記録されず、
+ * 番号は注文の回ごとに0から振り直される。そのため注文の回ごとに分けたうえで、
+ * プレートの種類（おにぎり1個用・2個用）と、そのプレートのおにぎりの数を突き合わせて結びつける。
+ */
+export function groupLunchPlateNigiri(items: OrderItem[]): Map<string, OrderItem[][]> {
+  const batches = getOrderBatchIndexes(items)
+  const result = new Map<string, OrderItem[][]>()
+  const batchNumbers = [...new Set(items.map((i) => batches.get(i.id) ?? 0))]
+
+  for (const b of batchNumbers) {
+    const inBatch = items.filter((i) => (batches.get(i.id) ?? 0) === b)
+    const plates = inBatch.filter((i) => i.product && isLunchPlate(i.product))
+
+    const groupMap = new Map<number, OrderItem[]>()
+    for (const n of inBatch.filter((i) => i.lunch_plate_index != null)) {
+      const idx = n.lunch_plate_index as number
+      groupMap.set(idx, [...(groupMap.get(idx) ?? []), n])
+    }
+    const remaining = [...groupMap.entries()].sort(([a], [b]) => a - b).map(([, g]) => g)
+
+    for (const plate of plates) {
+      const required = plate.product ? lunchPlateNigiriCount(plate.product) : 1
+      const groups: OrderItem[][] = []
+      for (let k = 0; k < plate.quantity && remaining.length > 0; k++) {
+        const matchIdx = remaining.findIndex((g) => g.length === required)
+        groups.push(remaining.splice(matchIdx >= 0 ? matchIdx : 0, 1)[0])
+      }
+      result.set(plate.id, groups)
+    }
+  }
+  return result
+}
+
 /** 回番号のラベル（0 = 最初の注文なので空文字） */
 export function orderBatchLabel(batch: number): string {
   return batch === 0 ? '' : `追加${batch}`
@@ -301,23 +391,19 @@ export interface CartItem {
   product: Product
   quantity: number
   with_topping: boolean
+  /** 漬け卵黄を追加（+100円） */
+  with_egg_yolk?: boolean
   timing?: DrinkTiming   // ドリンクのみ
   /** 店内注文と一緒に頼むお持ち帰り分 */
   is_takeout?: boolean
 }
 
 export function calcCartTotal(items: CartItem[]): number {
-  return items.reduce((sum, item) => {
-    const toppingCost = item.with_topping ? TOPPING_PRICE : 0
-    return sum + (item.product.price + toppingCost) * item.quantity
-  }, 0)
+  return items.reduce((sum, item) => sum + (item.product.price + optionPrice(item)) * item.quantity, 0)
 }
 
 export function calcOrderTotal(items: OrderItem[]): number {
-  return items.reduce((sum, item) => {
-    const toppingCost = item.with_topping ? TOPPING_PRICE : 0
-    return sum + (item.unit_price + toppingCost) * item.quantity
-  }, 0)
+  return items.reduce((sum, item) => sum + (item.unit_price + optionPrice(item)) * item.quantity, 0)
 }
 
 export const STORAGE_BASE = 'https://wgjfwjourukgtxpkuaup.supabase.co/storage/v1/object/public/product-images'
