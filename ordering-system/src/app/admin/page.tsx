@@ -35,6 +35,11 @@ export default function AdminDashboard() {
   const [loading, setLoading] = useState(true)
   const [tab, setTab] = useState<Tab>('all')
   const [soundEnabled, setSoundEnabled] = useState(false)
+  /** 残りわずか・売り切れのお知らせ */
+  const [stockAlerts, setStockAlerts] = useState<{
+    low: { name: string; remaining: number }[]
+    soldOut: string[]
+  }>({ low: [], soldOut: [] })
 
   /** AudioContext は最初のユーザー操作後に生成（autoplay policy対策） */
   const audioCtxRef = useRef<AudioContext | null>(null)
@@ -46,6 +51,12 @@ export default function AdminDashboard() {
   const knownOrderIds = useRef<Set<string>>(new Set())
 
   const fetchOrders = useCallback(async () => {
+    // 注文が入るたびに残り数も変わるので、一緒に取り直す（失敗しても注文一覧は出す）
+    fetch('/api/admin/stock/alerts')
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => data && setStockAlerts(data))
+      .catch(() => {})
+
     const res = await fetch('/api/admin/orders')
     if (!res.ok) { setLoading(false); return }
 
@@ -143,6 +154,24 @@ export default function AdminDashboard() {
 
   return (
     <div className="p-4 md:p-6">
+      {/* 残りわずか・売り切れのお知らせ */}
+      {(stockAlerts.low.length > 0 || stockAlerts.soldOut.length > 0) && (
+        <div className="mb-4 space-y-2">
+          {stockAlerts.low.length > 0 && (
+            <div className="rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+              <span className="font-bold mr-2">残りわずか</span>
+              {stockAlerts.low.map((l) => `${l.name}（残り${l.remaining}）`).join('、')}
+            </div>
+          )}
+          {stockAlerts.soldOut.length > 0 && (
+            <div className="rounded-xl border border-red-300 bg-red-50 px-4 py-3 text-sm text-red-800">
+              <span className="font-bold mr-2">売り切れ</span>
+              {stockAlerts.soldOut.join('、')}
+            </div>
+          )}
+        </div>
+      )}
+
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
         <SummaryCard label="新規" count={newCount} color="text-amber-700 bg-amber-50 border-amber-200" />
         <SummaryCard label="調理中" count={preparingCount} color="text-blue-700 bg-blue-50 border-blue-200" />

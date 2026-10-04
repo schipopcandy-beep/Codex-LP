@@ -22,6 +22,7 @@
  *   exportSalesForecast()    - 売上予測シートを更新（今後1か月）
  *   sendWeeklyFollowUp()     - 7日前来店者にLINEメッセージ送信（毎日トリガー推奨）
  *   setupFollowUpTrigger()   - sendWeeklyFollowUp を毎日11時台に自動実行する設定（初回に1度だけ実行）
+ *   setupRefreshTrigger()    - refreshAll を1時間ごとに自動実行する設定（初回に1度だけ実行）
  */
 
 // ─── 設定 ───────────────────────────────────────────────────────
@@ -390,6 +391,20 @@ function refreshAll() {
   exportVisitLog()
   exportSalesAnalysis()
   exportSalesForecast()
+}
+
+// ─── シートの自動更新を設定する ───────────────────────────────────
+// 初回に1度だけ手動で実行する。refreshAll が1時間ごとに動き、シートが
+// ほぼ最新（最大1時間遅れ）になる。すでにある refreshAll の自動実行は作り直す。
+// ※シートに載るのは「会計済み」の注文のみ
+
+function setupRefreshTrigger() {
+  for (const trigger of ScriptApp.getProjectTriggers()) {
+    if (trigger.getHandlerFunction() === 'refreshAll') ScriptApp.deleteTrigger(trigger)
+  }
+  ScriptApp.newTrigger('refreshAll').timeBased().everyHours(1).create()
+  console.log('シートを1時間ごとに自動更新する設定をしました')
+  SpreadsheetApp.getActiveSpreadsheet().toast('シートを1時間ごとに自動更新する設定をしました', '完了', 5)
 }
 
 // ─── 4.5 日次サマリー（1日1行のダッシュボード）───────────────────

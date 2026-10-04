@@ -1,13 +1,11 @@
 'use client'
 
 import { useState } from 'react'
-import type { CartItem, Product, DrinkTiming, LunchNigiriUnit, OptionSoldOut } from '@/lib/types'
+import type { CartItem, Product, LunchNigiriUnit, OptionSoldOut } from '@/lib/types'
 import {
   calcCartTotal,
   optionLabel,
   optionPrice,
-  DRINK_TIMING_LABELS,
-  DRINK_CATEGORY,
   getLunchPlateSurcharge,
   lunchPlateNigiriCount,
 } from '@/lib/types'
@@ -30,8 +28,6 @@ interface Props {
   onItemDelete?: (item: CartItem) => void
   /** とろろ昆布・漬け卵黄の売り切れ状態（ランチプレートのおにぎり選択に使う） */
   optionSoldOut?: OptionSoldOut
-  /** ドリンクのタイミング変更 */
-  onDrinkTimingChange?: (productId: string, timing: DrinkTiming) => void
   /** 商品をカートに追加（豚汁おすすめ用） */
   onAddItem?: (product: Product) => void
   /** おすすめする豚汁商品（渡された場合のみポップアップ表示） */
@@ -49,7 +45,6 @@ export default function Cart({
   onQuantityChange,
   onItemDelete,
   optionSoldOut,
-  onDrinkTimingChange,
   onAddItem,
   tonjiruProduct,
 }: Props) {
@@ -94,8 +89,6 @@ export default function Cart({
     lunchPlateCount === 0 ||
     lunchNigiriPerPlate.every((units, i) => units.length === requiredNigiri(i))
 
-  const drinkItems = items.filter((item) => item.product.category === DRINK_CATEGORY)
-  const drinksReady = drinkItems.every((item) => item.timing != null)
 
   const eatinCartItems = items.filter((item) => !item.is_takeout)
   const takeoutCartItems = items.filter((item) => item.is_takeout)
@@ -105,7 +98,6 @@ export default function Cart({
     const toppingCost = optionPrice(item)
     const subtotal = (item.product.price + toppingCost) * item.quantity
     const options = optionLabel(item)
-    const isDrink = item.product.category === DRINK_CATEGORY
 
     return (
       <div
@@ -169,29 +161,6 @@ export default function Cart({
           </div>
         )}
 
-        {/* ドリンクのタイミング選択 */}
-        {isDrink && onDrinkTimingChange && (
-          <div className="flex items-center gap-1.5">
-            <span className="text-xs text-brown-500 mr-1">タイミング：</span>
-            {(['before', 'with', 'after'] as const).map((t) => (
-              <button
-                key={t}
-                type="button"
-                onClick={() => onDrinkTimingChange(item.product.id, t)}
-                className={`px-3 py-1 rounded-full text-xs font-semibold border transition-colors ${
-                  item.timing === t
-                    ? 'bg-brown-600 text-white border-brown-600'
-                    : 'bg-white text-brown-600 border-brown-300 active:bg-cream-100'
-                }`}
-              >
-                {DRINK_TIMING_LABELS[t]}
-              </button>
-            ))}
-            {!item.timing && (
-              <span className="text-xs text-amber-600 ml-1">要選択</span>
-            )}
-          </div>
-        )}
       </div>
     )
   }
@@ -211,7 +180,7 @@ export default function Cart({
               <span className="text-white font-bold text-sm">{totalCount}</span>
             </div>
             <span className="font-bold text-lg">カートを見る</span>
-            {((lunchPlateCount > 0 && !lunchPlateReady) || !drinksReady) && (
+            {lunchPlateCount > 0 && !lunchPlateReady && (
               <span className="text-xs bg-amber-400 text-brown-900 px-2 py-0.5 rounded-full font-semibold">
                 選択が必要です
               </span>
@@ -334,14 +303,9 @@ export default function Cart({
                   ランチプレートのおにぎりを選んでから注文できます
                 </p>
               )}
-              {!drinksReady && (
-                <p className="text-center text-sm text-amber-700 font-medium">
-                  ドリンクのタイミングを選んでから注文できます
-                </p>
-              )}
               <button
                 onClick={async () => { await onSubmit(); setIsOpen(false) }}
-                disabled={isSubmitting || !lunchPlateReady || !drinksReady}
+                disabled={isSubmitting || !lunchPlateReady}
                 className="btn-primary w-full text-xl py-4 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {isSubmitting ? '送信中...' : '注文を確定する'}

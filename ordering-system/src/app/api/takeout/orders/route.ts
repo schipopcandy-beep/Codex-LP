@@ -3,6 +3,7 @@ import { createServiceRoleClient } from '@/lib/supabase/server'
 import { formatScheduleDate, generatePickupSlots, optionLabel, optionPrice } from '@/lib/types'
 import { getEffectiveDays } from '@/lib/business-hours'
 import { sendLineMessage } from '@/lib/line-message'
+import { checkStock, countByProduct, stockDateFor, syncAutoSoldOut } from '@/lib/stock'
 
 interface TakeoutOrderItem {
   product_id: string
@@ -105,6 +106,14 @@ export async function POST(req: NextRequest) {
     }
   }
 
+  // 仕込み数を入れている商品は、受け取り日の残り数を超える注文を断る
+  const shortage = await checkStock(
+    supabase,
+    stockDateFor({ table_id, pickup_at }),
+    countByProduct(items),
+  )
+  if (shortage) return NextResponse.json({ error: shortage }, { status: 409 })
+
   // line_user_id が提供された場合、line_users に存在しなければ先に登録する
   // （orders.line_user_id の外部キー制約対策）
   if (line_user_id) {
@@ -152,6 +161,9 @@ export async function POST(req: NextRequest) {
   if (insertError) {
     return NextResponse.json({ error: insertError.message }, { status: 500 })
   }
+
+  // 残りが0になった商品を自動で売り切れにする（失敗しても注文は成功のまま）
+  await syncAutoSoldOut(supabase).catch((err) => console.error('自動売り切れの更新に失敗:', err))
 
   // LINE プッシュメッセージ送信（失敗しても注文自体は成功）
   if (line_user_id) {
