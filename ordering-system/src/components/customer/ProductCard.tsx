@@ -11,6 +11,7 @@ import {
   TOPPING_CHANGE_LABEL,
   TOPPING_NAME,
   TOPPING_PRICE,
+  isLunchPlate,
   isToppingSelectable,
 } from '@/lib/types'
 
@@ -131,7 +132,11 @@ export default function ProductCard({
         {product.description && (
           <p className="text-sm text-brown-500 leading-snug">{product.description}</p>
         )}
-        <p className="text-lg font-bold text-brown-600 mt-auto">¥{product.price.toLocaleString()}</p>
+        <p className="text-lg font-bold text-brown-600 mt-auto">
+          ¥{product.price.toLocaleString()}
+          {/* ランチプレートは、選ぶおにぎりによって追加料金がかかるため「〜」を付ける */}
+          {isLunchPlate(product) && '~'}
+        </p>
 
         {/* オプション（追加する前から選べる） */}
         {hasOptions && (

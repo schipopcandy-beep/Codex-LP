@@ -425,7 +425,7 @@ export default function OrderUI({ tableId, lineUserId, partySize, buildCompleteH
               <h1 className="section-title mb-1 px-1">ランチプレート</h1>
               <p className={`text-xs mb-3 px-1 ${plateOrderable ? 'text-brown-500' : 'text-amber-700 font-medium'}`}>
                 {plateOrderable
-                  ? `おにぎり1個 ¥1,300・2個 ¥1,500${LUNCH_PLATE_ALWAYS_AVAILABLE ? '' : `（${LUNCH_START_HOUR}:00〜${LUNCH_PLATE_END_HOUR}:00 限定）`}`
+                  ? `おにぎり1個 ¥1,300~・2個 ¥1,500~${LUNCH_PLATE_ALWAYS_AVAILABLE ? '' : `（${LUNCH_START_HOUR}:00〜${LUNCH_PLATE_END_HOUR}:00 限定）`}`
                   : plateClosed
                     ? `本日のランチプレートは終了しました（${LUNCH_START_HOUR}:00〜${LUNCH_PLATE_END_HOUR}:00）`
                     : `ご注文は ${LUNCH_START_HOUR}:00 からです`}
