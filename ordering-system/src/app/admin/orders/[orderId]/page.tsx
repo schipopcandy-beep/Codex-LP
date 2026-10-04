@@ -21,6 +21,7 @@ import {
   formatScheduleDate,
 } from '@/lib/types'
 import StatusBadge from '@/components/admin/StatusBadge'
+import OrderEditPanel from '@/components/admin/OrderEditPanel'
 
 interface Props {
   params: Promise<{ orderId: string }>
@@ -195,6 +196,9 @@ export default function OrderDetailPage({ params }: Props) {
           </div>
         </div>
       )}
+
+      {/* 注文内容の修正（会計前のみ） */}
+      {order.status !== 'paid' && <OrderEditPanel order={order} onChanged={fetchOrder} />}
 
       {/* 注文明細 */}
       <div className="card p-4 mb-4">

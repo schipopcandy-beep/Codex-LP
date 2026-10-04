@@ -9,7 +9,6 @@ import Cart from '@/components/customer/Cart'
 import type {
   Product,
   CartItem,
-  DrinkTiming,
   LunchNigiriUnit,
   NigiriOptions,
   OptionSoldOut,
@@ -217,15 +216,6 @@ export default function OrderUI({ tableId, lineUserId, partySize, buildCompleteH
     })
   }, [])
 
-  const handleDrinkTimingChange = useCallback((productId: string, timing: DrinkTiming) => {
-    setCartMap((prev) => {
-      const next = new Map(prev)
-      const key = drinkKey(productId)
-      const existing = next.get(key)
-      if (existing) next.set(key, { ...existing, timing })
-      return next
-    })
-  }, [])
 
   const handleLunchNigiriChange = useCallback((index: number, next: LunchNigiriUnit[]) => {
     setLunchNigiriPerPlate((prev) => {
@@ -578,7 +568,6 @@ export default function OrderUI({ tableId, lineUserId, partySize, buildCompleteH
         onQuantityChange={handleCartQuantityChange}
         onItemDelete={handleCartItemDelete}
         onLunchNigiriChange={handleLunchNigiriChange}
-        onDrinkTimingChange={handleDrinkTimingChange}
         onAddItem={handleAddEatin}
         tonjiruProduct={tonjiruProduct}
       />
