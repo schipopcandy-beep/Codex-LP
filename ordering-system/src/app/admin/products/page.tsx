@@ -3,9 +3,15 @@
 import { useEffect, useState, useCallback } from 'react'
 import Image from 'next/image'
 import type { OptionKey, OptionSoldOut, Product } from '@/lib/types'
-import type { StockStatus } from '@/lib/stock'
-import { LOW_STOCK_THRESHOLD } from '@/lib/stock'
+import type { StockKey, StockStatus } from '@/lib/stock'
 import {
+  LOW_STOCK_THRESHOLD,
+  LUNCH_PLATE_STOCK_KEY,
+  optionStockKey,
+  productStockKey,
+} from '@/lib/stock'
+import {
+  isLunchPlate,
   NIGIRI_CATEGORY,
   NO_OPTION_SOLD_OUT,
   OPTION_NAMES,
@@ -77,7 +83,7 @@ export default function SoldOutAdminPage() {
     const res = await fetch(`/api/admin/stock?date=${jstDate(stockDay)}`)
     if (!res.ok) return
     const data: { items: StockStatus[] } = await res.json()
-    setStock(new Map(data.items.map((s) => [s.product_id, s])))
+    setStock(new Map(data.items.map((s) => [s.stock_key, s])))
     setDrafts(new Map())
   }, [stockDay])
 
@@ -86,11 +92,11 @@ export default function SoldOutAdminPage() {
   }, [fetchStock])
 
   /** 仕込み数を保存する（空欄にすると数の管理をやめる） */
-  const savePrepared = async (product: Product) => {
-    const draft = drafts.get(product.id)
+  const savePrepared = async (stockKey: StockKey) => {
+    const draft = drafts.get(stockKey)
     if (draft === undefined) return
     const trimmed = draft.trim()
-    const current = stock.get(product.id)?.prepared_qty
+    const current = stock.get(stockKey)?.prepared_qty
     const next = trimmed === '' ? null : Number(trimmed)
     if (next !== null && (!Number.isInteger(next) || next < 0)) {
       alert('仕込み数は0以上の整数で入力してください')
@@ -99,17 +105,17 @@ export default function SoldOutAdminPage() {
     if (next === (current ?? null)) {
       setDrafts((prev) => {
         const m = new Map(prev)
-        m.delete(product.id)
+        m.delete(stockKey)
         return m
       })
       return
     }
 
-    setUpdating(`stock-${product.id}`)
+    setUpdating(`stock-${stockKey}`)
     const res = await fetch('/api/admin/stock', {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ date: jstDate(stockDay), product_id: product.id, prepared_qty: next }),
+      body: JSON.stringify({ date: jstDate(stockDay), stock_key: stockKey, prepared_qty: next }),
     })
     if (res.ok) {
       await Promise.all([fetchStock(), fetchAll()])
@@ -186,10 +192,13 @@ export default function SoldOutAdminPage() {
   const others = products.filter((p) => p.category !== NIGIRI_CATEGORY)
 
   // 入力欄があるため、コンポーネントではなく関数で描画する（入力中に欄が作り直されないように）
-  const renderProductRow = (product: Product) => {
-    const st = stock.get(product.id)
-    const draft = drafts.get(product.id)
+
+  /** 仕込み数の入力欄と、注文数・残り数 */
+  const renderPrepInput = (stockKey: StockKey) => {
+    const st = stock.get(stockKey)
+    const draft = drafts.get(stockKey)
     const inputValue = draft ?? (st ? String(st.prepared_qty) : '')
+    const inputId = `prep-${stockKey}`
     const remainingClass =
       st == null
         ? ''
@@ -199,6 +208,37 @@ export default function SoldOutAdminPage() {
             ? 'text-amber-600'
             : 'text-green-700'
 
+    return (
+      <div className="flex items-center gap-2 text-sm">
+        <label className="text-brown-500 whitespace-nowrap" htmlFor={inputId}>
+          仕込み数
+        </label>
+        <input
+          id={inputId}
+          type="number"
+          inputMode="numeric"
+          min={0}
+          value={inputValue}
+          placeholder="未入力"
+          onChange={(e) => setDrafts((prev) => new Map(prev).set(stockKey, e.target.value))}
+          onBlur={() => savePrepared(stockKey)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') (e.target as HTMLInputElement).blur()
+          }}
+          disabled={updating === `stock-${stockKey}`}
+          className="w-20 rounded-lg border border-cream-300 bg-white px-2 py-1 text-right tabular-nums"
+        />
+        <span className="text-brown-400">個</span>
+        {st && (
+          <span className={`ml-auto font-bold tabular-nums ${remainingClass}`}>
+            注文 {st.ordered_qty}・残り {Math.max(0, st.remaining)}
+          </span>
+        )}
+      </div>
+    )
+  }
+
+  const renderProductRow = (product: Product) => {
     return (
       <div key={product.id} className={`card p-3 space-y-2 ${product.is_sold_out ? 'opacity-70' : ''}`}>
         <div className="flex items-center gap-3">
@@ -225,34 +265,11 @@ export default function SoldOutAdminPage() {
             onClick={() => toggleSoldOut(product)}
           />
         </div>
-        <div className="flex items-center gap-2 text-sm">
-          <label className="text-brown-500 whitespace-nowrap" htmlFor={`prep-${product.id}`}>
-            仕込み数
-          </label>
-          <input
-            id={`prep-${product.id}`}
-            type="number"
-            inputMode="numeric"
-            min={0}
-            value={inputValue}
-            placeholder="未入力"
-            onChange={(e) =>
-              setDrafts((prev) => new Map(prev).set(product.id, e.target.value))
-            }
-            onBlur={() => savePrepared(product)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') (e.target as HTMLInputElement).blur()
-            }}
-            disabled={updating === `stock-${product.id}`}
-            className="w-20 rounded-lg border border-cream-300 bg-white px-2 py-1 text-right tabular-nums"
-          />
-          <span className="text-brown-400">個</span>
-          {st && (
-            <span className={`ml-auto font-bold tabular-nums ${remainingClass}`}>
-              注文 {st.ordered_qty}・残り {Math.max(0, st.remaining)}
-            </span>
-          )}
-        </div>
+        {isLunchPlate(product) ? (
+          <p className="text-xs text-brown-400">仕込み数は「ランチプレート（1個・2個の合計）」で入力します</p>
+        ) : (
+          renderPrepInput(productStockKey(product.id))
+        )}
       </div>
     )
   }
@@ -333,19 +350,20 @@ export default function SoldOutAdminPage() {
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
               {(Object.keys(OPTION_NAMES) as OptionKey[]).map((key) => (
-                <div
-                  key={key}
-                  className={`card flex items-center gap-3 p-3 ${optionSoldOut[key] ? 'opacity-60' : ''}`}
-                >
-                  <div className="flex-1 min-w-0">
-                    <p className="font-bold text-base text-brown-800">{OPTION_NAMES[key]}</p>
-                    <p className="text-brown-500 text-sm">+¥{OPTION_PRICES[key].toLocaleString()}</p>
+                <div key={key} className={`card p-3 space-y-2 ${optionSoldOut[key] ? 'opacity-70' : ''}`}>
+                  <div className="flex items-center gap-3">
+                    <div className="flex-1 min-w-0">
+                      <p className="font-bold text-base text-brown-800">{OPTION_NAMES[key]}</p>
+                      <p className="text-brown-500 text-sm">+¥{OPTION_PRICES[key].toLocaleString()}</p>
+                    </div>
+                    <SoldOutButton
+                      soldOut={optionSoldOut[key]}
+                      busy={updating === `option-${key}`}
+                      onClick={() => toggleOption(key)}
+                    />
                   </div>
-                  <SoldOutButton
-                    soldOut={optionSoldOut[key]}
-                    busy={updating === `option-${key}`}
-                    onClick={() => toggleOption(key)}
-                  />
+                  {/* 数に限りがある漬け卵黄だけ、仕込み数を入れられる */}
+                  {key === 'egg_yolk' && renderPrepInput(optionStockKey(key))}
                 </div>
               ))}
             </div>
@@ -355,6 +373,17 @@ export default function SoldOutAdminPage() {
           {others.length > 0 && (
             <section className="space-y-3">
               <h2 className="font-bold text-lg text-brown-800">ランチプレート・サイドほか</h2>
+              {others.some(isLunchPlate) && (
+                <div className="card p-3 space-y-2 border-2 border-amber-200">
+                  <div>
+                    <p className="font-bold text-base text-brown-800">ランチプレート（1個・2個の合計）</p>
+                    <p className="text-xs text-brown-400">
+                      1個用・2個用の注文を合わせて数え、残りが0になると両方とも売り切れになります
+                    </p>
+                  </div>
+                  {renderPrepInput(LUNCH_PLATE_STOCK_KEY)}
+                </div>
+              )}
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
                 {others.map(renderProductRow)}
               </div>
