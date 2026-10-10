@@ -3,7 +3,7 @@ import { createServiceRoleClient } from '@/lib/supabase/server'
 import { formatScheduleDate, generatePickupSlots, optionLabel, optionPrice } from '@/lib/types'
 import { getEffectiveDays } from '@/lib/business-hours'
 import { sendLineMessage } from '@/lib/line-message'
-import { checkStock, countByProduct, stockDateFor, syncAutoSoldOut } from '@/lib/stock'
+import { checkStock, countByStockKey, getLunchPlateIds, stockDateFor, syncAutoSoldOut } from '@/lib/stock'
 
 interface TakeoutOrderItem {
   product_id: string
@@ -110,7 +110,7 @@ export async function POST(req: NextRequest) {
   const shortage = await checkStock(
     supabase,
     stockDateFor({ table_id, pickup_at }),
-    countByProduct(items),
+    countByStockKey(items, await getLunchPlateIds(supabase)),
   )
   if (shortage) return NextResponse.json({ error: shortage }, { status: 409 })
 

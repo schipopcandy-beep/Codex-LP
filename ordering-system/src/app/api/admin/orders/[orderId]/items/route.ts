@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServiceRoleClient } from '@/lib/supabase/server'
 import { isLunchPlate, type Product } from '@/lib/types'
-import { checkStock, stockDateFor, syncAutoSoldOut } from '@/lib/stock'
+import { checkStock, countByStockKey, getLunchPlateIds, stockDateFor, syncAutoSoldOut } from '@/lib/stock'
 
 interface Params {
   params: Promise<{ orderId: string }>
@@ -38,7 +38,11 @@ export async function POST(req: NextRequest, { params }: Params) {
     return NextResponse.json({ error: 'ランチプレートはここからは追加できません' }, { status: 400 })
   }
 
-  const shortage = await checkStock(supabase, stockDateFor(order), new Map([[body.product_id, quantity]]))
+  const requested = countByStockKey(
+    [{ product_id: body.product_id, quantity, with_topping: body.with_topping, with_egg_yolk: body.with_egg_yolk }],
+    await getLunchPlateIds(supabase),
+  )
+  const shortage = await checkStock(supabase, stockDateFor(order), requested)
   if (shortage) return NextResponse.json({ error: shortage }, { status: 409 })
 
   const { error } = await supabase.from('order_items').insert({

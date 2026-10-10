@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServiceRoleClient } from '@/lib/supabase/server'
-import { checkStock, countByProduct, syncAutoSoldOut } from '@/lib/stock'
+import { checkStock, countByStockKey, getLunchPlateIds, syncAutoSoldOut } from '@/lib/stock'
 import { todayJST } from '@/lib/business-hours'
 
 interface OrderRequestBody {
@@ -36,7 +36,11 @@ export async function POST(req: NextRequest) {
   const supabase = createServiceRoleClient()
 
   // 仕込み数を入れている商品は、残り数を超える注文を断る
-  const shortage = await checkStock(supabase, todayJST(), countByProduct(items))
+  const shortage = await checkStock(
+    supabase,
+    todayJST(),
+    countByStockKey(items, await getLunchPlateIds(supabase)),
+  )
   if (shortage) return NextResponse.json({ error: shortage }, { status: 409 })
 
   // 同じ席の未会計伝票を検索（status が paid 以外）

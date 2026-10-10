@@ -21,9 +21,9 @@ export async function GET() {
 
   const soldOutNames = new Set(((productsRes.data ?? []) as { name: string }[]).map((p) => p.name))
   const low = stock
-    .filter((s) => s.remaining > 0 && s.remaining <= LOW_STOCK_THRESHOLD && !soldOutNames.has(s.product_name))
+    .filter((s) => s.remaining > 0 && s.remaining <= LOW_STOCK_THRESHOLD && !soldOutNames.has(s.label))
     .sort((a, b) => a.remaining - b.remaining)
-    .map((s) => ({ name: s.product_name, remaining: s.remaining }))
+    .map((s) => ({ name: s.label, remaining: s.remaining }))
 
   const soldOut = [
     ...soldOutNames,

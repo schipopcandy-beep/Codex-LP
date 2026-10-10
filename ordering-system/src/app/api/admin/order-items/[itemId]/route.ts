@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServiceRoleClient } from '@/lib/supabase/server'
 import { getLunchPlateSurcharge, isToppingSelectable, type Product } from '@/lib/types'
-import { checkStock, stockDateFor, syncAutoSoldOut } from '@/lib/stock'
+import { checkStock, getLunchPlateIds, increasedByStockKey, stockDateFor, syncAutoSoldOut } from '@/lib/stock'
 
 interface Params {
   params: Promise<{ itemId: string }>
@@ -12,6 +12,8 @@ interface ItemRow {
   order_id: string
   product_id: string
   quantity: number
+  with_topping: boolean
+  with_egg_yolk: boolean | null
   lunch_plate_index: number | null
   order: { id: string; table_id: string; pickup_at: string | null; created_at: string } | null
 }
@@ -20,7 +22,7 @@ async function loadItem(itemId: string) {
   const supabase = createServiceRoleClient()
   const { data } = await supabase
     .from('order_items')
-    .select('id, order_id, product_id, quantity, lunch_plate_index, order:orders(id, table_id, pickup_at, created_at)')
+    .select('id, order_id, product_id, quantity, with_topping, with_egg_yolk, lunch_plate_index, order:orders(id, table_id, pickup_at, created_at)')
     .eq('id', itemId)
     .maybeSingle()
   return { supabase, item: data as unknown as ItemRow | null }
@@ -44,7 +46,6 @@ export async function PATCH(req: NextRequest, { params }: Params) {
   if (!item || !item.order) return NextResponse.json({ error: '明細が見つかりません' }, { status: 404 })
 
   const updates: Record<string, unknown> = {}
-  const requested = new Map<string, number>()
   let productId = item.product_id
   let quantity = item.quantity
 
@@ -73,13 +74,16 @@ export async function PATCH(req: NextRequest, { params }: Params) {
   if (typeof body.with_egg_yolk === 'boolean') updates.with_egg_yolk = body.with_egg_yolk
   if (Object.keys(updates).length === 0) return NextResponse.json({ ok: true })
 
-  // 増える分だけ残り数を確認する（商品を入れ替えた場合は、入れ替え先の全数）
-  if (productId !== item.product_id) requested.set(productId, quantity)
-  else if (quantity > item.quantity) requested.set(productId, quantity - item.quantity)
-  if (requested.size > 0) {
-    const shortage = await checkStock(supabase, stockDateFor(item.order), requested)
-    if (shortage) return NextResponse.json({ error: shortage }, { status: 409 })
+  // 修正で増える分だけ残り数を確認する（個数・おにぎりの入れ替え・漬け卵黄の追加など）
+  const after = {
+    product_id: productId,
+    quantity,
+    with_topping: typeof body.with_topping === 'boolean' ? body.with_topping : item.with_topping,
+    with_egg_yolk: typeof body.with_egg_yolk === 'boolean' ? body.with_egg_yolk : !!item.with_egg_yolk,
   }
+  const requested = increasedByStockKey([item], [after], await getLunchPlateIds(supabase))
+  const shortage = await checkStock(supabase, stockDateFor(item.order), requested)
+  if (shortage) return NextResponse.json({ error: shortage }, { status: 409 })
 
   const { error } = await supabase.from('order_items').update(updates).eq('id', itemId)
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
