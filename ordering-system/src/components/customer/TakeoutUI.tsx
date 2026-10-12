@@ -13,6 +13,7 @@ import {
   TAKEOUT_TABLE_ID,
   NO_OPTIONS,
   NO_OPTION_SOLD_OUT,
+  isHiddenFromMenu,
 } from '@/lib/types'
 
 interface Props {
@@ -59,7 +60,7 @@ export default function TakeoutUI({ lineUserId, lineDisplayName, seat, seatTable
   // ランチプレートを除外したメニュー（ドリンクはテイクアウト対象外）
   const nigiriProducts = products.filter((p) => p.category === 'おにぎり')
   const sideProducts = products.filter(
-    (p) => p.category !== 'おにぎり' && p.category !== DRINK_CATEGORY,
+    (p) => p.category !== 'おにぎり' && p.category !== DRINK_CATEGORY && !isHiddenFromMenu(p),
   )
   const tonjiruProduct = products.find((p) => p.name.includes('豚汁'))
 

@@ -29,6 +29,7 @@ import {
   NO_OPTIONS,
   NO_OPTION_SOLD_OUT,
   TAKEOUT_ONLY_CATEGORY,
+  isHiddenFromMenu,
 } from '@/lib/types'
 
 interface Props {
@@ -75,6 +76,7 @@ export default function OrderUI({ tableId, lineUserId, partySize, buildCompleteH
       p.category !== 'おにぎり' &&
       p.category !== DRINK_CATEGORY &&
       p.category !== TAKEOUT_ONLY_CATEGORY &&
+      !isHiddenFromMenu(p) &&
       !isLunchPlate(p),
   )
   const tonjiruProduct = products.find((p) => p.name.includes('豚汁'))

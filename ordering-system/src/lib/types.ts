@@ -103,6 +103,18 @@ export const NIGIRI_CATEGORY = 'おにぎり'
 export const TAKEOUT_ONLY_CATEGORY = 'テイクアウト限定'
 
 /**
+ * 店頭テイクアウトで、品目を決めずに数だけ入れるための商品（¥0）
+ * 忙しいときにとりあえず登録する用。お客様のメニューや売り切れタブには出さない。
+ */
+export const PLACEHOLDER_CATEGORY = '店頭入力用'
+export const PLACEHOLDER_PRODUCT_NAME = 'テイクアウト（品目未指定）'
+
+/** お客様のメニューに出さない商品か */
+export function isHiddenFromMenu(product: Product): boolean {
+  return product.category === PLACEHOLDER_CATEGORY
+}
+
+/**
  * 海苔→とろろ昆布への変更を選べる商品か
  * おにぎりはすべて対象（DBの topping_available は参照しない）
  */

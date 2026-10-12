@@ -11,6 +11,7 @@ import {
   NO_OPTION_SOLD_OUT,
   TAKEOUT_TABLE_ID,
   TOPPING_NAME,
+  isHiddenFromMenu,
   isLunchPlate,
   isToppingSelectable,
   optionLabel,
@@ -85,7 +86,9 @@ export default function TakeoutEntryPage() {
   }, [])
 
   const nigiriProducts = products.filter((p) => p.category === NIGIRI_CATEGORY)
-  const otherProducts = products.filter((p) => p.category !== NIGIRI_CATEGORY)
+  const otherProducts = products.filter((p) => p.category !== NIGIRI_CATEGORY && !isHiddenFromMenu(p))
+  /** 品目を決めずに数だけ入れる「テイクアウト」（店頭入力用の商品） */
+  const placeholderProduct = products.find(isHiddenFromMenu)
 
   const change = (productId: string, options: NigiriOptions, delta: number) => {
     setRegistered(null)
@@ -323,7 +326,27 @@ export default function TakeoutEntryPage() {
       {loading ? (
         <p className="text-center text-brown-400 py-10">メニューを読み込み中...</p>
       ) : (
-        <div className="card px-4 py-2 mb-4">
+        <div className="space-y-4 mb-4">
+          {/* 忙しいときに、品目を決めずに数だけ先に入れる欄 */}
+          <div className="card px-4 py-3 border-2 border-amber-300 bg-amber-50">
+            {placeholderProduct ? (
+              <div className="flex items-center justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="font-bold text-brown-800">テイクアウト</p>
+                  <p className="text-xs text-brown-500">
+                    品目を決めずに数だけ入れます（¥0）。あとで注文の修正から品目に置き換えられます
+                  </p>
+                </div>
+                <Stepper product={placeholderProduct} options={NO_OPTIONS} />
+              </div>
+            ) : (
+              <p className="text-sm text-brown-500">
+                「テイクアウト」の欄は、案内したSQLを実行すると使えるようになります
+              </p>
+            )}
+          </div>
+
+        <div className="card px-4 py-2">
           <p className="font-bold text-brown-700 pt-2">おにぎり</p>
           {nigiriProducts.map((p) => (
             <ProductRow key={p.id} product={p} />
@@ -336,6 +359,7 @@ export default function TakeoutEntryPage() {
               ))}
             </>
           )}
+        </div>
         </div>
       )}
 
