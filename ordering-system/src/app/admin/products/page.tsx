@@ -11,6 +11,7 @@ import {
   productStockKey,
 } from '@/lib/stock'
 import {
+  isHiddenFromMenu,
   isLunchPlate,
   NIGIRI_CATEGORY,
   NO_OPTION_SOLD_OUT,
@@ -189,7 +190,8 @@ export default function SoldOutAdminPage() {
   }
 
   const nigiri = products.filter((p) => p.category === NIGIRI_CATEGORY)
-  const others = products.filter((p) => p.category !== NIGIRI_CATEGORY)
+  // 店頭入力用（品目未指定）は売り切れにする対象ではないので出さない
+  const others = products.filter((p) => p.category !== NIGIRI_CATEGORY && !isHiddenFromMenu(p))
 
   // 入力欄があるため、コンポーネントではなく関数で描画する（入力中に欄が作り直されないように）
 
