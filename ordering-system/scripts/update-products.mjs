@@ -24,9 +24,9 @@ const supabase = createClient(
 
 const PRODUCTS = [
   { name: '伊達の旨塩にぎり', price: 250,  description: '素材を活かす伊達な旨塩',                          category: 'おにぎり', sort_order: 10,  is_sold_out: false, topping_available: false },
-  { name: 'おかか',           price: 300,  description: 'ふわっと広がる手作りの甘み',                      category: 'おにぎり', sort_order: 20,  is_sold_out: false, topping_available: true  },
-  { name: '茎わかめ佃煮',         price: 300,  description: '包むも中身も小野徳さん 海苔で味わう贅沢品',       category: 'おにぎり', sort_order: 30,  is_sold_out: false, topping_available: true  },
-  { name: 'ほぐし梅',         price: 300,  description: '紀州産A級品質 特選紀州梅干使用',                  category: 'おにぎり', sort_order: 40,  is_sold_out: false, topping_available: true  },
+  { name: 'おかか',           price: 350,  description: 'ふわっと広がる手作りの甘み',                      category: 'おにぎり', sort_order: 20,  is_sold_out: false, topping_available: true  },
+  { name: '茎わかめ佃煮',         price: 350,  description: '包むも中身も小野徳さん 海苔で味わう贅沢品',       category: 'おにぎり', sort_order: 30,  is_sold_out: false, topping_available: true  },
+  { name: 'ほぐし梅',         price: 350,  description: '紀州産A級品質 特選紀州梅干使用',                  category: 'おにぎり', sort_order: 40,  is_sold_out: false, topping_available: true  },
   { name: '焼しゃけ',         price: 350,  description: '毎朝店内焼き上げ 定番の味',                      category: 'おにぎり', sort_order: 50,  is_sold_out: false, topping_available: true  },
   { name: 'ツナマヨ',         price: 350,  description: 'ツナから手作り ふんわり食感',                    category: 'おにぎり', sort_order: 60,  is_sold_out: false, topping_available: true  },
   { name: '鶏そぼろ',         price: 400,  description: '生姜香る 甘辛ジューシー',                        category: 'おにぎり', sort_order: 70,  is_sold_out: false, topping_available: true  },
