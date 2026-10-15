@@ -76,7 +76,7 @@ export async function GET(req: NextRequest) {
     histOrdersRes, histWeatherRes, forecast,
   ] = await Promise.all([
     supabase.from('orders')
-      .select('created_at, order_items(unit_price, quantity, with_topping, with_egg_yolk)')
+      .select('created_at, order_items(unit_price, quantity, with_topping, with_egg_yolk, with_large)')
       .eq('status', 'paid').gte('created_at', fromUtc).lt('created_at', toUtc),
     supabase.from('weather_log')
       .select('date, temp_max, temp_min, weather_main, weather_desc')
@@ -87,7 +87,7 @@ export async function GET(req: NextRequest) {
     supabase.from('sendai_events').select('id, name, date, end_date, scale')
       .gte('date', fromDateStr).lte('date', toDateStr),
     supabase.from('orders')
-      .select('created_at, order_items(unit_price, quantity, with_topping, with_egg_yolk)')
+      .select('created_at, order_items(unit_price, quantity, with_topping, with_egg_yolk, with_large)')
       .eq('status', 'paid').gte('created_at', histFromUtc).lt('created_at', fromUtc),
     supabase.from('weather_log').select('date, weather_main')
       .gte('date', histFromStr).lt('date', fromDateStr),
@@ -97,8 +97,8 @@ export async function GET(req: NextRequest) {
   if (ordersRes.error) return NextResponse.json({ error: ordersRes.error.message }, { status: 500 })
 
   // ── Daily revenue for this month ──
-  type OrderRow = { created_at: string; order_items: { unit_price: number; quantity: number; with_topping: boolean; with_egg_yolk?: boolean }[] }
-  function calcRevenue(items: { unit_price: number; quantity: number; with_topping: boolean; with_egg_yolk?: boolean }[]) {
+  type OrderRow = { created_at: string; order_items: { unit_price: number; quantity: number; with_topping: boolean; with_egg_yolk?: boolean; with_large?: boolean }[] }
+  function calcRevenue(items: { unit_price: number; quantity: number; with_topping: boolean; with_egg_yolk?: boolean; with_large?: boolean }[]) {
     return items.reduce((s, i) => s + (i.unit_price + optionPrice(i)) * i.quantity, 0)
   }
 

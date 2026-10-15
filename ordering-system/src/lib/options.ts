@@ -1,7 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { NO_OPTION_SOLD_OUT, type OptionKey, type OptionSoldOut } from '@/lib/types'
 
-export const OPTION_KEYS: OptionKey[] = ['tororo', 'egg_yolk']
+export const OPTION_KEYS: OptionKey[] = ['tororo', 'egg_yolk', 'large']
 
 /**
  * オプションの売り切れ状態を読む

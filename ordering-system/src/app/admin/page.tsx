@@ -34,7 +34,8 @@ export default function AdminDashboard() {
   const [orders, setOrders] = useState<Order[]>([])
   const [loading, setLoading] = useState(true)
   const [tab, setTab] = useState<Tab>('all')
-  const [soundEnabled, setSoundEnabled] = useState(false)
+  // 通知音は最初からON（ブラウザの決まりで、画面を一度タッチするまでは鳴らせない）
+  const [soundEnabled, setSoundEnabled] = useState(true)
   /** 残りわずか・売り切れのお知らせ */
   const [stockAlerts, setStockAlerts] = useState<{
     low: { name: string; remaining: number }[]
@@ -44,7 +45,9 @@ export default function AdminDashboard() {
   /** AudioContext は最初のユーザー操作後に生成（autoplay policy対策） */
   const audioCtxRef = useRef<AudioContext | null>(null)
   /** soundEnabled の最新値をコールバック内で参照するための ref */
-  const soundEnabledRef = useRef(false)
+  const soundEnabledRef = useRef(true)
+  /** 音を鳴らす準備ができたか（画面を一度触ったか） */
+  const [audioReady, setAudioReady] = useState(false)
   /** 初回ロード済みフラグ（初回取得時は音を鳴らさない） */
   const isInitialLoad = useRef(true)
   /** 既知の注文IDセット */
@@ -102,18 +105,37 @@ export default function AdminDashboard() {
     }
   }, [fetchOrders])
 
+  /**
+   * 音を鳴らす準備（AudioContext の作成・再開）
+   * ブラウザは、画面を触る前に音を鳴らすことを許さないため、最初のタッチ・クリックで準備する
+   */
+  const unlockAudio = useCallback(() => {
+    if (!audioCtxRef.current) {
+      audioCtxRef.current = new AudioContext()
+    }
+    if (audioCtxRef.current.state === 'suspended') {
+      audioCtxRef.current.resume()
+    }
+    setAudioReady(true)
+  }, [])
+
+  useEffect(() => {
+    const events = ['pointerdown', 'keydown', 'touchstart'] as const
+    const handler = () => {
+      unlockAudio()
+      events.forEach((e) => window.removeEventListener(e, handler))
+    }
+    events.forEach((e) => window.addEventListener(e, handler))
+    return () => events.forEach((e) => window.removeEventListener(e, handler))
+  }, [unlockAudio])
+
   const toggleSound = () => {
     const next = !soundEnabled
     setSoundEnabled(next)
     soundEnabledRef.current = next
     if (!soundEnabled) {
-      if (!audioCtxRef.current) {
-        audioCtxRef.current = new AudioContext()
-      }
-      if (audioCtxRef.current.state === 'suspended') {
-        audioCtxRef.current.resume()
-      }
-      playChime(audioCtxRef.current)
+      unlockAudio()
+      if (audioCtxRef.current) playChime(audioCtxRef.current)
     }
   }
 
@@ -154,6 +176,12 @@ export default function AdminDashboard() {
 
   return (
     <div className="p-4 md:p-6">
+      {soundEnabled && !audioReady && (
+        <p className="mb-3 text-sm text-brown-500 bg-cream-100 border border-cream-300 rounded-xl px-3 py-2">
+          🔔 画面をどこか一度タッチすると、新しい注文の通知音が鳴るようになります
+        </p>
+      )}
+
       {/* 残りわずか・売り切れのお知らせ */}
       {(stockAlerts.low.length > 0 || stockAlerts.soldOut.length > 0) && (
         <div className="mb-4 space-y-2">

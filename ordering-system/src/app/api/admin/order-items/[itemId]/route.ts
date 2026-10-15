@@ -30,7 +30,7 @@ async function loadItem(itemId: string) {
 
 /**
  * 管理用: 注文明細を修正する（お客様の注文ミスへの対応）
- * body: { quantity?, product_id?, with_topping?, with_egg_yolk? }
+ * body: { quantity?, product_id?, with_topping?, with_egg_yolk?, with_large? }
  * - product_id の変更は、ランチプレートの中のおにぎりだけ（追加料金も付け直す）
  */
 export async function PATCH(req: NextRequest, { params }: Params) {
@@ -40,6 +40,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     product_id?: string
     with_topping?: boolean
     with_egg_yolk?: boolean
+    with_large?: boolean
   } = await req.json()
 
   const { supabase, item } = await loadItem(itemId)
@@ -72,6 +73,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
 
   if (typeof body.with_topping === 'boolean') updates.with_topping = body.with_topping
   if (typeof body.with_egg_yolk === 'boolean') updates.with_egg_yolk = body.with_egg_yolk
+  if (typeof body.with_large === 'boolean') updates.with_large = body.with_large
   if (Object.keys(updates).length === 0) return NextResponse.json({ ok: true })
 
   // 修正で増える分だけ残り数を確認する（個数・おにぎりの入れ替え・漬け卵黄の追加など）

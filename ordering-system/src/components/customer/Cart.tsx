@@ -71,7 +71,7 @@ export default function Cart({
     units.map((unit) => {
       const product = allProducts.find((p) => p.id === unit.productId)
       const surcharge = product ? getLunchPlateSurcharge(product) : 0
-      return surcharge + optionPrice({ with_topping: unit.tororo, with_egg_yolk: unit.eggYolk })
+      return surcharge + optionPrice({ with_topping: unit.tororo, with_egg_yolk: unit.eggYolk, with_large: unit.large })
     })
   ).reduce((s, v) => s + v, 0)
   const total = baseTotal + lunchSurcharge
@@ -101,7 +101,7 @@ export default function Cart({
 
     return (
       <div
-        key={`${item.product.id}-${item.with_topping}-${!!item.with_egg_yolk}-${item.timing ?? ''}-${item.is_takeout ? 'takeout' : ''}`}
+        key={`${item.product.id}-${item.with_topping}-${!!item.with_egg_yolk}-${!!item.with_large}-${item.timing ?? ''}-${item.is_takeout ? 'takeout' : ''}`}
         className="space-y-1.5"
       >
         <div className="flex justify-between items-start gap-2">

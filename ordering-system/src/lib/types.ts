@@ -138,19 +138,29 @@ export const EGG_YOLK_CHANGE_LABEL = '漬け卵黄を追加'
 /** カート・明細で使う短い表記 */
 export const EGG_YOLK_CART_LABEL = '漬け卵黄追加'
 
+/** 大満足120%おにぎり（全おにぎりに付けられるオプション） */
+export const LARGE_NAME = '大満足120%おにぎり'
+export const LARGE_PRICE = 300
+/** 注文画面で使う表記 */
+export const LARGE_CHANGE_LABEL = '大満足120%おにぎりにする'
+/** カート・明細で使う短い表記 */
+export const LARGE_CART_LABEL = '大満足120%'
+
 /** おにぎりのオプションの種類（売り切れ設定に使う） */
-export type OptionKey = 'tororo' | 'egg_yolk'
+export type OptionKey = 'tororo' | 'egg_yolk' | 'large'
 export const OPTION_NAMES: Record<OptionKey, string> = {
   tororo: TOPPING_NAME,
   egg_yolk: EGG_YOLK_NAME,
+  large: LARGE_NAME,
 }
 export const OPTION_PRICES: Record<OptionKey, number> = {
   tororo: TOPPING_PRICE,
   egg_yolk: EGG_YOLK_PRICE,
+  large: LARGE_PRICE,
 }
 /** オプションの売り切れ状態（true = 売り切れ） */
 export type OptionSoldOut = Record<OptionKey, boolean>
-export const NO_OPTION_SOLD_OUT: OptionSoldOut = { tororo: false, egg_yolk: false }
+export const NO_OPTION_SOLD_OUT: OptionSoldOut = { tororo: false, egg_yolk: false, large: false }
 
 /** おにぎり1個に付けるオプションの選び方 */
 export interface NigiriOptions {
@@ -158,22 +168,65 @@ export interface NigiriOptions {
   tororo: boolean
   /** 漬け卵黄を追加（+100円） */
   eggYolk: boolean
+  /** 大満足120%おにぎりにする（+300円） */
+  large: boolean
 }
-export const NO_OPTIONS: NigiriOptions = { tororo: false, eggYolk: false }
+export const NO_OPTIONS: NigiriOptions = { tororo: false, eggYolk: false, large: false }
+
+/** オプションのすべての組み合わせ（「そのまま」が先頭） */
+export const ALL_OPTION_COMBOS: NigiriOptions[] = [false, true].flatMap((large) =>
+  [false, true].flatMap((eggYolk) => [false, true].map((tororo) => ({ tororo, eggYolk, large }))),
+)
+
+/** 組み合わせの売り切れ判定（付けたオプションのどれかが売り切れなら売り切れ） */
+export function isComboSoldOut(options: NigiriOptions, soldOut: OptionSoldOut): boolean {
+  return (options.tororo && soldOut.tororo) || (options.eggYolk && soldOut.egg_yolk) || (options.large && soldOut.large)
+}
+
+/** NigiriOptions → 明細の列の形 */
+export function optionColumns(options: NigiriOptions) {
+  return { with_topping: options.tororo, with_egg_yolk: options.eggYolk, with_large: options.large }
+}
+
+/** 明細の列 → NigiriOptions */
+export function optionsOfItem(item: OptionColumns): NigiriOptions {
+  return { tororo: !!item.with_topping, eggYolk: !!item.with_egg_yolk, large: !!item.with_large }
+}
+
+/** オプションを表す明細の列 */
+export interface OptionColumns {
+  with_topping?: boolean | null
+  with_egg_yolk?: boolean | null
+  with_large?: boolean | null
+}
 
 /** 明細1行のオプション追加料金（1個あたり） */
-export function optionPrice(item: { with_topping?: boolean | null; with_egg_yolk?: boolean | null }): number {
-  return (item.with_topping ? TOPPING_PRICE : 0) + (item.with_egg_yolk ? EGG_YOLK_PRICE : 0)
+export function optionPrice(item: OptionColumns): number {
+  return (
+    (item.with_topping ? TOPPING_PRICE : 0) +
+    (item.with_egg_yolk ? EGG_YOLK_PRICE : 0) +
+    (item.with_large ? LARGE_PRICE : 0)
+  )
 }
 
 /** 明細に添えるオプションの表記（例: 「とろろ昆布に変更・漬け卵黄追加」）。なければ空文字 */
-export function optionLabel(item: { with_topping?: boolean | null; with_egg_yolk?: boolean | null }): string {
+export function optionLabel(item: OptionColumns): string {
   return [
+    item.with_large ? LARGE_CART_LABEL : null,
     item.with_topping ? TOPPING_CART_LABEL : null,
     item.with_egg_yolk ? EGG_YOLK_CART_LABEL : null,
   ]
     .filter(Boolean)
     .join('・')
+}
+
+/** オプションの組み合わせの短い表記（何も付けないときは「そのまま」） */
+export function comboLabel(options: NigiriOptions): string {
+  return (
+    [options.large ? LARGE_CART_LABEL : null, options.tororo ? TOPPING_NAME : null, options.eggYolk ? EGG_YOLK_NAME : null]
+      .filter(Boolean)
+      .join('＋') || 'そのまま'
+  )
 }
 
 export const DRINK_CATEGORY = 'ドリンク'
@@ -259,6 +312,8 @@ export interface LunchNigiriUnit {
   tororo: boolean
   /** 漬け卵黄を追加（+100円） */
   eggYolk?: boolean
+  /** 大満足120%おにぎりにする（+300円） */
+  large?: boolean
 }
 
 /**
@@ -315,6 +370,8 @@ export interface OrderItem {
   with_topping: boolean
   /** 漬け卵黄を追加（+100円） */
   with_egg_yolk?: boolean
+  /** 大満足120%おにぎりにする（+300円） */
+  with_large?: boolean
   timing?: DrinkTiming | null
   /** ランチプレート内おにぎりのプレート番号（0始まり）。null = 通常アイテム */
   lunch_plate_index?: number | null
@@ -405,6 +462,8 @@ export interface CartItem {
   with_topping: boolean
   /** 漬け卵黄を追加（+100円） */
   with_egg_yolk?: boolean
+  /** 大満足120%おにぎりにする（+300円） */
+  with_large?: boolean
   timing?: DrinkTiming   // ドリンクのみ
   /** 店内注文と一緒に頼むお持ち帰り分 */
   is_takeout?: boolean

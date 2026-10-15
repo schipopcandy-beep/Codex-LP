@@ -15,6 +15,8 @@ interface OrderRequestBody {
     with_topping: boolean
     /** 漬け卵黄を追加 */
     with_egg_yolk?: boolean
+    /** 大満足120%おにぎりにする */
+    with_large?: boolean
     timing?: string | null
     lunch_plate_index?: number | null
     /** 席から注文したお持ち帰り分 */
@@ -97,6 +99,7 @@ export async function POST(req: NextRequest) {
     unit_price: item.unit_price,
     with_topping: item.with_topping,
     with_egg_yolk: !!item.with_egg_yolk,
+    with_large: !!item.with_large,
     ...(item.timing != null ? { timing: item.timing } : {}),
     ...(item.lunch_plate_index != null ? { lunch_plate_index: item.lunch_plate_index } : {}),
     // 複数行をまとめて登録するとき、ある行にだけ付いた項目は他の行では

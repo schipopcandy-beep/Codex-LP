@@ -6,6 +6,8 @@ import { useConfirm } from '@/components/admin/useConfirm'
 import {
   EGG_YOLK_CART_LABEL,
   EGG_YOLK_PRICE,
+  LARGE_CART_LABEL,
+  LARGE_PRICE,
   TAKEOUT_TABLE_ID,
   TOPPING_CART_LABEL,
   TOPPING_PRICE,
@@ -52,6 +54,7 @@ export default function OrderEditPanel({ order, onChanged }: Props) {
   const [addQty, setAddQty] = useState(1)
   const [addTororo, setAddTororo] = useState(false)
   const [addEggYolk, setAddEggYolk] = useState(false)
+  const [addLarge, setAddLarge] = useState(false)
   const [addTakeout, setAddTakeout] = useState(false)
 
   useEffect(() => {
@@ -118,6 +121,7 @@ export default function OrderEditPanel({ order, onChanged }: Props) {
         quantity: addQty,
         with_topping: withOptions && addTororo,
         with_egg_yolk: withOptions && addEggYolk,
+        with_large: withOptions && addLarge,
         is_takeout: isEatin && addTakeout,
       })
       if (ok) {
@@ -125,6 +129,7 @@ export default function OrderEditPanel({ order, onChanged }: Props) {
         setAddQty(1)
         setAddTororo(false)
         setAddEggYolk(false)
+        setAddLarge(false)
         setAddTakeout(false)
       }
       return ok
@@ -133,6 +138,16 @@ export default function OrderEditPanel({ order, onChanged }: Props) {
 
   const OptionToggles = ({ item }: { item: OrderItem }) => (
     <div className="flex flex-wrap gap-3 text-xs text-brown-600">
+      <label className="flex items-center gap-1">
+        <input
+          type="checkbox"
+          checked={!!item.with_large}
+          disabled={busy !== null}
+          onChange={(e) => patchItem(item, { with_large: e.target.checked })}
+          className="w-4 h-4 accent-brown-600"
+        />
+        {LARGE_CART_LABEL}（+¥{LARGE_PRICE}）
+      </label>
       <label className="flex items-center gap-1">
         <input
           type="checkbox"
@@ -289,6 +304,15 @@ export default function OrderEditPanel({ order, onChanged }: Props) {
           <div className="space-y-3">
             {isToppingSelectable(addProduct) && (
               <div className="flex flex-wrap gap-3 text-sm text-brown-600">
+                <label className="flex items-center gap-1">
+                  <input
+                    type="checkbox"
+                    checked={addLarge}
+                    onChange={(e) => setAddLarge(e.target.checked)}
+                    className="w-4 h-4 accent-brown-600"
+                  />
+                  {LARGE_CART_LABEL}（+¥{LARGE_PRICE}）
+                </label>
                 <label className="flex items-center gap-1">
                   <input
                     type="checkbox"

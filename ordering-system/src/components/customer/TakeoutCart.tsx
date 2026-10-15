@@ -161,7 +161,7 @@ export default function TakeoutCart({
                   const subtotal = (item.product.price + toppingCost) * item.quantity
                   return (
                     <div
-                      key={`${item.product.id}-${item.with_topping}-${!!item.with_egg_yolk}`}
+                      key={`${item.product.id}-${item.with_topping}-${!!item.with_egg_yolk}-${!!item.with_large}`}
                       className="space-y-1.5"
                     >
                       <div className="flex justify-between items-start gap-2">
