@@ -22,6 +22,7 @@ import {
 } from '@/lib/types'
 import StatusBadge from '@/components/admin/StatusBadge'
 import OrderEditPanel from '@/components/admin/OrderEditPanel'
+import { useConfirm } from '@/components/admin/useConfirm'
 
 interface Props {
   params: Promise<{ orderId: string }>
@@ -36,6 +37,9 @@ export default function OrderDetailPage({ params }: Props) {
   const [order, setOrder] = useState<Order | null>(null)
   const [loading, setLoading] = useState(true)
   const [updating, setUpdating] = useState(false)
+  /** 操作に失敗したときのメッセージ（alert は端末によって表示されないため画面に出す） */
+  const [errorMessage, setErrorMessage] = useState<string | null>(null)
+  const [confirm, confirmDialog] = useConfirm()
 
   const fetchOrder = useCallback(async () => {
     const res = await fetch(`/api/orders/${orderId}`)
@@ -50,29 +54,34 @@ export default function OrderDetailPage({ params }: Props) {
     fetchOrder()
   }, [fetchOrder])
 
-  const handleStatusChange = async (newStatus: OrderStatus) => {
-    if (!order || updating) return
+  /** ステータスを変える。成功したら true */
+  const handleStatusChange = async (newStatus: OrderStatus): Promise<boolean> => {
+    if (!order || updating) return false
     setUpdating(true)
+    setErrorMessage(null)
 
-    const res = await fetch(`/api/orders/${orderId}`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ status: newStatus }),
-    })
-
-    if (res.ok) {
+    try {
+      const res = await fetch(`/api/orders/${orderId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: newStatus }),
+      })
+      if (!res.ok) throw new Error()
       const updated = await res.json()
-      setOrder((prev) => prev ? { ...prev, status: updated.status } : null)
-    } else {
-      alert('ステータスの更新に失敗しました')
+      setOrder((prev) => (prev ? { ...prev, status: updated.status } : null))
+      return true
+    } catch {
+      setErrorMessage('ステータスを変更できませんでした。通信状況を確認して、もう一度お試しください。')
+      return false
+    } finally {
+      setUpdating(false)
     }
-    setUpdating(false)
   }
 
   const handlePaid = async () => {
-    if (!confirm('会計済みにしますか？')) return
-    await handleStatusChange('paid')
-    router.push('/admin')
+    if (!(await confirm('会計済みにしますか？', { confirmLabel: '会計済みにする' }))) return
+    // 保存できたときだけ一覧に戻る（失敗したらこの画面でメッセージを出す）
+    if (await handleStatusChange('paid')) router.push('/admin')
   }
 
   if (loading) {
@@ -318,6 +327,12 @@ export default function OrderDetailPage({ params }: Props) {
         </div>
       </div>
 
+      {errorMessage && (
+        <p className="mb-3 rounded-xl border border-red-300 bg-red-50 px-4 py-3 text-sm font-bold text-red-700">
+          {errorMessage}
+        </p>
+      )}
+
       {/* 会計ボタン */}
       {order.status !== 'paid' && (
         <button
@@ -334,6 +349,8 @@ export default function OrderDetailPage({ params }: Props) {
           この注文は会計済みです
         </div>
       )}
+
+      {confirmDialog}
     </div>
   )
 }
