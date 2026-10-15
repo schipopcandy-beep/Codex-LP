@@ -26,13 +26,33 @@ function countGroup(occupiedSeats: Set<string>, seatIds: string[]): SeatGroup {
   return { total: seatIds.length, occupied, vacant: seatIds.length - occupied }
 }
 
+/**
+ * カウンターの埋まっている席数
+ * カウンターは1席に1つQRを置くが、2名以上で並んで座ることもあるため、
+ * 注文時に選んだ人数の分だけ席を使っている扱いにする（人数がなければ1名）。
+ * 合計がカウンターの席数を超える場合は満席で止める。
+ */
+function countCounter(rows: { table_id: string; party_size: number | null }[]): SeatGroup {
+  const peopleBySeat = new Map<string, number>()
+  for (const row of rows) {
+    if (!COUNTER_SEAT_IDS.includes(row.table_id)) continue
+    const people = Math.max(1, row.party_size ?? 1)
+    // 同じ席に未会計の伝票が複数ある場合は、多い方の人数を使う
+    peopleBySeat.set(row.table_id, Math.max(peopleBySeat.get(row.table_id) ?? 0, people))
+  }
+  const total = COUNTER_SEAT_IDS.length
+  const used = [...peopleBySeat.values()].reduce((sum, n) => sum + n, 0)
+  const occupied = Math.min(total, used)
+  return { total, occupied, vacant: total - occupied }
+}
+
 /** 未会計の注文をもとに店内の空席状況を集計する */
 export async function getVacancy(): Promise<VacancyResult> {
   const supabase = createServiceRoleClient()
 
   const { data, error } = await supabase
     .from('orders')
-    .select('table_id')
+    .select('table_id, party_size')
     .neq('status', 'paid')
 
   if (error) throw new Error(error.message)
@@ -44,7 +64,7 @@ export async function getVacancy(): Promise<VacancyResult> {
   )
 
   const table = countGroup(occupiedSeats, TABLE_SEAT_IDS)
-  const counter = countGroup(occupiedSeats, COUNTER_SEAT_IDS)
+  const counter = countCounter(data ?? [])
 
   return {
     total: SEAT_IDS.length,
