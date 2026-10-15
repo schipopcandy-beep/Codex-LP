@@ -264,10 +264,10 @@ export const LUNCH_END_HOUR: number | null = 14
 export const LUNCH_PLATE_END_HOUR = 15
 
 /**
- * テスト期間中のみ true。ランチプレートを時間帯に関係なく注文できるようにする。
- * ※2026年10月上旬をめどに false に戻し、11:00〜15:00 の販売に戻すこと
+ * true にすると、ランチプレートを時間帯に関係なく注文できる（テスト用）
+ * 通常は false（11:00〜15:00 の販売）
  */
-export const LUNCH_PLATE_ALWAYS_AVAILABLE = true
+export const LUNCH_PLATE_ALWAYS_AVAILABLE = false
 
 /** ランチタイムの表示用ラベル（例: "11:00〜14:00"） */
 export const LUNCH_TIME_LABEL =
