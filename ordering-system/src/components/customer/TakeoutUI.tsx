@@ -14,6 +14,7 @@ import {
   NO_OPTIONS,
   NO_OPTION_SOLD_OUT,
   isHiddenFromMenu,
+  optionsOfItem,
 } from '@/lib/types'
 
 interface Props {
@@ -28,12 +29,9 @@ interface Props {
 
 /** カートのキー。オプション（とろろ昆布・漬け卵黄）の組み合わせごとに別の行として持つ */
 const cartKey = (productId: string, options: NigiriOptions) =>
-  `${productId}-${options.tororo}${options.eggYolk ? '-egg' : ''}`
+  `${productId}-${options.tororo}${options.eggYolk ? '-egg' : ''}${options.large ? '-large' : ''}`
 
-const optionsOf = (item: CartItem): NigiriOptions => ({
-  tororo: item.with_topping,
-  eggYolk: !!item.with_egg_yolk,
-})
+const optionsOf = (item: CartItem): NigiriOptions => optionsOfItem(item)
 
 export default function TakeoutUI({ lineUserId, lineDisplayName, seat, seatTableId }: Props) {
   /** 席からのお持ち帰り注文か（受取日時の指定もLINE通知も行わない） */
@@ -108,6 +106,7 @@ export default function TakeoutUI({ lineUserId, lineDisplayName, seat, seatTable
           quantity: 1,
           with_topping: options.tororo,
           with_egg_yolk: options.eggYolk,
+          with_large: options.large,
         })
       }
       return next
@@ -161,6 +160,7 @@ export default function TakeoutUI({ lineUserId, lineDisplayName, seat, seatTable
       unit_price: item.product.price,
       with_topping: item.with_topping,
       with_egg_yolk: !!item.with_egg_yolk,
+      with_large: !!item.with_large,
     }))
 
     try {

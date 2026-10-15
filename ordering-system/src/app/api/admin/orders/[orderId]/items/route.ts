@@ -9,7 +9,7 @@ interface Params {
 
 /**
  * 管理用: 既存の注文に商品を追加する（お客様の注文ミスへの対応）
- * body: { product_id, quantity, with_topping?, with_egg_yolk?, is_takeout? }
+ * body: { product_id, quantity, with_topping?, with_egg_yolk?, with_large?, is_takeout? }
  * ランチプレートは中のおにぎりと組で扱う必要があるため、ここでは追加しない
  */
 export async function POST(req: NextRequest, { params }: Params) {
@@ -19,6 +19,7 @@ export async function POST(req: NextRequest, { params }: Params) {
     quantity?: number
     with_topping?: boolean
     with_egg_yolk?: boolean
+    with_large?: boolean
     is_takeout?: boolean
   } = await req.json()
 
@@ -52,6 +53,7 @@ export async function POST(req: NextRequest, { params }: Params) {
     unit_price: (product as Product).price,
     with_topping: !!body.with_topping,
     with_egg_yolk: !!body.with_egg_yolk,
+    with_large: !!body.with_large,
     is_takeout: !!body.is_takeout,
   })
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })

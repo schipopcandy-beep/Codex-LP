@@ -4,16 +4,17 @@ import { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import type { NigiriOptions, OptionSoldOut, Product } from '@/lib/types'
 import {
+  ALL_OPTION_COMBOS,
   DRINK_CATEGORY,
-  EGG_YOLK_NAME,
   NIGIRI_CATEGORY,
   NO_OPTIONS,
   NO_OPTION_SOLD_OUT,
   TAKEOUT_TABLE_ID,
-  TOPPING_NAME,
+  isComboSoldOut,
   isHiddenFromMenu,
   isLunchPlate,
   isToppingSelectable,
+  optionColumns,
   optionLabel,
   optionPrice,
   orderShortId,
@@ -23,19 +24,16 @@ import {
 type Quantities = Record<string, number>
 
 const qtyKey = (productId: string, options: NigiriOptions) =>
-  `${productId}-${options.tororo}-${options.eggYolk}`
+  `${productId}-${options.tororo}-${options.eggYolk}-${options.large}`
 
 /** オプションを付けた組み合わせ（「そのまま」以外） */
-const OPTION_COMBOS: { options: NigiriOptions; label: string; soldOut: (s: OptionSoldOut) => boolean }[] = [
-  { options: { tororo: true, eggYolk: false }, label: `${TOPPING_NAME}に変更`, soldOut: (s) => s.tororo },
-  { options: { tororo: false, eggYolk: true }, label: `${EGG_YOLK_NAME}を追加`, soldOut: (s) => s.egg_yolk },
-  {
-    options: { tororo: true, eggYolk: true },
-    label: `${TOPPING_NAME}に変更＋${EGG_YOLK_NAME}`,
-    soldOut: (s) => s.tororo || s.egg_yolk,
-  },
-]
-const ALL_COMBOS: NigiriOptions[] = [NO_OPTIONS, ...OPTION_COMBOS.map((c) => c.options)]
+const OPTION_COMBOS: { options: NigiriOptions; label: string; soldOut: (s: OptionSoldOut) => boolean }[] =
+  ALL_OPTION_COMBOS.slice(1).map((options) => ({
+    options,
+    label: optionLabel(optionColumns(options)),
+    soldOut: (s) => isComboSoldOut(options, s),
+  }))
+const ALL_COMBOS: NigiriOptions[] = ALL_OPTION_COMBOS
 
 /** 日本時間の今日の日付（YYYY-MM-DD）と現在時刻（HH:MM） */
 function jstNow(): { date: string; time: string } {
@@ -106,7 +104,7 @@ export default function TakeoutEntryPage() {
         ALL_COMBOS.flatMap((options) => {
           const quantity = quantities[qtyKey(product.id, options)] ?? 0
           return quantity > 0
-            ? [{ product, options, quantity, with_topping: options.tororo, with_egg_yolk: options.eggYolk }]
+            ? [{ product, options, quantity, ...optionColumns(options) }]
             : []
         }),
       ),
@@ -139,6 +137,7 @@ export default function TakeoutEntryPage() {
             unit_price: l.product.price,
             with_topping: l.with_topping,
             with_egg_yolk: l.with_egg_yolk,
+            with_large: l.with_large,
           })),
         }),
       })
@@ -230,7 +229,7 @@ export default function TakeoutEntryPage() {
                   disabled={optionCount > 0}
                   className="ml-3 text-xs text-brown-500 underline underline-offset-2 disabled:no-underline"
                 >
-                  {isOpen ? 'オプションを閉じる' : 'オプション（とろろ昆布・漬け卵黄）'}
+                  {isOpen ? 'オプションを閉じる' : 'オプション（大満足120%・とろろ昆布・漬け卵黄）'}
                 </button>
               )}
             </p>
@@ -243,7 +242,7 @@ export default function TakeoutEntryPage() {
             return (
               <div key={c.label} className="flex items-center justify-between gap-3 pl-3">
                 <p className={`text-sm ${soldOut ? 'text-brown-300' : 'text-brown-500'}`}>
-                  {c.label}（+¥{optionPrice({ with_topping: c.options.tororo, with_egg_yolk: c.options.eggYolk })}）
+                  {c.label}（+¥{optionPrice(optionColumns(c.options))}）
                   {soldOut && <span className="ml-1 text-xs">売り切れ</span>}
                 </p>
                 <Stepper product={product} options={c.options} disabled={soldOut} />

@@ -13,6 +13,8 @@ interface TakeoutOrderItem {
   with_topping: boolean
   /** 漬け卵黄を追加 */
   with_egg_yolk?: boolean
+  /** 大満足120%おにぎりにする */
+  with_large?: boolean
 }
 
 interface TakeoutOrderRequestBody {
@@ -152,6 +154,7 @@ export async function POST(req: NextRequest) {
     unit_price: item.unit_price,
     with_topping: item.with_topping,
     with_egg_yolk: !!item.with_egg_yolk,
+    with_large: !!item.with_large,
   }))
 
   const { error: insertError } = await supabase

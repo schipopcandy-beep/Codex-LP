@@ -30,6 +30,7 @@ import {
   NO_OPTION_SOLD_OUT,
   TAKEOUT_ONLY_CATEGORY,
   isHiddenFromMenu,
+  optionsOfItem,
 } from '@/lib/types'
 
 interface Props {
@@ -44,7 +45,7 @@ interface Props {
  * ドリンクは固定キー。同じ商品でも組み合わせが違えば別の行として持つ
  */
 const cartKey = (productId: string, options: NigiriOptions, takeout = false) =>
-  `${productId}-${options.tororo}${options.eggYolk ? '-egg' : ''}${takeout ? '-takeout' : ''}`
+  `${productId}-${options.tororo}${options.eggYolk ? '-egg' : ''}${options.large ? '-large' : ''}${takeout ? '-takeout' : ''}`
 const drinkKey = (productId: string) => `${productId}-drink`
 
 export default function OrderUI({ tableId, lineUserId, partySize, buildCompleteHref }: Props) {
@@ -152,6 +153,7 @@ export default function OrderUI({ tableId, lineUserId, partySize, buildCompleteH
           quantity: 1,
           with_topping: options.tororo,
           with_egg_yolk: options.eggYolk,
+          with_large: options.large,
           ...(takeout ? { is_takeout: true } : {}),
         })
       }
@@ -233,7 +235,7 @@ export default function OrderUI({ tableId, lineUserId, partySize, buildCompleteH
       ? drinkKey(item.product.id)
       : cartKey(
           item.product.id,
-          { tororo: item.with_topping, eggYolk: !!item.with_egg_yolk },
+          optionsOfItem(item),
           !!item.is_takeout,
         )
 
@@ -280,6 +282,7 @@ export default function OrderUI({ tableId, lineUserId, partySize, buildCompleteH
             unit_price: getLunchPlateSurcharge(product),
             with_topping: unit.tororo,
             with_egg_yolk: !!unit.eggYolk,
+            with_large: !!unit.large,
             timing: null,
             lunch_plate_index: plateIndex,
           }]
@@ -301,6 +304,7 @@ export default function OrderUI({ tableId, lineUserId, partySize, buildCompleteH
               unit_price: item.product.price,
               with_topping: item.with_topping,
               with_egg_yolk: !!item.with_egg_yolk,
+              with_large: !!item.with_large,
               timing: item.timing ?? null,
               ...(item.is_takeout ? { is_takeout: true } : {}),
             })),

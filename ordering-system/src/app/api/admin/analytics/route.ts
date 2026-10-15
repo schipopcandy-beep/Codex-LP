@@ -74,6 +74,7 @@ export async function GET(req: NextRequest) {
         quantity,
         with_topping,
         with_egg_yolk,
+        with_large,
         lunch_plate_index,
         product:products ( id, name, category )
       )
@@ -106,7 +107,7 @@ export async function GET(req: NextRequest) {
     weatherQuery,
     supabase
       .from('orders')
-      .select('id, party_size, order_items(unit_price, quantity, with_topping, with_egg_yolk)')
+      .select('id, party_size, order_items(unit_price, quantity, with_topping, with_egg_yolk, with_large)')
       .eq('status', 'paid')
       .gte('created_at', prevFromUtc)
       .lt('created_at', prevToUtc),
@@ -173,7 +174,7 @@ export async function GET(req: NextRequest) {
   let prevOrderCount = 0
   for (const order of prevOrdersResult.data ?? []) {
     prevOrderCount++
-    for (const item of (order as { order_items?: { unit_price: number; quantity: number; with_topping: boolean; with_egg_yolk?: boolean }[] }).order_items ?? []) {
+    for (const item of (order as { order_items?: { unit_price: number; quantity: number; with_topping: boolean; with_egg_yolk?: boolean; with_large?: boolean }[] }).order_items ?? []) {
       const tc = optionPrice(item)
       prevRevenue += (item.unit_price + tc) * item.quantity
     }

@@ -9,6 +9,8 @@ import {
   TOPPING_CART_LABEL,
   EGG_YOLK_PRICE,
   EGG_YOLK_CART_LABEL,
+  LARGE_PRICE,
+  LARGE_CART_LABEL,
 } from '@/lib/types'
 
 interface Props {
@@ -41,7 +43,7 @@ export default function LunchPlateSelector({
 
   const addUnit = (productId: string) => {
     if (!canAdd) return
-    onChange([...units, { productId, tororo: false, eggYolk: false }])
+    onChange([...units, { productId, tororo: false, eggYolk: false, large: false }])
   }
 
   const removeUnit = (productId: string) => {
@@ -52,7 +54,7 @@ export default function LunchPlateSelector({
     onChange(units.filter((_, i) => i !== realIdx))
   }
 
-  const toggleOption = (index: number, key: 'tororo' | 'eggYolk') => {
+  const toggleOption = (index: number, key: 'tororo' | 'eggYolk' | 'large') => {
     onChange(units.map((u, i) => (i === index ? { ...u, [key]: !u[key] } : u)))
   }
 
@@ -122,6 +124,7 @@ export default function LunchPlateSelector({
             const product = products.find((p) => p.id === unit.productId)
             if (!product || !isToppingSelectable(product)) return null
             const optionRows = [
+              { key: 'large' as const, label: LARGE_CART_LABEL, price: LARGE_PRICE, soldOut: optionSoldOut.large },
               { key: 'tororo' as const, label: TOPPING_CART_LABEL, price: TOPPING_PRICE, soldOut: optionSoldOut.tororo },
               { key: 'eggYolk' as const, label: EGG_YOLK_CART_LABEL, price: EGG_YOLK_PRICE, soldOut: optionSoldOut.egg_yolk },
             ]

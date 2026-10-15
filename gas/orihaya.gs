@@ -30,6 +30,7 @@
 const CONFIG = {
   TOPPING_PRICE: 50,     // とろろ昆布に変更
   EGG_YOLK_PRICE: 100,   // 漬け卵黄を追加
+  LARGE_PRICE: 300,      // 大満足120%おにぎりにする
   FOLLOW_UP_MESSAGE: '先日は織はやにご来店いただきありがとうございました😊\nまたのご来店をお待ちしております！',
   SALES_DAYS: 30,        // 日次販売数の集計期間（日）
   SUMMARY_DAYS: 92,      // 日次サマリーの集計期間（日）約3ヶ月
@@ -58,7 +59,7 @@ function buildFollowUpMessages() {
 
 /** 明細1行のオプション追加料金（とろろ昆布 +50円・漬け卵黄 +100円） */
 function optionPrice(item) {
-  return (item.with_topping ? CONFIG.TOPPING_PRICE : 0) + (item.with_egg_yolk ? CONFIG.EGG_YOLK_PRICE : 0)
+  return (item.with_topping ? CONFIG.TOPPING_PRICE : 0) + (item.with_egg_yolk ? CONFIG.EGG_YOLK_PRICE : 0) + (item.with_large ? CONFIG.LARGE_PRICE : 0)
 }
 
 function getProps() {
@@ -234,7 +235,7 @@ function exportHistoryForMonth(kind, offsetMonths) {
   const prefix    = isTakeout ? 'テイクアウト履歴' : '店内注文履歴'
 
   const data = supabaseGetAll('orders', [
-    ['select',     'id,created_at,pickup_at,table_id,order_items(unit_price,quantity,with_topping,with_egg_yolk,products(name))'],
+    ['select',     'id,created_at,pickup_at,table_id,order_items(unit_price,quantity,with_topping,with_egg_yolk,with_large,products(name))'],
     ['table_id',   isTakeout ? 'eq.takeout' : 'neq.takeout'],
     ['status',     'eq.paid'],
     ['created_at', `gte.${month.startUtc}`],
@@ -414,7 +415,7 @@ function exportDailySummary() {
   const { start: fromUtc } = utcRangeForJstDay(fromJst)
 
   const data = supabaseGetAll('orders', [
-    ['select',     'created_at,table_id,party_size,order_items(unit_price,quantity,with_topping,with_egg_yolk,products(name))'],
+    ['select',     'created_at,table_id,party_size,order_items(unit_price,quantity,with_topping,with_egg_yolk,with_large,products(name))'],
     ['status',     'eq.paid'],
     ['created_at', `gte.${fromUtc}`],
     ['order',      'created_at.asc'],
@@ -547,7 +548,7 @@ function exportSalesAnalysis() {
 
   // 日次売上
   const orders = supabaseGet('orders', [
-    ['select',     'created_at,order_items(unit_price,quantity,with_topping,with_egg_yolk)'],
+    ['select',     'created_at,order_items(unit_price,quantity,with_topping,with_egg_yolk,with_large)'],
     ['status',     'eq.paid'],
     ['created_at', 'gte.' + fromUtc],
     ['order',      'created_at.asc'],
@@ -673,7 +674,7 @@ function exportSalesForecast() {
   const { start: histFromUtc } = utcRangeForJstDay(histFromJst)
 
   const histOrders = supabaseGet('orders', [
-    ['select',     'created_at,order_items(unit_price,quantity,with_topping,with_egg_yolk)'],
+    ['select',     'created_at,order_items(unit_price,quantity,with_topping,with_egg_yolk,with_large)'],
     ['status',     'eq.paid'],
     ['created_at', 'gte.' + histFromUtc],
   ])

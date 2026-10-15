@@ -4,13 +4,16 @@ import { useState } from 'react'
 import Image from 'next/image'
 import type { NigiriOptions, OptionSoldOut, Product } from '@/lib/types'
 import {
+  ALL_OPTION_COMBOS,
   EGG_YOLK_CHANGE_LABEL,
-  EGG_YOLK_NAME,
   EGG_YOLK_PRICE,
+  LARGE_CHANGE_LABEL,
+  LARGE_PRICE,
+  NO_OPTIONS,
   NO_OPTION_SOLD_OUT,
   TOPPING_CHANGE_LABEL,
-  TOPPING_NAME,
   TOPPING_PRICE,
+  comboLabel,
   isLunchPlate,
   isToppingSelectable,
 } from '@/lib/types'
@@ -26,12 +29,10 @@ interface Props {
 }
 
 /** オプションの組み合わせ（内訳の表示順） */
-const OPTION_COMBOS: { options: NigiriOptions; label: string }[] = [
-  { options: { tororo: false, eggYolk: false }, label: 'そのまま' },
-  { options: { tororo: true, eggYolk: false }, label: TOPPING_NAME },
-  { options: { tororo: false, eggYolk: true }, label: EGG_YOLK_NAME },
-  { options: { tororo: true, eggYolk: true }, label: `${TOPPING_NAME}＋${EGG_YOLK_NAME}` },
-]
+const OPTION_COMBOS: { options: NigiriOptions; label: string }[] = ALL_OPTION_COMBOS.map((options) => ({
+  options,
+  label: comboLabel(options),
+}))
 
 export default function ProductCard({
   product,
@@ -44,21 +45,24 @@ export default function ProductCard({
   const hasOptions = isToppingSelectable(product) && !isSoldOut
   const tororoAvailable = hasOptions && !optionSoldOut.tororo
   const eggYolkAvailable = hasOptions && !optionSoldOut.egg_yolk
+  const largeAvailable = hasOptions && !optionSoldOut.large
 
   /** 「追加する」で付けるオプション（追加する前から選べる） */
   const [tororoChecked, setTororoChecked] = useState(false)
   const [eggYolkChecked, setEggYolkChecked] = useState(false)
+  const [largeChecked, setLargeChecked] = useState(false)
 
   /** 増減ボタンの対象。売り切れになったオプションは付けない */
   const target: NigiriOptions = {
     tororo: tororoAvailable && tororoChecked,
     eggYolk: eggYolkAvailable && eggYolkChecked,
+    large: largeAvailable && largeChecked,
   }
   const targetQuantity = getQuantity(target)
 
   const combos = hasOptions
     ? OPTION_COMBOS.map((c) => ({ ...c, quantity: getQuantity(c.options) }))
-    : [{ ...OPTION_COMBOS[0], quantity: getQuantity(OPTION_COMBOS[0].options) }]
+    : [{ options: NO_OPTIONS, label: comboLabel(NO_OPTIONS), quantity: getQuantity(NO_OPTIONS) }]
   const totalQuantity = combos.reduce((sum, c) => sum + c.quantity, 0)
   const orderedCombos = combos.filter((c) => c.quantity > 0)
 
@@ -141,6 +145,13 @@ export default function ProductCard({
         {/* オプション（追加する前から選べる） */}
         {hasOptions && (
           <div className="mt-1 space-y-1">
+            <OptionCheckbox
+              checked={largeChecked}
+              onChange={setLargeChecked}
+              available={largeAvailable}
+              label={LARGE_CHANGE_LABEL}
+              price={LARGE_PRICE}
+            />
             <OptionCheckbox
               checked={tororoChecked}
               onChange={setTororoChecked}
