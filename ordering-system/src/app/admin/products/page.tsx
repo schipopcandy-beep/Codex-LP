@@ -4,6 +4,7 @@ import { useEffect, useState, useCallback } from 'react'
 import Image from 'next/image'
 import type { OptionKey, OptionSoldOut, Product } from '@/lib/types'
 import type { StockKey, StockStatus } from '@/lib/stock'
+import { useConfirm } from '@/components/admin/useConfirm'
 import {
   LOW_STOCK_THRESHOLD,
   LUNCH_PLATE_STOCK_KEY,
@@ -60,6 +61,7 @@ export default function SoldOutAdminPage() {
   const [optionSoldOut, setOptionSoldOut] = useState<OptionSoldOut>(NO_OPTION_SOLD_OUT)
   const [loading, setLoading] = useState(true)
   const [updating, setUpdating] = useState<string | null>(null)
+  const [confirm, confirmDialog] = useConfirm()
   /** 仕込み数を入れる日（今日・明日） */
   const [stockDay, setStockDay] = useState<0 | 1>(0)
   const [stock, setStock] = useState<Map<string, StockStatus>>(new Map())
@@ -173,7 +175,7 @@ export default function SoldOutAdminPage() {
     const message = isSoldOut
       ? 'おにぎりをすべて「売り切れ」にします。よろしいですか？'
       : 'おにぎりをすべて「販売中」に戻します。よろしいですか？'
-    if (!window.confirm(message)) return
+    if (!(await confirm(message))) return
 
     setUpdating('bulk')
     const res = await fetch('/api/admin/products/bulk-sold-out', {
@@ -393,6 +395,7 @@ export default function SoldOutAdminPage() {
           )}
         </>
       )}
+      {confirmDialog}
     </div>
   )
 }

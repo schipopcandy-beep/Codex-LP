@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback } from 'react'
 import Link from 'next/link'
+import { useConfirm } from '@/components/admin/useConfirm'
 
 interface Event {
   id: string
@@ -26,6 +27,7 @@ export default function EventsPage() {
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [showForm, setShowForm] = useState(false)
+  const [confirm, confirmDialog] = useConfirm()
   const [form, setForm] = useState({ name: '', date: '', end_date: '', location: '', scale: 3, note: '' })
 
   const fetchEvents = useCallback(async () => {
@@ -59,7 +61,7 @@ export default function EventsPage() {
   }
 
   const deleteEvent = async (id: string) => {
-    if (!confirm('削除しますか？')) return
+    if (!(await confirm('このイベントを削除しますか？', { confirmLabel: '削除する', danger: true }))) return
     await fetch(`/api/admin/events/${id}`, { method: 'DELETE' })
     await fetchEvents()
   }
@@ -184,6 +186,7 @@ export default function EventsPage() {
           )}
         </div>
       )}
+      {confirmDialog}
     </div>
   )
 }

@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import type { Order, OrderItem, Product } from '@/lib/types'
+import { useConfirm } from '@/components/admin/useConfirm'
 import {
   EGG_YOLK_CART_LABEL,
   EGG_YOLK_PRICE,
@@ -43,6 +44,7 @@ async function callApi(url: string, method: string, body?: unknown): Promise<boo
 export default function OrderEditPanel({ order, onChanged }: Props) {
   const [open, setOpen] = useState(false)
   const [busy, setBusy] = useState<string | null>(null)
+  const [confirm, confirmDialog] = useConfirm()
   const [products, setProducts] = useState<Product[]>([])
 
   // 追加する商品の入力
@@ -93,12 +95,12 @@ export default function OrderEditPanel({ order, onChanged }: Props) {
   const patchItem = (item: OrderItem, body: Record<string, unknown>) =>
     run(item.id, () => callApi(`/api/admin/order-items/${item.id}`, 'PATCH', body))
 
-  const deleteItem = (item: OrderItem) => {
+  const deleteItem = async (item: OrderItem) => {
     const plateNigiri = (plateGroups.get(item.id) ?? []).flat()
     const message = plateNigiri.length
       ? `「${item.product?.name}」と中のおにぎりを削除しますか？`
       : `「${item.product?.name ?? 'この商品'}」を削除しますか？`
-    if (!window.confirm(message)) return
+    if (!(await confirm(message, { confirmLabel: '削除する', danger: true }))) return
     run(item.id, async () => {
       for (const n of plateNigiri) {
         if (!(await callApi(`/api/admin/order-items/${n.id}`, 'DELETE'))) return false
@@ -345,6 +347,7 @@ export default function OrderEditPanel({ order, onChanged }: Props) {
           </div>
         )}
       </div>
+      {confirmDialog}
     </div>
   )
 }
