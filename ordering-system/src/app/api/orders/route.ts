@@ -70,16 +70,37 @@ export async function POST(req: NextRequest) {
       .update({ status: 'added', updated_at: new Date().toISOString() })
       .eq('id', orderId)
   } else {
+    // line_user_id が提供された場合、line_users に存在しなければ先に登録する
+    // （orders.line_user_id の外部キー制約対策。友だち登録していないお客様は未登録のため）
+    if (line_user_id) {
+      await supabase
+        .from('line_users')
+        .upsert(
+          { user_id: line_user_id, is_friend: false, updated_at: new Date().toISOString() },
+          { onConflict: 'user_id', ignoreDuplicates: true },
+        )
+    }
+
     // 新しい伝票を作成
     const newOrderData: Record<string, unknown> = { table_id, status: 'new' }
     if (line_user_id) newOrderData.line_user_id = line_user_id
     if (party_size) newOrderData.party_size = party_size
 
-    const { data: newOrder, error: createError } = await supabase
+    let { data: newOrder, error: createError } = await supabase
       .from('orders')
       .insert(newOrderData)
       .select('id')
       .single()
+
+    // それでもLINEのIDが原因で登録できない場合は、IDなしで伝票を作る（注文を止めない）
+    if (createError?.code === '23503' && newOrderData.line_user_id) {
+      delete newOrderData.line_user_id
+      ;({ data: newOrder, error: createError } = await supabase
+        .from('orders')
+        .insert(newOrderData)
+        .select('id')
+        .single())
+    }
 
     if (createError || !newOrder) {
       return NextResponse.json(
