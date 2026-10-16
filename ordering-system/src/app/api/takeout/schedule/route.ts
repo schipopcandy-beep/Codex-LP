@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { createServiceRoleClient } from '@/lib/supabase/server'
-import { generatePickupSlots, formatScheduleDate, type AvailableDay } from '@/lib/types'
+import { TAKEOUT_LEAD_MINUTES, generatePickupSlots, formatScheduleDate, type AvailableDay } from '@/lib/types'
 import { addDays, getEffectiveDays, todayJST } from '@/lib/business-hours'
 
 /** JST の現在時刻を HH:MM で返す */
@@ -30,9 +30,9 @@ export async function GET() {
 
     let slots = generatePickupSlots(day.open_time, day.close_time)
 
-    // 今日の場合: 現在時刻 + 60分 以降のスロットのみ
+    // 今日の場合: 現在時刻 + TAKEOUT_LEAD_MINUTES 分 以降のスロットのみ
     if (day.date === today) {
-      const minSlotMin = toMin(nowTime) + 60
+      const minSlotMin = toMin(nowTime) + TAKEOUT_LEAD_MINUTES
       slots = slots.filter((s) => toMin(s) >= minSlotMin)
     }
 
