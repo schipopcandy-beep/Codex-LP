@@ -165,9 +165,11 @@ function ItemLine({ item, batch }: { item: OrderItem; batch: number }) {
   const isDrink = item.product?.category === DRINK_CATEGORY
   const timingLabel = isDrink && item.timing ? DRINK_TIMING_LABELS[item.timing] : null
   const batchLabel = orderBatchLabel(batch)
+  // 2個以上は見落とさないよう赤字にする
+  const isMultiple = item.quantity >= 2
 
   return (
-    <p className="text-sm text-brown-600 flex justify-between">
+    <p className={`text-sm flex justify-between ${isMultiple ? 'text-red-600 font-bold' : 'text-brown-600'}`}>
       <span>
         {batchLabel && (
           <span className="text-rose-600 font-bold mr-1">［{batchLabel}］</span>
@@ -179,7 +181,7 @@ function ItemLine({ item, batch }: { item: OrderItem; batch: number }) {
         {timingLabel && (
           <span className="text-blue-600 ml-1">（{timingLabel}）</span>
         )}
-        <span className="text-brown-400 ml-1">×{item.quantity}</span>
+        <span className={isMultiple ? 'ml-1 text-base' : 'text-brown-400 ml-1'}>×{item.quantity}</span>
       </span>
       <span className="tabular-nums">
         ¥{((item.unit_price + (optionPrice(item))) * item.quantity).toLocaleString()}

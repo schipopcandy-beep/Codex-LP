@@ -241,8 +241,8 @@ export default function OrderDetailPage({ params }: Props) {
               <div key={item.id}>
                 <div className="flex justify-between items-start">
                   <div className="flex-1">
-                    <p className="text-base font-bold text-brown-800">{item.product?.name ?? 'ランチプレート'}</p>
-                    <p className="text-sm text-brown-400">¥{item.unit_price.toLocaleString()} × {item.quantity}</p>
+                    <p className={`text-base font-bold ${item.quantity >= 2 ? 'text-red-600' : 'text-brown-800'}`}>{item.product?.name ?? 'ランチプレート'}</p>
+                    <p className="text-sm text-brown-400">¥{item.unit_price.toLocaleString()} × <span className={item.quantity >= 2 ? 'text-red-600 font-bold text-base' : ''}>{item.quantity}</span></p>
                   </div>
                   <p className="font-bold text-brown-700 text-base tabular-nums whitespace-nowrap pl-2">
                     ¥{subtotal.toLocaleString()}
@@ -272,7 +272,7 @@ export default function OrderDetailPage({ params }: Props) {
                                 <span className="text-amber-600 ml-1 text-xs">+¥{surcharge}</span>
                               )}
                               {n.quantity > 1 && (
-                                <span className="text-brown-400 ml-1">×{n.quantity}</span>
+                                <span className="text-red-600 font-bold ml-1">×{n.quantity}</span>
                               )}
                             </p>
                           )
@@ -307,7 +307,7 @@ export default function OrderDetailPage({ params }: Props) {
                 return (
                   <div key={item.id} className="flex justify-between items-start mb-2">
                     <div className="flex-1">
-                      <p className="text-base font-bold text-brown-800">
+                      <p className={`text-base font-bold ${item.quantity >= 2 ? 'text-red-600' : 'text-brown-800'}`}>
                         {item.product?.name ?? '不明商品'}
                         {timingLabel && (
                           <span className="ml-2 text-xs font-semibold px-2 py-0.5 rounded-full bg-blue-100 text-blue-700">
@@ -315,7 +315,7 @@ export default function OrderDetailPage({ params }: Props) {
                           </span>
                         )}
                       </p>
-                      <p className="text-sm text-brown-400">¥{item.unit_price.toLocaleString()} × {item.quantity}</p>
+                      <p className="text-sm text-brown-400">¥{item.unit_price.toLocaleString()} × <span className={item.quantity >= 2 ? 'text-red-600 font-bold text-base' : ''}>{item.quantity}</span></p>
                     </div>
                     <p className="font-bold text-brown-700 text-base tabular-nums whitespace-nowrap pl-2">
                       ¥{subtotal.toLocaleString()}
@@ -379,7 +379,7 @@ function ItemRow({ item, batch = 0 }: { item: OrderItem; batch?: number }) {
   return (
     <div className="flex justify-between items-start">
       <div className="flex-1">
-        <p className="text-base font-bold text-brown-800">
+        <p className={`text-base font-bold ${item.quantity >= 2 ? 'text-red-600' : 'text-brown-800'}`}>
           {batchLabel && (
             <span className="text-sm text-rose-600 mr-1">［{batchLabel}］</span>
           )}
@@ -389,7 +389,8 @@ function ItemRow({ item, batch = 0 }: { item: OrderItem; batch?: number }) {
           <p className="text-sm text-brown-400">（{optionLabel(item)}）</p>
         )}
         <p className="text-sm text-brown-400">
-          ¥{(item.unit_price + toppingCost).toLocaleString()} × {item.quantity}
+          ¥{(item.unit_price + toppingCost).toLocaleString()} ×{' '}
+          <span className={item.quantity >= 2 ? 'text-red-600 font-bold text-base' : ''}>{item.quantity}</span>
         </p>
       </div>
       <p className="font-bold text-brown-700 text-base tabular-nums whitespace-nowrap pl-2">
