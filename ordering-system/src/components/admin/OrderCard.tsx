@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import CustomerFeatures from '@/components/admin/CustomerFeatures'
 import Link from 'next/link'
 import type { Order, OrderItem, OrderStatus } from '@/lib/types'
 import {
@@ -97,6 +98,7 @@ export default function OrderCard({ order, onStatusChanged }: Props) {
             {order.customer_name && (
               <p className="text-lg font-bold text-brown-800">{order.customer_name} 様</p>
             )}
+            <CustomerFeatures features={order.customer_features} />
           </div>
         )}
 
