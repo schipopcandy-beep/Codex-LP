@@ -229,7 +229,7 @@ export default function TakeoutCart({
               <div className={`border-t border-cream-300 pt-4 ${isSeatOrder ? 'hidden' : ''}`}>
                 <p className="font-bold text-brown-700 mb-1">受取日時を選択</p>
                 <p className="text-xs text-brown-400 mb-3">
-                  ※ 注文から1時間後以降の時間帯のみ選択できます
+                  ※ 注文から30分後以降の時間帯のみ選択できます
                 </p>
                 <PickupDateTimePicker
                   selectedDate={pickupDate}
