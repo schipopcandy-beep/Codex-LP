@@ -16,7 +16,7 @@ export async function GET(req: NextRequest) {
 }
 
 /** 仕込み数を数える単位として受け付けるキー */
-const STOCK_KEY_RE = /^(product:[0-9a-f-]{36}|group:lunch_plate|option:(tororo|egg_yolk))$/
+const STOCK_KEY_RE = /^(product:[0-9a-f-]{36}|group:(lunch_plate|all_onigiri)|option:(tororo|egg_yolk))$/
 
 /**
  * 管理用: 仕込み数を登録・変更する

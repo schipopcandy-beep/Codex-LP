@@ -1,6 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import {
   LUNCH_PLATE_NAME_PREFIX,
+  NIGIRI_CATEGORY,
   OPTION_NAMES,
   TAKEOUT_TABLE_ID,
   type OptionKey,
@@ -15,9 +16,11 @@ export const LOW_STOCK_THRESHOLD = 5
  * - 商品ごと:            "product:<商品ID>"
  * - ランチプレート合計:  "group:lunch_plate"（1個用・2個用をまとめて数える）
  * - オプション:          "option:egg_yolk" など（付けた数を数える）
+ * - おにぎり全体:        "group:all_onigiri"（単品とランチプレートの中のおにぎりをすべて合わせて数える）
  */
 export type StockKey = string
 export const LUNCH_PLATE_STOCK_KEY: StockKey = 'group:lunch_plate'
+export const ALL_ONIGIRI_STOCK_KEY: StockKey = 'group:all_onigiri'
 export const productStockKey = (productId: string): StockKey => `product:${productId}`
 export const optionStockKey = (key: OptionKey): StockKey => `option:${key}`
 
@@ -39,10 +42,21 @@ interface CountableItem {
   with_egg_yolk?: boolean | null
 }
 
-/** ランチプレートの商品ID（1個用・2個用） */
-export async function getLunchPlateIds(supabase: SupabaseClient): Promise<Set<string>> {
-  const { data } = await supabase.from('products').select('id').like('name', `${LUNCH_PLATE_NAME_PREFIX}%`)
-  return new Set(((data ?? []) as { id: string }[]).map((p) => p.id))
+/** 数え方に必要な商品の分類 */
+export interface StockContext {
+  /** ランチプレートの商品ID（1個用・2個用） */
+  lunchPlateIds: Set<string>
+  /** おにぎりの商品ID（「おにぎり全体」で数える） */
+  onigiriIds: Set<string>
+}
+
+export async function getStockContext(supabase: SupabaseClient): Promise<StockContext> {
+  const { data } = await supabase.from('products').select('id, name, category')
+  const products = (data ?? []) as { id: string; name: string; category: string }[]
+  return {
+    lunchPlateIds: new Set(products.filter((p) => p.name.startsWith(LUNCH_PLATE_NAME_PREFIX)).map((p) => p.id)),
+    onigiriIds: new Set(products.filter((p) => p.category === NIGIRI_CATEGORY).map((p) => p.id)),
+  }
 }
 
 /**
@@ -50,11 +64,12 @@ export async function getLunchPlateIds(supabase: SupabaseClient): Promise<Set<st
  * ランチプレートは合計で数え、オプション（とろろ昆布・漬け卵黄）は付けた数を数える。
  * ランチプレートの中で選んだおにぎりは、そのおにぎりの数に含める。
  */
-export function countByStockKey(items: CountableItem[], lunchPlateIds: Set<string>): Map<StockKey, number> {
+export function countByStockKey(items: CountableItem[], ctx: StockContext): Map<StockKey, number> {
   const counts = new Map<StockKey, number>()
   const add = (key: StockKey, qty: number) => counts.set(key, (counts.get(key) ?? 0) + qty)
   for (const item of items) {
-    add(lunchPlateIds.has(item.product_id) ? LUNCH_PLATE_STOCK_KEY : productStockKey(item.product_id), item.quantity)
+    add(ctx.lunchPlateIds.has(item.product_id) ? LUNCH_PLATE_STOCK_KEY : productStockKey(item.product_id), item.quantity)
+    if (ctx.onigiriIds.has(item.product_id)) add(ALL_ONIGIRI_STOCK_KEY, item.quantity)
     if (item.with_topping) add(optionStockKey('tororo'), item.quantity)
     if (item.with_egg_yolk) add(optionStockKey('egg_yolk'), item.quantity)
   }
@@ -68,10 +83,10 @@ export function countByStockKey(items: CountableItem[], lunchPlateIds: Set<strin
 export function increasedByStockKey(
   before: CountableItem[],
   after: CountableItem[],
-  lunchPlateIds: Set<string>,
+  ctx: StockContext,
 ): Map<StockKey, number> {
-  const b = countByStockKey(before, lunchPlateIds)
-  const a = countByStockKey(after, lunchPlateIds)
+  const b = countByStockKey(before, ctx)
+  const a = countByStockKey(after, ctx)
   const result = new Map<StockKey, number>()
   for (const [key, qty] of a) {
     const diff = qty - (b.get(key) ?? 0)
@@ -98,7 +113,7 @@ export async function getOrderedCounts(
   const { start, end } = utcRangeOf(date)
   const select = 'id, order_items(product_id, quantity, with_topping, with_egg_yolk)'
 
-  const [eatin, takeoutByPickup, takeoutNoPickup, lunchPlateIds] = await Promise.all([
+  const [eatin, takeoutByPickup, takeoutNoPickup, ctx] = await Promise.all([
     supabase.from('orders').select(select).neq('table_id', TAKEOUT_TABLE_ID).gte('created_at', start).lt('created_at', end),
     supabase.from('orders').select(select).eq('table_id', TAKEOUT_TABLE_ID).like('pickup_at', `${date}%`),
     supabase
@@ -108,7 +123,7 @@ export async function getOrderedCounts(
       .is('pickup_at', null)
       .gte('created_at', start)
       .lt('created_at', end),
-    getLunchPlateIds(supabase),
+    getStockContext(supabase),
   ])
 
   const items: CountableItem[] = []
@@ -117,12 +132,13 @@ export async function getOrderedCounts(
       items.push(...(order.order_items ?? []))
     }
   }
-  return countByStockKey(items, lunchPlateIds)
+  return countByStockKey(items, ctx)
 }
 
 /** 単位の表示名 */
 function labelOf(key: StockKey, productNames: Map<string, string>): string {
   if (key === LUNCH_PLATE_STOCK_KEY) return 'ランチプレート（1個・2個の合計）'
+  if (key === ALL_ONIGIRI_STOCK_KEY) return 'おにぎり（全体）'
   if (key.startsWith('option:')) return OPTION_NAMES[key.slice('option:'.length) as OptionKey] ?? key
   return productNames.get(key.slice('product:'.length)) ?? '不明'
 }
@@ -229,9 +245,9 @@ export async function syncAutoSoldOut(supabase: SupabaseClient, date: string = t
   const statuses = await getStockStatus(supabase, date)
   if (statuses.length === 0) return
 
-  const [{ data: rows }, lunchPlateIds] = await Promise.all([
+  const [{ data: rows }, { lunchPlateIds }] = await Promise.all([
     supabase.from('stock_counts').select('stock_key, auto_sold_out').eq('date', date),
-    getLunchPlateIds(supabase),
+    getStockContext(supabase),
   ])
   const autoMap = new Map(
     ((rows ?? []) as { stock_key: string; auto_sold_out: boolean }[]).map((r) => [r.stock_key, r.auto_sold_out]),
@@ -245,6 +261,8 @@ export async function syncAutoSoldOut(supabase: SupabaseClient, date: string = t
       .eq('stock_key', key)
 
   for (const s of statuses) {
+    // 「おにぎり全体」は商品ごとの売り切れ設定を変えずに、表示のときに売り切れ扱いにする（isAllOnigiriSoldOut）
+    if (s.stock_key === ALL_ONIGIRI_STOCK_KEY) continue
     const target = await soldOutTargets(supabase, s.stock_key, lunchPlateIds)
     if (s.remaining <= 0 && !target.isSoldOut) {
       await target.set(true)
@@ -254,6 +272,25 @@ export async function syncAutoSoldOut(supabase: SupabaseClient, date: string = t
       await setAuto(s.stock_key, false)
     }
   }
+}
+
+/**
+ * 「おにぎり全体」の残りが0になっているか（今日）
+ * なっていれば、おにぎりとランチプレートをすべて売り切れとして表示する。
+ * 商品ごとの売り切れ設定は変えないので、仕込み数を増やせば元の状態に戻る。
+ */
+export async function isAllOnigiriSoldOut(supabase: SupabaseClient): Promise<boolean> {
+  const date = todayJST()
+  // 仕込み数を入れていなければ数えない（お客様の画面のたびに呼ばれるので、先に確認する）
+  const { data } = await supabase
+    .from('stock_counts')
+    .select('prepared_qty')
+    .eq('date', date)
+    .eq('stock_key', ALL_ONIGIRI_STOCK_KEY)
+    .maybeSingle()
+  if (!data) return false
+  const ordered = await getOrderedCounts(supabase, date)
+  return (data as { prepared_qty: number }).prepared_qty - (ordered.get(ALL_ONIGIRI_STOCK_KEY) ?? 0) <= 0
 }
 
 /**

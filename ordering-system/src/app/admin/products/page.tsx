@@ -7,6 +7,7 @@ import type { StockKey, StockStatus } from '@/lib/stock'
 import { useConfirm } from '@/components/admin/useConfirm'
 import {
   LOW_STOCK_THRESHOLD,
+  ALL_ONIGIRI_STOCK_KEY,
   LUNCH_PLATE_STOCK_KEY,
   optionStockKey,
   productStockKey,
@@ -70,7 +71,8 @@ export default function SoldOutAdminPage() {
 
   const fetchAll = useCallback(async () => {
     const [productsRes, optionsRes] = await Promise.all([
-      fetch('/api/products'),
+      // 商品ごとの売り切れ設定をそのまま見る（おにぎり全体の売り切れは別の枠で表示する）
+      fetch('/api/products?raw=1'),
       fetch('/api/options'),
     ])
     if (productsRes.ok) setProducts(await productsRes.json())
@@ -316,6 +318,22 @@ export default function SoldOutAdminPage() {
         </div>
       ) : (
         <>
+          {/* おにぎり全体（単品・ランチプレートの中のおにぎりをすべて合わせて数える） */}
+          <section className="card p-4 space-y-2 border-2 border-brown-300">
+            <div>
+              <h2 className="font-bold text-lg text-brown-800">おにぎり（全体）</h2>
+              <p className="text-xs text-brown-400">
+                あと何個作れるかを入れます。単品とランチプレートの中のおにぎりを合わせて数え、残りが0になると、おにぎりとランチプレートがすべて売り切れになります（仕込み数を増やすか空欄にすると元に戻ります）
+              </p>
+            </div>
+            {renderPrepInput(ALL_ONIGIRI_STOCK_KEY)}
+            {stockDay === 0 && (stock.get(ALL_ONIGIRI_STOCK_KEY)?.remaining ?? 1) <= 0 && (
+              <p className="rounded-xl border border-red-300 bg-red-50 px-3 py-2 text-sm font-bold text-red-700">
+                使い切りました。お客様の画面では、おにぎりとランチプレートがすべて売り切れになっています
+              </p>
+            )}
+          </section>
+
           {/* おにぎり */}
           <section className="space-y-3">
             <div className="flex items-center justify-between gap-3 flex-wrap">
