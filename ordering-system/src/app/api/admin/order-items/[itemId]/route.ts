@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServiceRoleClient } from '@/lib/supabase/server'
 import { getLunchPlateSurcharge, isToppingSelectable, type Product } from '@/lib/types'
-import { checkStock, getLunchPlateIds, increasedByStockKey, stockDateFor, syncAutoSoldOut } from '@/lib/stock'
+import { checkStock, getStockContext, increasedByStockKey, stockDateFor, syncAutoSoldOut } from '@/lib/stock'
 
 interface Params {
   params: Promise<{ itemId: string }>
@@ -83,7 +83,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     with_topping: typeof body.with_topping === 'boolean' ? body.with_topping : item.with_topping,
     with_egg_yolk: typeof body.with_egg_yolk === 'boolean' ? body.with_egg_yolk : !!item.with_egg_yolk,
   }
-  const requested = increasedByStockKey([item], [after], await getLunchPlateIds(supabase))
+  const requested = increasedByStockKey([item], [after], await getStockContext(supabase))
   const shortage = await checkStock(supabase, stockDateFor(item.order), requested)
   if (shortage) return NextResponse.json({ error: shortage }, { status: 409 })
 

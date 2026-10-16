@@ -1,7 +1,15 @@
-import { NextResponse } from 'next/server'
-import { createClient } from '@/lib/supabase/server'
+import { NextRequest, NextResponse } from 'next/server'
+import { createClient, createServiceRoleClient } from '@/lib/supabase/server'
+import { isAllOnigiriSoldOut } from '@/lib/stock'
+import { NIGIRI_CATEGORY, isLunchPlate, type Product } from '@/lib/types'
 
-export async function GET() {
+/**
+ * 商品一覧
+ * 「おにぎり（全体）」の仕込み数を使い切ったときは、おにぎりとランチプレートを売り切れとして返す。
+ * ?raw=1 のときは商品ごとの売り切れ設定をそのまま返す（管理画面の売り切れ設定用）
+ */
+export async function GET(req: NextRequest) {
+  const raw = req.nextUrl.searchParams.get('raw') === '1'
   const supabase = await createClient()
 
   const { data, error } = await supabase
@@ -21,6 +29,14 @@ export async function GET() {
     seen.add(key)
     return true
   })
+
+  if (!raw && (await isAllOnigiriSoldOut(createServiceRoleClient()).catch(() => false))) {
+    return NextResponse.json(
+      unique.map((p) =>
+        p.category === NIGIRI_CATEGORY || isLunchPlate(p as Product) ? { ...p, is_sold_out: true } : p,
+      ),
+    )
+  }
 
   return NextResponse.json(unique)
 }

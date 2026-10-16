@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server'
 import { createServiceRoleClient } from '@/lib/supabase/server'
 import { todayJST } from '@/lib/business-hours'
 import { getOptionSoldOut } from '@/lib/options'
-import { getStockStatus, LOW_STOCK_THRESHOLD } from '@/lib/stock'
+import { ALL_ONIGIRI_STOCK_KEY, getStockStatus, LOW_STOCK_THRESHOLD } from '@/lib/stock'
 import { OPTION_NAMES, type OptionKey } from '@/lib/types'
 
 /**
@@ -26,6 +26,10 @@ export async function GET() {
     .map((s) => ({ name: s.label, remaining: s.remaining }))
 
   const soldOut = [
+    // おにぎり全体を使い切ったときは、おにぎり・ランチプレートがすべて売り切れ扱いになる
+    ...stock
+      .filter((s) => s.stock_key === ALL_ONIGIRI_STOCK_KEY && s.remaining <= 0)
+      .map(() => 'おにぎり（全体）→ おにぎり・ランチプレートすべて'),
     ...soldOutNames,
     ...(Object.keys(optionSoldOut) as OptionKey[]).filter((k) => optionSoldOut[k]).map((k) => OPTION_NAMES[k]),
   ]

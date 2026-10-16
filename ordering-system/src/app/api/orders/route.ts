@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServiceRoleClient } from '@/lib/supabase/server'
-import { checkStock, countByStockKey, getLunchPlateIds, syncAutoSoldOut } from '@/lib/stock'
+import { checkStock, countByStockKey, getStockContext, syncAutoSoldOut } from '@/lib/stock'
 import { todayJST } from '@/lib/business-hours'
 
 interface OrderRequestBody {
@@ -41,7 +41,7 @@ export async function POST(req: NextRequest) {
   const shortage = await checkStock(
     supabase,
     todayJST(),
-    countByStockKey(items, await getLunchPlateIds(supabase)),
+    countByStockKey(items, await getStockContext(supabase)),
   )
   if (shortage) return NextResponse.json({ error: shortage }, { status: 409 })
 
