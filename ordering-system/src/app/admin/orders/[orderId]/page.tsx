@@ -85,6 +85,12 @@ export default function OrderDetailPage({ params }: Props) {
     if (await handleStatusChange('paid')) router.push('/admin')
   }
 
+  /** 間違えて会計済みにした注文を、未会計（提供済み）に戻す */
+  const handleUnpaid = async () => {
+    if (!(await confirm('会計済みを取り消して、未会計に戻しますか？', { confirmLabel: '未会計に戻す', danger: true }))) return
+    await handleStatusChange('served')
+  }
+
   if (loading) {
     return (
       <div className="flex items-center justify-center py-20">
@@ -347,8 +353,17 @@ export default function OrderDetailPage({ params }: Props) {
       )}
 
       {order.status === 'paid' && (
-        <div className="text-center py-4 text-brown-400 text-lg">
-          この注文は会計済みです
+        <div className="text-center py-4 space-y-3">
+          <p className="text-brown-400 text-lg">この注文は会計済みです</p>
+          <button
+            type="button"
+            onClick={handleUnpaid}
+            disabled={updating}
+            className="px-5 py-3 rounded-xl border-2 border-red-300 bg-red-50 text-red-700 font-bold disabled:opacity-50"
+          >
+            会計済みを取り消す
+          </button>
+          <p className="text-xs text-brown-400">間違えて会計済みにしたときに使います。注文一覧に戻ります（提供済みの状態）</p>
         </div>
       )}
 
