@@ -6,13 +6,19 @@ import Image from 'next/image'
 import type { NigiriOptions, OptionSoldOut, Product } from '@/lib/types'
 import {
   ALL_OPTION_COMBOS,
+  EGG_YOLK_CHANGE_LABEL,
+  EGG_YOLK_PRICE,
+  LARGE_CHANGE_LABEL,
+  LARGE_PRICE,
+  TOPPING_CHANGE_LABEL,
+  TOPPING_PRICE,
+  comboLabel,
   CUSTOMER_FEATURE_ROWS,
   DRINK_CATEGORY,
   NIGIRI_CATEGORY,
   NO_OPTIONS,
   NO_OPTION_SOLD_OUT,
   TAKEOUT_TABLE_ID,
-  isComboSoldOut,
   isHiddenFromMenu,
   isLunchPlate,
   isToppingSelectable,
@@ -30,12 +36,6 @@ const qtyKey = (productId: string, options: NigiriOptions) =>
   `${productId}-${options.tororo}-${options.eggYolk}-${options.large}`
 
 /** オプションを付けた組み合わせ（「そのまま」以外） */
-const OPTION_COMBOS: { options: NigiriOptions; label: string; soldOut: (s: OptionSoldOut) => boolean }[] =
-  ALL_OPTION_COMBOS.slice(1).map((options) => ({
-    options,
-    label: optionLabel(optionColumns(options)),
-    soldOut: (s) => isComboSoldOut(options, s),
-  }))
 const ALL_COMBOS: NigiriOptions[] = ALL_OPTION_COMBOS
 
 /** 日本時間の今日の日付（YYYY-MM-DD）と現在時刻（HH:MM） */
@@ -64,7 +64,8 @@ export default function TakeoutEntryPage() {
   const [loading, setLoading] = useState(true)
   const [quantities, setQuantities] = useState<Quantities>({})
   /** オプションの入力欄を開いている商品 */
-  const [openOptions, setOpenOptions] = useState<Set<string>>(new Set())
+  /** 商品ごとに、チェックしているオプション（＋−はこの組み合わせを増減する） */
+  const [selectedOptions, setSelectedOptions] = useState<Record<string, NigiriOptions>>({})
   const [customerName, setCustomerName] = useState('')
   /** お客様の特徴（お渡しのときに見分けるため） */
   const [features, setFeatures] = useState<string[]>([])
@@ -154,7 +155,7 @@ export default function TakeoutEntryPage() {
       const { order_id } = await res.json()
       setRegistered(orderShortId(order_id))
       setQuantities({})
-      setOpenOptions(new Set())
+      setSelectedOptions({})
       setCustomerName('')
       setFeatures([])
       setPickupMode('now')
@@ -204,20 +205,26 @@ export default function TakeoutEntryPage() {
   }
 
   const ProductRow = ({ product }: { product: Product }) => {
-    const hasOptions = isToppingSelectable(product)
-    const optionCount = OPTION_COMBOS.reduce(
-      (sum, c) => sum + (quantities[qtyKey(product.id, c.options)] ?? 0),
-      0,
-    )
-    // オプション付きの注文がある商品は、開いたままにする
-    const isOpen = hasOptions && (openOptions.has(product.id) || optionCount > 0)
-    const toggleOpen = () =>
-      setOpenOptions((prev) => {
-        const next = new Set(prev)
-        if (next.has(product.id)) next.delete(product.id)
-        else next.add(product.id)
-        return next
-      })
+    const hasOptions = isToppingSelectable(product) && !product.is_sold_out
+    // お客様の画面と同じく、チェックしたオプションの組み合わせを ＋− で増減する（売り切れのオプションは付けない）
+    const checked = selectedOptions[product.id] ?? NO_OPTIONS
+    const target: NigiriOptions = {
+      tororo: hasOptions && checked.tororo && !optionSoldOut.tororo,
+      eggYolk: hasOptions && checked.eggYolk && !optionSoldOut.egg_yolk,
+      large: hasOptions && checked.large && !optionSoldOut.large,
+    }
+    const toggleOption = (key: keyof NigiriOptions) =>
+      setSelectedOptions((prev) => ({ ...prev, [product.id]: { ...checked, [key]: !checked[key] } }))
+    const optionRows: { key: keyof NigiriOptions; label: string; price: number; soldOut: boolean }[] = [
+      { key: 'large', label: LARGE_CHANGE_LABEL, price: LARGE_PRICE, soldOut: optionSoldOut.large },
+      { key: 'tororo', label: TOPPING_CHANGE_LABEL, price: TOPPING_PRICE, soldOut: optionSoldOut.tororo },
+      { key: 'eggYolk', label: EGG_YOLK_CHANGE_LABEL, price: EGG_YOLK_PRICE, soldOut: optionSoldOut.egg_yolk },
+    ]
+    /** 注文済みの組み合わせの内訳（2種類以上のときに表示） */
+    const ordered = ALL_OPTION_COMBOS.map((options) => ({
+      label: comboLabel(options),
+      quantity: quantities[qtyKey(product.id, options)] ?? 0,
+    })).filter((c) => c.quantity > 0)
 
     return (
       <div className={`py-3 border-b border-cream-200 space-y-2 ${product.is_sold_out ? 'opacity-50' : ''}`}>
@@ -233,34 +240,37 @@ export default function TakeoutEntryPage() {
               {product.is_sold_out && <span className="ml-2 text-xs text-red-600">売り切れ</span>}
             </p>
             <p className="text-sm text-brown-500 tabular-nums">
-              ¥{product.price.toLocaleString()}
-              {hasOptions && !product.is_sold_out && (
-                <button
-                  type="button"
-                  onClick={toggleOpen}
-                  disabled={optionCount > 0}
-                  className="ml-3 text-xs text-brown-500 underline underline-offset-2 disabled:no-underline"
-                >
-                  {isOpen ? 'オプションを閉じる' : 'オプション（大満足120%・とろろ昆布・漬け卵黄）'}
-                </button>
-              )}
+              ¥{(product.price + optionPrice(optionColumns(target))).toLocaleString()}
             </p>
           </div>
-          <Stepper product={product} options={NO_OPTIONS} />
+          <Stepper product={product} options={target} />
         </div>
-        {isOpen &&
-          OPTION_COMBOS.map((c) => {
-            const soldOut = c.soldOut(optionSoldOut)
-            return (
-              <div key={c.label} className="flex items-center justify-between gap-3 pl-3">
-                <p className={`text-sm ${soldOut ? 'text-brown-300' : 'text-brown-500'}`}>
-                  {c.label}（+¥{optionPrice(optionColumns(c.options))}）
-                  {soldOut && <span className="ml-1 text-xs">売り切れ</span>}
-                </p>
-                <Stepper product={product} options={c.options} disabled={soldOut} />
-              </div>
-            )
-          })}
+        {hasOptions && (
+          <div className="flex flex-wrap gap-x-4 gap-y-1 pl-1">
+            {optionRows.map((o) => (
+              <label
+                key={o.key}
+                className={`flex items-center gap-1.5 text-sm select-none ${
+                  o.soldOut ? 'text-brown-300' : 'text-brown-600 cursor-pointer'
+                }`}
+              >
+                <input
+                  type="checkbox"
+                  checked={!o.soldOut && checked[o.key]}
+                  disabled={o.soldOut}
+                  onChange={() => toggleOption(o.key)}
+                  className="w-5 h-5 accent-brown-600"
+                />
+                {o.label}（+¥{o.price}）{o.soldOut && ' 売り切れ'}
+              </label>
+            ))}
+          </div>
+        )}
+        {(ordered.length > 1 || (ordered.length === 1 && ordered[0].label !== comboLabel(NO_OPTIONS))) && (
+          <p className="text-xs text-brown-500 pl-1">
+            入力済み：{ordered.map((c) => `${c.label} ${c.quantity}個`).join('・')}
+          </p>
+        )}
       </div>
     )
   }
