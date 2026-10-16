@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServiceRoleClient } from '@/lib/supabase/server'
-import { formatScheduleDate, generatePickupSlots, optionLabel, optionPrice } from '@/lib/types'
+import { CUSTOMER_FEATURES, formatScheduleDate, generatePickupSlots, optionLabel, optionPrice } from '@/lib/types'
 import { getEffectiveDays } from '@/lib/business-hours'
 import { sendLineMessage } from '@/lib/line-message'
 import { checkStock, countByStockKey, getLunchPlateIds, stockDateFor, syncAutoSoldOut } from '@/lib/stock'
@@ -23,6 +23,8 @@ interface TakeoutOrderRequestBody {
   pickup_at?: string  // "YYYY-MM-DD HH:MM"
   /** お客様名（LINEの表示名、または店頭で店員が入力した名前） */
   customer_name?: string
+  /** お客様の特徴（店頭で店員が選んだもの） */
+  customer_features?: string[]
   /** 店頭で店員が入力した注文（LINEの確認メッセージは送らない） */
   staff_entry?: boolean
   items: TakeoutOrderItem[]
@@ -78,6 +80,10 @@ export async function POST(req: NextRequest) {
   const body: TakeoutOrderRequestBody = await req.json()
   const { table_id, line_user_id, pickup_at, staff_entry, items } = body
   const customerName = body.customer_name?.trim().slice(0, 50) || null
+  // 決められた特徴だけを受け付ける
+  const customerFeatures = Array.isArray(body.customer_features)
+    ? CUSTOMER_FEATURES.filter((f) => body.customer_features!.includes(f))
+    : []
 
   if (!table_id || !items || items.length === 0) {
     return NextResponse.json(
@@ -131,6 +137,7 @@ export async function POST(req: NextRequest) {
   if (line_user_id) newOrderData.line_user_id = line_user_id
   if (pickup_at) newOrderData.pickup_at = pickup_at
   if (customerName) newOrderData.customer_name = customerName
+  if (customerFeatures.length > 0) newOrderData.customer_features = customerFeatures
 
   const { data: newOrder, error: createError } = await supabase
     .from('orders')

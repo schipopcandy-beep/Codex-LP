@@ -347,6 +347,35 @@ export interface Product {
   topping_available: boolean
 }
 
+/**
+ * 店頭テイクアウトで選べるお客様の特徴（お渡しのときに見分けるため）
+ * 画面ではこの行ごとに並べる
+ */
+export const CUSTOMER_FEATURE_ROWS: string[][] = [
+  ['男性', '女性', 'メガネ', '短髪', '長髪'],
+  ['細め', '中肉', '若め', '中年', '年配'],
+  ['1人', '2人', 'グループ', '家族'],
+  ['リュック', '手ぶら'],
+]
+export const CUSTOMER_FEATURES: string[] = CUSTOMER_FEATURE_ROWS.flat()
+/** どれか1つだけ選ぶ特徴の組（同じ組の別のものを選ぶと入れ替わる） */
+export const EXCLUSIVE_FEATURE_GROUPS: string[][] = [
+  ['男性', '女性'],
+  ['短髪', '長髪'],
+  ['細め', '中肉'],
+  ['若め', '中年', '年配'],
+  ['1人', '2人', 'グループ', '家族'],
+  ['リュック', '手ぶら'],
+]
+
+/** 特徴を付け外しした後の一覧（同じ組の別の特徴は外す。並びは画面の順） */
+export function toggleCustomerFeature(current: string[], feature: string): string[] {
+  if (current.includes(feature)) return current.filter((f) => f !== feature)
+  const group = EXCLUSIVE_FEATURE_GROUPS.find((g) => g.includes(feature)) ?? []
+  const next = [...current.filter((f) => !group.includes(f)), feature]
+  return CUSTOMER_FEATURES.filter((f) => next.includes(f))
+}
+
 export interface Order {
   id: string
   table_id: string
@@ -357,6 +386,8 @@ export interface Order {
   pickup_at?: string | null  // "YYYY-MM-DD HH:MM"（テイクアウトのみ）
   /** テイクアウトのお客様名（LINEの表示名、または店頭で店員が入力した名前） */
   customer_name?: string | null
+  /** 店頭テイクアウトで店員が選んだお客様の特徴（例: ["男性", "メガネ"]） */
+  customer_features?: string[] | null
   table?: Table
   order_items?: OrderItem[]
 }

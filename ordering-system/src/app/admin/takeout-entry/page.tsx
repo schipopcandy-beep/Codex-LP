@@ -2,9 +2,11 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
+import Image from 'next/image'
 import type { NigiriOptions, OptionSoldOut, Product } from '@/lib/types'
 import {
   ALL_OPTION_COMBOS,
+  CUSTOMER_FEATURE_ROWS,
   DRINK_CATEGORY,
   NIGIRI_CATEGORY,
   NO_OPTIONS,
@@ -18,6 +20,7 @@ import {
   optionLabel,
   optionPrice,
   orderShortId,
+  toggleCustomerFeature,
 } from '@/lib/types'
 
 /** 商品ID とオプションの組み合わせごとの個数 */
@@ -63,6 +66,8 @@ export default function TakeoutEntryPage() {
   /** オプションの入力欄を開いている商品 */
   const [openOptions, setOpenOptions] = useState<Set<string>>(new Set())
   const [customerName, setCustomerName] = useState('')
+  /** お客様の特徴（お渡しのときに見分けるため） */
+  const [features, setFeatures] = useState<string[]>([])
   const [pickupMode, setPickupMode] = useState<'now' | 'later'>('now')
   const [pickupTime, setPickupTime] = useState(() => jstNow().time)
   const [submitting, setSubmitting] = useState(false)
@@ -129,6 +134,7 @@ export default function TakeoutEntryPage() {
           table_id: TAKEOUT_TABLE_ID,
           pickup_at: pickupAt,
           customer_name: customerName.trim() || undefined,
+          customer_features: features.length > 0 ? features : undefined,
           staff_entry: true,
           items: lines.map((l) => ({
             product_id: l.product.id,
@@ -150,6 +156,7 @@ export default function TakeoutEntryPage() {
       setQuantities({})
       setOpenOptions(new Set())
       setCustomerName('')
+      setFeatures([])
       setPickupMode('now')
       setPickupTime(jstNow().time)
       window.scrollTo({ top: 0, behavior: 'smooth' })
@@ -215,7 +222,12 @@ export default function TakeoutEntryPage() {
     return (
       <div className={`py-3 border-b border-cream-200 space-y-2 ${product.is_sold_out ? 'opacity-50' : ''}`}>
         <div className="flex items-center justify-between gap-3">
-          <div className="min-w-0">
+          <div className="relative w-14 h-14 flex-shrink-0 rounded-lg overflow-hidden bg-cream-200">
+            {product.image_url && (
+              <Image src={product.image_url} alt={product.name} fill className="object-cover" sizes="56px" />
+            )}
+          </div>
+          <div className="min-w-0 flex-1">
             <p className="font-bold text-brown-800">
               {product.name}
               {product.is_sold_out && <span className="ml-2 text-xs text-red-600">売り切れ</span>}
@@ -285,6 +297,40 @@ export default function TakeoutEntryPage() {
             className="mt-2 w-full rounded-xl border border-cream-300 bg-white px-3 py-2 text-base text-brown-800"
           />
         </label>
+
+        {/* お客様の特徴（注文一覧に表示され、お渡しのときに見分けられる） */}
+        <div>
+          <p className="font-bold text-brown-700">
+            特徴<span className="text-xs text-brown-400 font-normal ml-2">任意・注文一覧に表示されます</span>
+          </p>
+          <div className="mt-2 space-y-2">
+            {CUSTOMER_FEATURE_ROWS.map((row) => (
+              <div key={row.join()} className="flex flex-wrap gap-2">
+                {row.map((f) => {
+                  const selected = features.includes(f)
+                  return (
+                    <button
+                      key={f}
+                      type="button"
+                      onClick={() => {
+                        setRegistered(null)
+                        setFeatures((prev) => toggleCustomerFeature(prev, f))
+                      }}
+                      aria-pressed={selected}
+                      className={`px-3 py-2 rounded-full border-2 text-sm font-bold ${
+                        selected
+                          ? 'bg-brown-600 border-brown-600 text-white'
+                          : 'bg-white border-cream-300 text-brown-600 active:bg-cream-200'
+                      }`}
+                    >
+                      {f}
+                    </button>
+                  )
+                })}
+              </div>
+            ))}
+          </div>
+        </div>
 
         <div>
           <p className="font-bold text-brown-700 mb-2">お渡し</p>

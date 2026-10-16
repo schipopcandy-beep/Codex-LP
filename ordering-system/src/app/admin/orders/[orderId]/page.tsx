@@ -1,6 +1,7 @@
 'use client'
 
 import { use, useEffect, useState, useCallback } from 'react'
+import CustomerFeatures from '@/components/admin/CustomerFeatures'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import type { Order, OrderStatus, OrderItem } from '@/lib/types'
@@ -164,6 +165,7 @@ export default function OrderDetailPage({ params }: Props) {
           {order.customer_name && (
             <p className="text-lg font-bold text-brown-800">{order.customer_name} 様</p>
           )}
+          <CustomerFeatures features={order.customer_features} />
         </div>
       )}
 
