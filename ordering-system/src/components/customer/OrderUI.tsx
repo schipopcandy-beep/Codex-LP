@@ -71,12 +71,12 @@ export default function OrderUI({ tableId, lineUserId, partySize, buildCompleteH
   const nigiriProducts = products.filter((p) => p.category === 'おにぎり')
   const drinkProducts = products.filter((p) => p.category === DRINK_CATEGORY)
   const lunchPlateProducts = products.filter(isLunchPlate)
-  // テイクアウト限定の商品（おかずパックなど）は店内のメニューに出さない
+  // テイクアウト限定の商品（おかずパックなど）は、お持ち帰りを選んでいるときだけ出す
   const sideProducts = products.filter(
     (p) =>
       p.category !== 'おにぎり' &&
       p.category !== DRINK_CATEGORY &&
-      p.category !== TAKEOUT_ONLY_CATEGORY &&
+      (isTakeoutMode || p.category !== TAKEOUT_ONLY_CATEGORY) &&
       !isHiddenFromMenu(p) &&
       !isLunchPlate(p),
   )
