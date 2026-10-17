@@ -6,6 +6,7 @@ import { createClient } from '@/lib/supabase/client'
 import type { Order } from '@/lib/types'
 import { TAKEOUT_TABLE_ID } from '@/lib/types'
 import OrderCard from '@/components/admin/OrderCard'
+import RiceTimer from '@/components/admin/RiceTimer'
 
 type Tab = 'all' | 'eatin' | 'takeout'
 
@@ -199,6 +200,8 @@ export default function AdminDashboard() {
           )}
         </div>
       )}
+
+      <RiceTimer />
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
         <SummaryCard label="新規" count={newCount} color="text-amber-700 bg-amber-50 border-amber-200" />
