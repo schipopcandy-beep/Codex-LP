@@ -6,6 +6,7 @@ import Link from 'next/link'
 import type { Order, OrderItem, OrderStatus } from '@/lib/types'
 import {
   calcOrderTotal,
+  countOnigiri,
   TABLE_NAMES,
   optionLabel,
   optionPrice,
@@ -57,6 +58,7 @@ export default function OrderCard({ order, onStatusChanged }: Props) {
   }
   const items = order.order_items ?? []
   const total = calcOrderTotal(items)
+  const onigiriCount = countOnigiri(items)
 
   // 明細を注文された回ごとに分ける（0 = 最初の注文, 1 = 追加1, 2 = 追加2…）
   const batchIndexes = getOrderBatchIndexes(items)
@@ -104,7 +106,14 @@ export default function OrderCard({ order, onStatusChanged }: Props) {
 
         <div className="flex items-start justify-between mb-3">
           <div>
-            <p className="text-xl font-bold text-brown-800">{tableName}</p>
+            <p className="text-xl font-bold text-brown-800 flex items-center gap-2 flex-wrap">
+              {tableName}
+              {onigiriCount > 0 && (
+                <span className="text-base font-bold text-brown-700 bg-amber-100 border border-amber-300 px-2 py-0.5 rounded-full">
+                  🍙 {onigiriCount}個
+                </span>
+              )}
+            </p>
             <p className="text-sm text-brown-400 flex items-center gap-2">
               {createdAt} 〜
               {order.party_size && (
