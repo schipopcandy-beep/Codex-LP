@@ -7,6 +7,10 @@ import type { Order, OrderStatus } from '@/lib/types'
 /** 調理済みの列に入れるステータス */
 const isCooked = (o: Order) => o.status === 'served'
 
+/** 伝票に最後に明細が入った時刻（追加注文の時刻） */
+const lastItemTime = (o: Order) =>
+  (o.order_items ?? []).reduce((max, i) => (i.created_at > max ? i.created_at : max), o.created_at)
+
 /** ドラッグとみなすまでの横の移動量（px） */
 const DRAG_THRESHOLD = 12
 
@@ -42,7 +46,13 @@ export default function OrderBoard({ orders, onChanged }: Props) {
   }, [orders])
 
   const shown = orders.map((o) => (pending.has(o.id) ? { ...o, status: pending.get(o.id)! } : o))
-  const uncooked = shown.filter((o) => !isCooked(o))
+  // 追加注文が入った伝票は、未調理の一番下へ（追加が入った順に並べる）
+  const uncooked = [
+    ...shown.filter((o) => !isCooked(o) && o.status !== 'added'),
+    ...shown
+      .filter((o) => o.status === 'added')
+      .sort((a, b) => lastItemTime(a).localeCompare(lastItemTime(b))),
+  ]
   const cooked = shown.filter(isCooked)
 
   const moveTo = async (order: Order, status: OrderStatus) => {
