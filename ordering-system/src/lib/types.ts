@@ -506,6 +506,13 @@ export function calcCartTotal(items: CartItem[]): number {
   return items.reduce((sum, item) => sum + (item.product.price + optionPrice(item)) * item.quantity, 0)
 }
 
+/** 伝票のおにぎりの合計個数（ランチプレートの中のおにぎりも含む） */
+export function countOnigiri(items: OrderItem[]): number {
+  return items
+    .filter((i) => i.product?.category === NIGIRI_CATEGORY)
+    .reduce((sum, i) => sum + i.quantity, 0)
+}
+
 export function calcOrderTotal(items: OrderItem[]): number {
   return items.reduce((sum, item) => sum + (item.unit_price + optionPrice(item)) * item.quantity, 0)
 }

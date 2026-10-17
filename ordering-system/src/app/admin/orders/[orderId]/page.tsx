@@ -7,6 +7,7 @@ import Link from 'next/link'
 import type { Order, OrderStatus, OrderItem } from '@/lib/types'
 import {
   calcOrderTotal,
+  countOnigiri,
   TABLE_NAMES,
   ORDER_STATUS_LABELS,
   optionLabel,
@@ -112,6 +113,7 @@ export default function OrderDetailPage({ params }: Props) {
 
   const items = order.order_items ?? []
   const total = calcOrderTotal(items)
+  const onigiriCount = countOnigiri(items)
   const tableName = TABLE_NAMES[order.table_id] ?? order.table_id
   const isTakeout = order.table_id === TAKEOUT_TABLE_ID
   const pickupLabel = (() => {
@@ -178,7 +180,14 @@ export default function OrderDetailPage({ params }: Props) {
       {/* タイトル */}
       <div className="flex items-center justify-between mb-4">
         <div>
-          <h1 className="font-serif text-3xl font-bold text-brown-700">{tableName}</h1>
+          <h1 className="font-serif text-3xl font-bold text-brown-700 flex items-center gap-2 flex-wrap">
+            {tableName}
+            {onigiriCount > 0 && (
+              <span className="font-sans text-base font-bold text-brown-700 bg-amber-100 border border-amber-300 px-2 py-0.5 rounded-full">
+                🍙 {onigiriCount}個
+              </span>
+            )}
+          </h1>
           <p className="text-sm text-brown-400 flex items-center gap-2">
             {new Date(order.created_at).toLocaleString('ja-JP')}
             {order.party_size && (
