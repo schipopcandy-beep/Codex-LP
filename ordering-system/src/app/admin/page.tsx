@@ -7,6 +7,7 @@ import type { Order } from '@/lib/types'
 import { TAKEOUT_TABLE_ID } from '@/lib/types'
 import OrderCard from '@/components/admin/OrderCard'
 import RiceTimer from '@/components/admin/RiceTimer'
+import OrderBoard from '@/components/admin/OrderBoard'
 
 type Tab = 'all' | 'eatin' | 'takeout'
 
@@ -268,11 +269,7 @@ export default function AdminDashboard() {
               <h2 className="text-sm font-bold text-green-800 bg-green-50 border border-green-200 rounded-lg px-3 py-1.5 mb-3 w-fit">
                 本日分（{todayOrders.length}件）
               </h2>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {todayOrders.map((order) => (
-                  <OrderCard key={order.id} order={order} onStatusChanged={fetchOrders} />
-                ))}
-              </div>
+              <OrderBoard orders={todayOrders} onChanged={fetchOrders} />
             </section>
           )}
           {laterOrders.length > 0 && (
@@ -289,11 +286,7 @@ export default function AdminDashboard() {
           )}
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {filteredOrders.map((order) => (
-            <OrderCard key={order.id} order={order} onStatusChanged={fetchOrders} />
-          ))}
-        </div>
+        <OrderBoard orders={filteredOrders} onChanged={fetchOrders} />
       )}
     </div>
   )
