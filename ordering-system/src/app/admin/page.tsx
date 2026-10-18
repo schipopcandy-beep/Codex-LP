@@ -172,8 +172,10 @@ export default function AdminDashboard() {
     (o) => o.pickup_at && jstDate(o.pickup_at) > todayStr,
   )
 
-  const newCount = filteredOrders.filter((o) => o.status === 'new').length
-  const preparingCount = filteredOrders.filter((o) => o.status === 'preparing').length
+  // イートイン（席からの注文。未調理・調理済みの合計）と、そのうち提供済み
+  const eatinOrders = orders.filter((o) => o.table_id !== TAKEOUT_TABLE_ID)
+  const eatinCount = eatinOrders.length
+  const servedCount = eatinOrders.filter((o) => o.status === 'served').length
   const takeoutCount = orders.filter((o) => o.table_id === TAKEOUT_TABLE_ID).length
 
   return (
@@ -205,8 +207,8 @@ export default function AdminDashboard() {
       <RiceTimer />
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
-        <SummaryCard label="新規" count={newCount} color="text-amber-700 bg-amber-50 border-amber-200" />
-        <SummaryCard label="調理中" count={preparingCount} color="text-blue-700 bg-blue-50 border-blue-200" />
+        <SummaryCard label="イートイン" count={eatinCount} color="text-amber-700 bg-amber-50 border-amber-200" />
+        <SummaryCard label="提供済み" count={servedCount} color="text-blue-700 bg-blue-50 border-blue-200" />
         <SummaryCard label="テイクアウト" count={takeoutCount} color="text-green-700 bg-green-50 border-green-200" />
         <div className="card p-3 flex items-center justify-center gap-2">
           <button
@@ -279,7 +281,7 @@ export default function AdminDashboard() {
               </h2>
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                 {laterOrders.map((order) => (
-                  <OrderCard key={order.id} order={order} onStatusChanged={fetchOrders} />
+                  <OrderCard key={order.id} order={order} />
                 ))}
               </div>
             </section>

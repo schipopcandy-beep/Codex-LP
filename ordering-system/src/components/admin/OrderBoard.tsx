@@ -104,7 +104,7 @@ export default function OrderBoard({ orders, onChanged }: Props) {
         handleDrop(order, x, y)
       }}
     >
-      <OrderCard order={order} onStatusChanged={onChanged} />
+      <OrderCard order={order} />
       <button
         type="button"
         onClick={() => moveTo(order, isCooked(order) ? 'preparing' : 'served')}
