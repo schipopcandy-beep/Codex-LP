@@ -112,7 +112,7 @@ export default function OrderCard({ order, showStatus = false }: Props) {
         <div className="space-y-1 mb-3">
           {dinerNumbers.map((n) => (
             <div key={`diner-${n}`} className="rounded-lg border border-brown-200 bg-white/60 px-2 py-1 space-y-0.5">
-              <p className="text-xs font-bold text-brown-500">注文者{n}（1皿）</p>
+              <p className="text-xs font-bold text-brown-500">注文者{n}</p>
               {eatinItems
                 .filter((i) => i.diner_no === n)
                 .map((item) => (
