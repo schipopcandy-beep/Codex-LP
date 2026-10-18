@@ -1,15 +1,16 @@
 'use client'
 
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import type { CartItem, Product, LunchNigiriUnit, NigiriOptions, OptionSoldOut } from '@/lib/types'
 import {
   calcCartTotal,
+  isToppingSelectable,
   optionLabel,
   optionPrice,
   getLunchPlateSurcharge,
   lunchPlateNigiriCount,
 } from '@/lib/types'
-import ToppingSuggestions from '@/components/customer/ToppingSuggestions'
+import RecommendPopup, { shouldShowRecommend } from '@/components/customer/RecommendPopup'
 import LunchPlateSelector from '@/components/customer/LunchPlateSelector'
 
 interface Props {
@@ -53,16 +54,30 @@ export default function Cart({
   onOptionsChange,
 }: Props) {
   const [isOpen, setIsOpen] = useState(false)
-  const [showTonjiruPopup, setShowTonjiruPopup] = useState(false)
+  const [showRecommend, setShowRecommend] = useState(false)
+  /** 最後におすすめを出したときのカートの中身（同じ中身なら2回目は出さない） */
+  const recommendedFor = useRef<string | null>(null)
 
   const hasTonjiru = tonjiruProduct
     ? items.some((i) => i.product.id === tonjiruProduct.id)
     : true
+  /** 豚汁をおすすめするか（カートになく、ランチプレートもないとき） */
+  const recommendTonjiru = tonjiruProduct && !hasTonjiru && lunchNigiriPerPlate.length === 0 ? tonjiruProduct : undefined
 
+  // おにぎりの中身だけで比べる（豚汁を足しただけで、もう一度出さないように）
+  const cartSignature = () =>
+    items
+      .filter((i) => isToppingSelectable(i.product))
+      .map((i) => `${i.product.id}:${i.quantity}:${i.with_topping}:${!!i.with_egg_yolk}:${!!i.with_large}:${!!i.is_takeout}`)
+      .join('|')
+
+  /** カートを開く前に、豚汁・おにぎりのトッピングのおすすめを出す（出すものがなければそのまま開く） */
   function handleCartOpen() {
-    const hasLunchPlate = lunchNigiriPerPlate.length > 0
-    if (tonjiruProduct && !hasTonjiru && !hasLunchPlate) {
-      setShowTonjiruPopup(true)
+    if (
+      cartSignature() !== recommendedFor.current &&
+      shouldShowRecommend(items, recommendTonjiru, optionSoldOut, !!onOptionsChange)
+    ) {
+      setShowRecommend(true)
     } else {
       setIsOpen(true)
     }
@@ -196,49 +211,24 @@ export default function Cart({
         </div>
       </div>
 
-      {/* 豚汁おすすめポップアップ */}
-      {showTonjiruPopup && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center px-6">
-          <div className="absolute inset-0 bg-black/50" onClick={() => setShowTonjiruPopup(false)} />
-          <div className="relative bg-cream-50 rounded-2xl shadow-2xl p-6 w-full max-w-sm space-y-4 max-h-[90dvh] overflow-y-auto">
-            <div className="text-center space-y-2">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src="https://wgjfwjourukgtxpkuaup.supabase.co/storage/v1/object/public/product-images/miso-soup.jpg"
-                alt="豚汁"
-                className="w-full h-40 object-cover rounded-xl"
-              />
-              <h3 className="text-xl font-bold text-brown-800">ご一緒に豚汁はいかがですか？</h3>
-              {tonjiruProduct && (
-                <p className="text-lg font-bold text-brown-700 tabular-nums">
-                  ¥{tonjiruProduct.price.toLocaleString()}
-                </p>
-              )}
-              <p className="text-sm text-brown-500">
-                おにぎりとの相性抜群です。
-              </p>
-            </div>
-            <button
-              onClick={() => {
-                if (tonjiruProduct && onAddItem) onAddItem(tonjiruProduct)
-                setShowTonjiruPopup(false)
-                setIsOpen(true)
-              }}
-              className="btn-primary w-full py-3 text-base"
-            >
-              追加する
-            </button>
-            {onOptionsChange && (
-              <ToppingSuggestions items={items} optionSoldOut={optionSoldOut} onOptionsChange={onOptionsChange} />
-            )}
-            <button
-              onClick={() => { setShowTonjiruPopup(false); setIsOpen(true) }}
-              className="w-full py-3 text-sm text-brown-500 underline underline-offset-2"
-            >
-              このまま注文する
-            </button>
-          </div>
-        </div>
+      {/* おすすめ（豚汁・おにぎりのトッピング） */}
+      {showRecommend && (
+        <RecommendPopup
+          items={items}
+          tonjiruProduct={recommendTonjiru}
+          onAddTonjiru={onAddItem}
+          optionSoldOut={optionSoldOut}
+          onOptionsChange={onOptionsChange}
+          onNext={() => {
+            recommendedFor.current = cartSignature()
+            setShowRecommend(false)
+            setIsOpen(true)
+          }}
+          onClose={() => {
+            recommendedFor.current = cartSignature()
+            setShowRecommend(false)
+          }}
+        />
       )}
 
       {/* カートドロワー */}
