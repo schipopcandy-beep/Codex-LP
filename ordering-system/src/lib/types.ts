@@ -405,6 +405,8 @@ export interface OrderItem {
   with_egg_yolk?: boolean
   /** 大満足120%おにぎりにする（+300円） */
   with_large?: boolean
+  /** 同じ卓の何人目の注文者の分か（1始まり。同じ人のおにぎりを1皿にまとめるため）。null = 分けていない */
+  diner_no?: number | null
   timing?: DrinkTiming | null
   /** ランチプレート内おにぎりのプレート番号（0始まり）。null = 通常アイテム */
   lunch_plate_index?: number | null

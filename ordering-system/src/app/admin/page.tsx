@@ -172,11 +172,16 @@ export default function AdminDashboard() {
     (o) => o.pickup_at && jstDate(o.pickup_at) > todayStr,
   )
 
-  // イートイン（席からの注文。未調理・調理済みの合計）と、そのうち提供済み
+  // ご飯炊きタイマーの下の件数: 未調理のイートイン・調理済みのイートイン・未調理のテイクアウト（本日受け取り分）
   const eatinOrders = orders.filter((o) => o.table_id !== TAKEOUT_TABLE_ID)
-  const eatinCount = eatinOrders.length
-  const servedCount = eatinOrders.filter((o) => o.status === 'served').length
-  const takeoutCount = orders.filter((o) => o.table_id === TAKEOUT_TABLE_ID).length
+  const uncookedEatinCount = eatinOrders.filter((o) => o.status !== 'served').length
+  const cookedEatinCount = eatinOrders.filter((o) => o.status === 'served').length
+  const uncookedTakeoutCount = orders.filter(
+    (o) =>
+      o.table_id === TAKEOUT_TABLE_ID &&
+      o.status !== 'served' &&
+      (!o.pickup_at || o.pickup_at.slice(0, 10) <= todayStr),
+  ).length
 
   return (
     <div className="p-4 md:p-6">
@@ -207,9 +212,9 @@ export default function AdminDashboard() {
       <RiceTimer />
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
-        <SummaryCard label="イートイン" count={eatinCount} color="text-amber-700 bg-amber-50 border-amber-200" />
-        <SummaryCard label="提供済み" count={servedCount} color="text-blue-700 bg-blue-50 border-blue-200" />
-        <SummaryCard label="テイクアウト" count={takeoutCount} color="text-green-700 bg-green-50 border-green-200" />
+        <SummaryCard label="未調理のイートイン" count={uncookedEatinCount} color="text-amber-700 bg-amber-50 border-amber-200" />
+        <SummaryCard label="調理済みのイートイン" count={cookedEatinCount} color="text-green-700 bg-green-50 border-green-200" />
+        <SummaryCard label="未調理のテイクアウト" count={uncookedTakeoutCount} color="text-blue-700 bg-blue-50 border-blue-200" />
         <div className="card p-3 flex items-center justify-center gap-2">
           <button
             onClick={fetchOrders}

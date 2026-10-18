@@ -17,6 +17,8 @@ interface OrderRequestBody {
     with_egg_yolk?: boolean
     /** 大満足120%おにぎりにする */
     with_large?: boolean
+    /** 何人目の注文者の分か（1始まり） */
+    diner_no?: number | null
     timing?: string | null
     lunch_plate_index?: number | null
     /** 席から注文したお持ち帰り分 */
@@ -112,6 +114,10 @@ export async function POST(req: NextRequest) {
     orderId = newOrder.id
   }
 
+  // 注文者ごとに分けた注文か（分けていない注文では列を送らない）
+  const validDinerNo = (n: unknown) => (Number.isInteger(n) && (n as number) >= 1 && (n as number) <= 20 ? (n as number) : null)
+  const hasDiners = items.some((item) => validDinerNo(item.diner_no) !== null)
+
   // 明細を挿入
   const orderItems = items.map((item) => ({
     order_id: orderId,
@@ -126,6 +132,7 @@ export async function POST(req: NextRequest) {
     // 複数行をまとめて登録するとき、ある行にだけ付いた項目は他の行では
     // 既定値ではなく空（null）になるため、全行に明示して入れる
     is_takeout: !!item.is_takeout,
+    ...(hasDiners ? { diner_no: validDinerNo(item.diner_no) } : {}),
   }))
 
   const { error: insertError } = await supabase

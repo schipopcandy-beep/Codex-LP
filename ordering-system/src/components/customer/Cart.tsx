@@ -11,11 +11,15 @@ import {
   lunchPlateNigiriCount,
 } from '@/lib/types'
 import RecommendPopup, { shouldShowRecommend } from '@/components/customer/RecommendPopup'
+import DinerSplitPopup, { type DinerAssignment } from '@/components/customer/DinerSplitPopup'
 import LunchPlateSelector from '@/components/customer/LunchPlateSelector'
 
 interface Props {
   items: CartItem[]
-  onSubmit: () => Promise<void>
+  /** 注文を確定する（注文者ごとに分けた場合はその割り当てを渡す） */
+  onSubmit: (assignment?: DinerAssignment) => Promise<void>
+  /** 来店人数。2名以上でおにぎりが2個以上なら、確定の直前に注文者ごとに分けてもらう */
+  partySize?: number | null
   isSubmitting: boolean
   /** ランチプレート選択UI用 */
   allProducts?: Product[]
@@ -42,6 +46,7 @@ export default function Cart({
   items,
   onSubmit,
   isSubmitting,
+  partySize,
   allProducts = [],
   lunchNigiriPerPlate = [],
   lunchPlateEntries = [],
@@ -55,6 +60,7 @@ export default function Cart({
 }: Props) {
   const [isOpen, setIsOpen] = useState(false)
   const [showRecommend, setShowRecommend] = useState(false)
+  const [showDinerSplit, setShowDinerSplit] = useState(false)
   /** 最後におすすめを出したときのカートの中身（同じ中身なら2回目は出さない） */
   const recommendedFor = useRef<string | null>(null)
 
@@ -110,6 +116,10 @@ export default function Cart({
 
 
   const eatinCartItems = items.filter((item) => !item.is_takeout)
+  /** 注文者ごとに分ける対象（店内で食べるおにぎり。ランチプレートの中のおにぎりはプレートで分かれるので含めない） */
+  const dinerSplitItems = eatinCartItems.filter((item) => isToppingSelectable(item.product))
+  const needsDinerSplit =
+    (partySize ?? 0) >= 2 && dinerSplitItems.reduce((sum, item) => sum + item.quantity, 0) >= 2
   const takeoutCartItems = items.filter((item) => item.is_takeout)
 
   /** カート1行分（店内分・お持ち帰り分で共通） */
@@ -301,7 +311,14 @@ export default function Cart({
                 </p>
               )}
               <button
-                onClick={async () => { await onSubmit(); setIsOpen(false) }}
+                onClick={async () => {
+                  if (needsDinerSplit) {
+                    setShowDinerSplit(true)
+                    return
+                  }
+                  await onSubmit()
+                  setIsOpen(false)
+                }}
                 disabled={isSubmitting || !lunchPlateReady}
                 className="btn-primary w-full text-xl py-4 disabled:opacity-50 disabled:cursor-not-allowed"
               >
@@ -312,6 +329,21 @@ export default function Cart({
             <div className="pb-safe" />
           </div>
         </div>
+      )}
+
+      {/* 確定の直前に、おにぎりを注文者ごとに分ける */}
+      {showDinerSplit && partySize && (
+        <DinerSplitPopup
+          items={dinerSplitItems}
+          partySize={partySize}
+          isSubmitting={isSubmitting}
+          onConfirm={async (assignment) => {
+            await onSubmit(assignment)
+            setShowDinerSplit(false)
+            setIsOpen(false)
+          }}
+          onCancel={() => setShowDinerSplit(false)}
+        />
       )}
     </>
   )
