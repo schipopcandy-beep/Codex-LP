@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import type { CartItem, Product, LunchNigiriUnit, OptionSoldOut } from '@/lib/types'
+import type { CartItem, Product, LunchNigiriUnit, NigiriOptions, OptionSoldOut } from '@/lib/types'
 import {
   calcCartTotal,
   optionLabel,
@@ -9,6 +9,7 @@ import {
   getLunchPlateSurcharge,
   lunchPlateNigiriCount,
 } from '@/lib/types'
+import ToppingSuggestions from '@/components/customer/ToppingSuggestions'
 import LunchPlateSelector from '@/components/customer/LunchPlateSelector'
 
 interface Props {
@@ -32,6 +33,8 @@ interface Props {
   onAddItem?: (product: Product) => void
   /** おすすめする豚汁商品（渡された場合のみポップアップ表示） */
   tonjiruProduct?: Product
+  /** おにぎりのトッピングのおすすめで、カートの行のオプションを変える */
+  onOptionsChange?: (item: CartItem, options: NigiriOptions) => void
 }
 
 export default function Cart({
@@ -47,6 +50,7 @@ export default function Cart({
   optionSoldOut,
   onAddItem,
   tonjiruProduct,
+  onOptionsChange,
 }: Props) {
   const [isOpen, setIsOpen] = useState(false)
   const [showTonjiruPopup, setShowTonjiruPopup] = useState(false)
@@ -196,7 +200,7 @@ export default function Cart({
       {showTonjiruPopup && (
         <div className="fixed inset-0 z-50 flex items-center justify-center px-6">
           <div className="absolute inset-0 bg-black/50" onClick={() => setShowTonjiruPopup(false)} />
-          <div className="relative bg-cream-50 rounded-2xl shadow-2xl p-6 w-full max-w-sm space-y-4">
+          <div className="relative bg-cream-50 rounded-2xl shadow-2xl p-6 w-full max-w-sm space-y-4 max-h-[90dvh] overflow-y-auto">
             <div className="text-center space-y-2">
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
@@ -224,6 +228,9 @@ export default function Cart({
             >
               追加する
             </button>
+            {onOptionsChange && (
+              <ToppingSuggestions items={items} optionSoldOut={optionSoldOut} onOptionsChange={onOptionsChange} />
+            )}
             <button
               onClick={() => { setShowTonjiruPopup(false); setIsOpen(true) }}
               className="w-full py-3 text-sm text-brown-500 underline underline-offset-2"

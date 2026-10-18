@@ -16,6 +16,7 @@ import {
   orderShortId,
   formatScheduleDate,
   getOrderBatchIndexes,
+  groupLunchPlateNigiri,
   orderBatchLabel,
 } from '@/lib/types'
 import StatusBadge from './StatusBadge'
@@ -63,6 +64,8 @@ export default function OrderCard({ order, onStatusChanged }: Props) {
   // 明細を注文された回ごとに分ける（0 = 最初の注文, 1 = 追加1, 2 = 追加2…）
   const batchIndexes = getOrderBatchIndexes(items)
   const latestBatch = Math.max(0, ...items.map((i) => batchIndexes.get(i.id) ?? 0))
+  // ランチプレートごとの中のおにぎり（プレートの行の下に並べる）
+  const plateNigiri = groupLunchPlateNigiri(items)
 
   // 席から注文されたお持ち帰り分は、イートインの下にまとめて表示する
   const eatinItems = items.filter((i) => i.lunch_plate_index == null && !i.is_takeout)
@@ -137,23 +140,20 @@ export default function OrderCard({ order, onStatusChanged }: Props) {
         </div>
 
         <div className="space-y-1 mb-3">
-          {eatinItems.slice(0, 3).map((item) => (
-            <ItemLine key={item.id} item={item} batch={batchIndexes.get(item.id) ?? 0} />
+          {eatinItems.map((item) => (
+            <div key={item.id}>
+              <ItemLine item={item} batch={batchIndexes.get(item.id) ?? 0} />
+              <PlateNigiri groups={plateNigiri.get(item.id)} />
+            </div>
           ))}
-          {eatinItems.length > 3 && (
-            <p className="text-sm text-brown-400">他 {eatinItems.length - 3} 品…</p>
-          )}
 
           {/* 席から注文されたお持ち帰り分 */}
           {takeoutItems.length > 0 && (
             <div className="mt-2 pt-2 border-t border-dashed border-amber-300 space-y-1">
               <p className="text-xs font-bold text-amber-700">お持ち帰り</p>
-              {takeoutItems.slice(0, 3).map((item) => (
+              {takeoutItems.map((item) => (
                 <ItemLine key={item.id} item={item} batch={batchIndexes.get(item.id) ?? 0} />
               ))}
-              {takeoutItems.length > 3 && (
-                <p className="text-sm text-brown-400">他 {takeoutItems.length - 3} 品…</p>
-              )}
             </div>
           )}
         </div>
@@ -166,6 +166,26 @@ export default function OrderCard({ order, onStatusChanged }: Props) {
         </div>
       </div>
     </Link>
+  )
+}
+
+/** ランチプレートの中のおにぎり（プレート1枚ごと） */
+function PlateNigiri({ groups }: { groups?: OrderItem[][] }) {
+  if (!groups || groups.length === 0) return null
+  return (
+    <div className="pl-4 space-y-0.5">
+      {groups.map((group, i) => (
+        <p key={i} className="text-sm text-brown-600">
+          {groups.length > 1 && <span className="text-brown-400 mr-1">{i + 1}枚目</span>}
+          {group
+            .map((n) => {
+              const options = optionLabel(n)
+              return `${n.product?.name ?? '不明'}${options ? `（${options}）` : ''}${n.quantity > 1 ? ` ×${n.quantity}` : ''}`
+            })
+            .join('・')}
+        </p>
+      ))}
+    </div>
   )
 }
 
