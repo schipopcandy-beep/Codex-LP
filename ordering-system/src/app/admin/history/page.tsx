@@ -144,7 +144,7 @@ export default function OrderHistoryPage() {
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {shown.map((order) => (
-            <OrderCard key={order.id} order={order} onStatusChanged={load} />
+            <OrderCard key={order.id} order={order} showStatus />
           ))}
         </div>
       )}

@@ -1,9 +1,8 @@
 'use client'
 
-import { useState } from 'react'
 import CustomerFeatures from '@/components/admin/CustomerFeatures'
 import Link from 'next/link'
-import type { Order, OrderItem, OrderStatus } from '@/lib/types'
+import type { Order, OrderItem } from '@/lib/types'
 import {
   calcOrderTotal,
   countOnigiri,
@@ -21,42 +20,13 @@ import {
 } from '@/lib/types'
 import StatusBadge from './StatusBadge'
 
-/** バッジタップで循環させる順序: 新規/追加 → 調理中 → 提供済み → 新規 */
-const NEXT_STATUS: Record<OrderStatus, OrderStatus> = {
-  new: 'preparing',
-  added: 'preparing',
-  preparing: 'served',
-  served: 'new',
-  paid: 'paid',
-}
-
 interface Props {
   order: Order
-  /** ステータス変更後に一覧を再取得するコールバック */
-  onStatusChanged?: () => void
+  /** 新規・調理中・提供済みなどのステータスも表示する（履歴用）。通常は「追加」のときだけ表示 */
+  showStatus?: boolean
 }
 
-export default function OrderCard({ order, onStatusChanged }: Props) {
-  const [updating, setUpdating] = useState(false)
-
-  const handleStatusTap = async (e: React.MouseEvent) => {
-    // カード全体が詳細ページへの Link なので遷移を止める
-    e.preventDefault()
-    e.stopPropagation()
-    if (updating || order.status === 'paid') return
-    setUpdating(true)
-    const res = await fetch(`/api/orders/${order.id}`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ status: NEXT_STATUS[order.status] }),
-    })
-    if (res.ok) {
-      onStatusChanged?.()
-    } else {
-      alert('ステータスの更新に失敗しました')
-    }
-    setUpdating(false)
-  }
+export default function OrderCard({ order, showStatus = false }: Props) {
   const items = order.order_items ?? []
   const total = calcOrderTotal(items)
   const onigiriCount = countOnigiri(items)
@@ -124,19 +94,14 @@ export default function OrderCard({ order, onStatusChanged }: Props) {
               )}
             </p>
           </div>
-          <button
-            type="button"
-            onClick={handleStatusTap}
-            disabled={updating}
-            className={`${updating ? 'opacity-50' : 'active:scale-95'} transition-transform`}
-            title="タップでステータスを切り替え"
-          >
+          {/* ステータスは「追加」のときだけ表示（未調理・調理済みは列で分かるため） */}
+          {(showStatus || order.status === 'added') && (
             <StatusBadge
               status={order.status}
               tableId={order.table_id}
               suffix={order.status === 'added' && latestBatch > 0 ? String(latestBatch) : undefined}
             />
-          </button>
+          )}
         </div>
 
         <div className="space-y-1 mb-3">
