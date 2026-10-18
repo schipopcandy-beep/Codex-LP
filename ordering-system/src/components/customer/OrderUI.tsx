@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import Image from 'next/image'
 import ProductCard from '@/components/customer/ProductCard'
 import DrinkCard from '@/components/customer/DrinkCard'
+import type { DinerAssignment } from '@/components/customer/DinerSplitPopup'
 import Cart from '@/components/customer/Cart'
 import type {
   Product,
@@ -285,7 +286,7 @@ export default function OrderUI({ tableId, lineUserId, partySize, buildCompleteH
     })
   }, [])
 
-  const handleSubmit = useCallback(async () => {
+  const handleSubmit = useCallback(async (assignment?: DinerAssignment) => {
     if (cartItems.length === 0) return
     setIsSubmitting(true)
 
@@ -319,17 +320,26 @@ export default function OrderUI({ tableId, lineUserId, partySize, buildCompleteH
           line_user_id: lineUserId ?? undefined,
           party_size: partySize ?? undefined,
           items: [
-            ...cartItems.map((item) => ({
-              product_id: item.product.id,
-              product_name: item.product.name,
-              quantity: item.quantity,
-              unit_price: item.product.price,
-              with_topping: item.with_topping,
-              with_egg_yolk: !!item.with_egg_yolk,
-              with_large: !!item.with_large,
-              timing: item.timing ?? null,
-              ...(item.is_takeout ? { is_takeout: true } : {}),
-            })),
+            ...cartItems.flatMap((item) => {
+              const row = {
+                product_id: item.product.id,
+                product_name: item.product.name,
+                unit_price: item.product.price,
+                with_topping: item.with_topping,
+                with_egg_yolk: !!item.with_egg_yolk,
+                with_large: !!item.with_large,
+                timing: item.timing ?? null,
+                ...(item.is_takeout ? { is_takeout: true } : {}),
+              }
+              // 注文者ごとに分けた行は、注文者ごとの明細にする
+              const diners = assignment?.get(item)
+              if (!diners || diners.length === 0) return [{ ...row, quantity: item.quantity }]
+              const counts = new Map<number, number>()
+              for (const d of diners) counts.set(d, (counts.get(d) ?? 0) + 1)
+              return [...counts.entries()]
+                .sort(([a], [b]) => a - b)
+                .map(([diner_no, quantity]) => ({ ...row, quantity, diner_no }))
+            }),
             ...lunchNigiriItems,
           ],
         }),
@@ -347,7 +357,7 @@ export default function OrderUI({ tableId, lineUserId, partySize, buildCompleteH
     } finally {
       setIsSubmitting(false)
     }
-  }, [cartItems, lunchNigiriPerPlate, products, tableId, lineUserId, buildCompleteHref, router])
+  }, [cartItems, lunchNigiriPerPlate, products, tableId, lineUserId, partySize, buildCompleteHref, router])
 
   const tableName = TABLE_NAMES[tableId] ?? tableId
 
@@ -588,6 +598,7 @@ export default function OrderUI({ tableId, lineUserId, partySize, buildCompleteH
       <Cart
         items={cartItems}
         onSubmit={handleSubmit}
+        partySize={partySize}
         isSubmitting={isSubmitting}
         allProducts={products}
         lunchNigiriPerPlate={lunchNigiriPerPlate}

@@ -39,6 +39,11 @@ export default function OrderCard({ order, showStatus = false }: Props) {
 
   // 席から注文されたお持ち帰り分は、イートインの下にまとめて表示する
   const eatinItems = items.filter((i) => i.lunch_plate_index == null && !i.is_takeout)
+  // 注文者ごとに分けたおにぎり（同じ人の分を1皿にまとめる）と、それ以外
+  const dinerNumbers = [...new Set(eatinItems.map((i) => i.diner_no).filter((n): n is number => n != null))].sort(
+    (a, b) => a - b,
+  )
+  const sharedItems = eatinItems.filter((i) => i.diner_no == null)
   const takeoutItems = items.filter((i) => i.lunch_plate_index == null && i.is_takeout)
   const tableName = TABLE_NAMES[order.table_id] ?? order.table_id
   const isTakeout = order.table_id === TAKEOUT_TABLE_ID
@@ -105,7 +110,17 @@ export default function OrderCard({ order, showStatus = false }: Props) {
         </div>
 
         <div className="space-y-1 mb-3">
-          {eatinItems.map((item) => (
+          {dinerNumbers.map((n) => (
+            <div key={`diner-${n}`} className="rounded-lg border border-brown-200 bg-white/60 px-2 py-1 space-y-0.5">
+              <p className="text-xs font-bold text-brown-500">注文者{n}（1皿）</p>
+              {eatinItems
+                .filter((i) => i.diner_no === n)
+                .map((item) => (
+                  <ItemLine key={item.id} item={item} batch={batchIndexes.get(item.id) ?? 0} />
+                ))}
+            </div>
+          ))}
+          {sharedItems.map((item) => (
             <div key={item.id}>
               <ItemLine item={item} batch={batchIndexes.get(item.id) ?? 0} />
               <PlateNigiri groups={plateNigiri.get(item.id)} />

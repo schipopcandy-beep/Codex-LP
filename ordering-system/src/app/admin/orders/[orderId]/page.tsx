@@ -392,6 +392,9 @@ function ItemRow({ item, batch = 0 }: { item: OrderItem; batch?: number }) {
           {batchLabel && (
             <span className="text-sm text-rose-600 mr-1">［{batchLabel}］</span>
           )}
+          {item.diner_no != null && (
+            <span className="text-sm text-brown-500 mr-1">［注文者{item.diner_no}］</span>
+          )}
           {item.product?.name ?? '不明商品'}
         </p>
         {optionLabel(item) && (
