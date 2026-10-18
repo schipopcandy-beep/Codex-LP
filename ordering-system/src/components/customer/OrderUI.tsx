@@ -31,6 +31,7 @@ import {
   TAKEOUT_ONLY_CATEGORY,
   isHiddenFromMenu,
   optionsOfItem,
+  optionColumns,
 } from '@/lib/types'
 
 interface Props {
@@ -254,6 +255,27 @@ export default function OrderUI({ tableId, lineUserId, partySize, buildCompleteH
   }, [])
 
   /** カートから商品を削除する */
+  /** カートの1行のオプションを変える（同じ組み合わせの行があればまとめる） */
+  const handleCartOptionsChange = useCallback((item: CartItem, options: NigiriOptions) => {
+    const oldKey = cartKey(item.product.id, optionsOfItem(item), !!item.is_takeout)
+    const newKey = cartKey(item.product.id, options, !!item.is_takeout)
+    if (oldKey === newKey) return
+    setCartMap((prev) => {
+      const next = new Map(prev)
+      const existing = next.get(oldKey)
+      if (!existing) return prev
+      next.delete(oldKey)
+      const merged = next.get(newKey)
+      next.set(
+        newKey,
+        merged
+          ? { ...merged, quantity: merged.quantity + existing.quantity }
+          : { ...existing, ...optionColumns(options) },
+      )
+      return next
+    })
+  }, [])
+
   const handleCartItemDelete = useCallback((item: CartItem) => {
     const key = itemKey(item)
     setCartMap((prev) => {
@@ -576,6 +598,7 @@ export default function OrderUI({ tableId, lineUserId, partySize, buildCompleteH
         onLunchNigiriChange={handleLunchNigiriChange}
         onAddItem={handleAddEatin}
         tonjiruProduct={tonjiruProduct}
+        onOptionsChange={handleCartOptionsChange}
       />
     </div>
   )

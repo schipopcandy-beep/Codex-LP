@@ -1,8 +1,9 @@
 'use client'
 
 import { useState } from 'react'
-import type { CartItem, Product } from '@/lib/types'
+import type { CartItem, NigiriOptions, OptionSoldOut, Product } from '@/lib/types'
 import { calcCartTotal, optionLabel, optionPrice } from '@/lib/types'
+import ToppingSuggestions from '@/components/customer/ToppingSuggestions'
 import PickupDateTimePicker from '@/components/customer/PickupDateTimePicker'
 
 interface Props {
@@ -16,6 +17,10 @@ interface Props {
   onAddItem?: (product: Product) => void
   /** おすすめする豚汁商品（渡された場合のみポップアップ表示） */
   tonjiruProduct?: Product
+  /** おにぎりのトッピングのおすすめで、カートの行のオプションを変える */
+  onOptionsChange?: (item: CartItem, options: NigiriOptions) => void
+  /** トッピングの売り切れ状態（おすすめに出すものを決める） */
+  optionSoldOut?: OptionSoldOut
   /** カートの個数変更（delta: +1 / -1） */
   onQuantityChange?: (item: CartItem, delta: number) => void
   /** カートから商品を削除 */
@@ -36,6 +41,8 @@ export default function TakeoutCart({
   onQuantityChange,
   onItemDelete,
   isSeatOrder = false,
+  onOptionsChange,
+  optionSoldOut,
 }: Props) {
   const [isOpen, setIsOpen] = useState(false)
   const [confirmed, setConfirmed] = useState(false)
@@ -90,7 +97,7 @@ export default function TakeoutCart({
       {showTonjiruPopup && (
         <div className="fixed inset-0 z-50 flex items-center justify-center px-6">
           <div className="absolute inset-0 bg-black/50" onClick={() => setShowTonjiruPopup(false)} />
-          <div className="relative bg-cream-50 rounded-2xl shadow-2xl p-6 w-full max-w-sm space-y-4">
+          <div className="relative bg-cream-50 rounded-2xl shadow-2xl p-6 w-full max-w-sm space-y-4 max-h-[90dvh] overflow-y-auto">
             <div className="text-center space-y-2">
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
@@ -118,6 +125,9 @@ export default function TakeoutCart({
             >
               追加する
             </button>
+            {onOptionsChange && (
+              <ToppingSuggestions items={items} optionSoldOut={optionSoldOut} onOptionsChange={onOptionsChange} />
+            )}
             <button
               onClick={() => { setShowTonjiruPopup(false); setIsOpen(true) }}
               className="w-full py-3 text-sm text-brown-500 underline underline-offset-2"

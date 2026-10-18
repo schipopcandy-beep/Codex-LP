@@ -15,6 +15,7 @@ import {
   NO_OPTION_SOLD_OUT,
   isHiddenFromMenu,
   optionsOfItem,
+  optionColumns,
 } from '@/lib/types'
 
 interface Props {
@@ -140,6 +141,27 @@ export default function TakeoutUI({ lineUserId, lineDisplayName, seat, seatTable
   }, [])
 
   /** カートから商品を削除する */
+  /** カートの1行のオプションを変える（同じ組み合わせの行があればまとめる） */
+  const handleCartOptionsChange = useCallback((item: CartItem, options: NigiriOptions) => {
+    const oldKey = cartKey(item.product.id, optionsOf(item))
+    const newKey = cartKey(item.product.id, options)
+    if (oldKey === newKey) return
+    setCartMap((prev) => {
+      const next = new Map(prev)
+      const existing = next.get(oldKey)
+      if (!existing) return prev
+      next.delete(oldKey)
+      const merged = next.get(newKey)
+      next.set(
+        newKey,
+        merged
+          ? { ...merged, quantity: merged.quantity + existing.quantity }
+          : { ...existing, ...optionColumns(options) },
+      )
+      return next
+    })
+  }, [])
+
   const handleCartItemDelete = useCallback((item: CartItem) => {
     const key = cartKey(item.product.id, optionsOf(item))
     setCartMap((prev) => {
@@ -305,6 +327,8 @@ export default function TakeoutUI({ lineUserId, lineDisplayName, seat, seatTable
         onItemDelete={handleCartItemDelete}
         isSeatOrder={isSeatOrder}
         tonjiruProduct={tonjiruProduct}
+        optionSoldOut={optionSoldOut}
+        onOptionsChange={handleCartOptionsChange}
       />
     </div>
   )
