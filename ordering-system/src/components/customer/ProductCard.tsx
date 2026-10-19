@@ -93,7 +93,7 @@ export default function ProductCard({
       />
       <span>
         {label}
-        <span className="text-brown-400 ml-1">(+¥{price})</span>
+        <span className={`ml-1 font-bold ${available ? 'text-amber-700' : ''}`}>+¥{price}</span>
         {!available && <span className="ml-1 text-xs">売り切れ</span>}
       </span>
     </label>
@@ -144,7 +144,8 @@ export default function ProductCard({
 
         {/* オプション（追加する前から選べる） */}
         {hasOptions && (
-          <div className="mt-1 space-y-1">
+          <div className="mt-1 space-y-1 rounded-lg bg-amber-50 border border-amber-200 px-2 py-1.5">
+            <p className="text-xs font-bold text-amber-800">トッピング</p>
             <OptionCheckbox
               checked={largeChecked}
               onChange={setLargeChecked}
