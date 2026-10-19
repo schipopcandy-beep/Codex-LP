@@ -249,6 +249,14 @@ export const LUNCH_PLATE_1_NAME = 'ランチプレート（おにぎり1個）'
 export const LUNCH_PLATE_2_NAME = 'ランチプレート（おにぎり2個）'
 
 /** ランチプレート商品かどうか */
+/** おかずパック（ランチプレートと合わせて仕込み数を数える） */
+export const OKAZU_PACK_NAME = 'おかずパック'
+
+/** ランチプレートと合わせて仕込み数を数える商品か（ランチプレート1個・2個・おかずパック） */
+export function isInLunchStockGroup(product: Product): boolean {
+  return isLunchPlate(product) || product.name === OKAZU_PACK_NAME
+}
+
 export function isLunchPlate(product: Product): boolean {
   return product.name.startsWith(LUNCH_PLATE_NAME_PREFIX)
 }

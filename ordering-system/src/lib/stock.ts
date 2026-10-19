@@ -1,6 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import {
   LUNCH_PLATE_NAME_PREFIX,
+  OKAZU_PACK_NAME,
   NIGIRI_CATEGORY,
   OPTION_NAMES,
   TAKEOUT_TABLE_ID,
@@ -14,7 +15,7 @@ export const LOW_STOCK_THRESHOLD = 5
 /**
  * 仕込み数を数える単位（キー）
  * - 商品ごと:            "product:<商品ID>"
- * - ランチプレート合計:  "group:lunch_plate"（1個用・2個用をまとめて数える）
+ * - ランチプレート合計:  "group:lunch_plate"（1個用・2個用・おかずパックをまとめて数える）
  * - オプション:          "option:egg_yolk" など（付けた数を数える）
  * - おにぎり全体:        "group:all_onigiri"（単品とランチプレートの中のおにぎりをすべて合わせて数える）
  */
@@ -27,7 +28,7 @@ export const optionStockKey = (key: OptionKey): StockKey => `option:${key}`
 /** 仕込み数を数える単位1つ分の仕込み数と残り数 */
 export interface StockStatus {
   stock_key: StockKey
-  /** 画面に出す名前（商品名、「ランチプレート（1個・2個の合計）」など） */
+  /** 画面に出す名前（商品名、「ランチプレート・おかずパック（合計）」など） */
   label: string
   prepared_qty: number
   ordered_qty: number
@@ -44,8 +45,8 @@ interface CountableItem {
 
 /** 数え方に必要な商品の分類 */
 export interface StockContext {
-  /** ランチプレートの商品ID（1個用・2個用） */
-  lunchPlateIds: Set<string>
+  /** ランチプレート・おかずパックの商品ID（合わせて "group:lunch_plate" で数える） */
+  lunchGroupIds: Set<string>
   /** おにぎりの商品ID（「おにぎり全体」で数える） */
   onigiriIds: Set<string>
 }
@@ -54,7 +55,11 @@ export async function getStockContext(supabase: SupabaseClient): Promise<StockCo
   const { data } = await supabase.from('products').select('id, name, category')
   const products = (data ?? []) as { id: string; name: string; category: string }[]
   return {
-    lunchPlateIds: new Set(products.filter((p) => p.name.startsWith(LUNCH_PLATE_NAME_PREFIX)).map((p) => p.id)),
+    lunchGroupIds: new Set(
+      products
+        .filter((p) => p.name.startsWith(LUNCH_PLATE_NAME_PREFIX) || p.name === OKAZU_PACK_NAME)
+        .map((p) => p.id),
+    ),
     onigiriIds: new Set(products.filter((p) => p.category === NIGIRI_CATEGORY).map((p) => p.id)),
   }
 }
@@ -68,7 +73,7 @@ export function countByStockKey(items: CountableItem[], ctx: StockContext): Map<
   const counts = new Map<StockKey, number>()
   const add = (key: StockKey, qty: number) => counts.set(key, (counts.get(key) ?? 0) + qty)
   for (const item of items) {
-    add(ctx.lunchPlateIds.has(item.product_id) ? LUNCH_PLATE_STOCK_KEY : productStockKey(item.product_id), item.quantity)
+    add(ctx.lunchGroupIds.has(item.product_id) ? LUNCH_PLATE_STOCK_KEY : productStockKey(item.product_id), item.quantity)
     if (ctx.onigiriIds.has(item.product_id)) add(ALL_ONIGIRI_STOCK_KEY, item.quantity)
     if (item.with_topping) add(optionStockKey('tororo'), item.quantity)
     if (item.with_egg_yolk) add(optionStockKey('egg_yolk'), item.quantity)
@@ -137,7 +142,7 @@ export async function getOrderedCounts(
 
 /** 単位の表示名 */
 function labelOf(key: StockKey, productNames: Map<string, string>): string {
-  if (key === LUNCH_PLATE_STOCK_KEY) return 'ランチプレート（1個・2個の合計）'
+  if (key === LUNCH_PLATE_STOCK_KEY) return 'ランチプレート・おかずパック（合計）'
   if (key === ALL_ONIGIRI_STOCK_KEY) return 'おにぎり（全体）'
   if (key.startsWith('option:')) return OPTION_NAMES[key.slice('option:'.length) as OptionKey] ?? key
   return productNames.get(key.slice('product:'.length)) ?? '不明'
@@ -197,7 +202,7 @@ export async function checkStock(
 }
 
 /** 単位ごとの「今売り切れか」を読む・切り替える */
-async function soldOutTargets(supabase: SupabaseClient, key: StockKey, lunchPlateIds: Set<string>) {
+async function soldOutTargets(supabase: SupabaseClient, key: StockKey, lunchGroupIds: Set<string>) {
   const now = new Date().toISOString()
 
   if (key.startsWith('option:')) {
@@ -213,11 +218,11 @@ async function soldOutTargets(supabase: SupabaseClient, key: StockKey, lunchPlat
     }
   }
 
-  const ids = key === LUNCH_PLATE_STOCK_KEY ? [...lunchPlateIds] : [key.slice('product:'.length)]
+  const ids = key === LUNCH_PLATE_STOCK_KEY ? [...lunchGroupIds] : [key.slice('product:'.length)]
   const { data } = await supabase.from('products').select('id, name, is_sold_out').in('id', ids)
   const products = (data ?? []) as { id: string; name: string; is_sold_out: boolean }[]
   return {
-    // ランチプレートは、1個用・2個用のどちらも売り切れのときに「売り切れ」とみなす
+    // ランチプレート・おかずパックは、すべて売り切れのときに「売り切れ」とみなす
     isSoldOut: products.length > 0 && products.every((p) => p.is_sold_out),
     set: async (soldOut: boolean) => {
       await supabase
@@ -245,7 +250,7 @@ export async function syncAutoSoldOut(supabase: SupabaseClient, date: string = t
   const statuses = await getStockStatus(supabase, date)
   if (statuses.length === 0) return
 
-  const [{ data: rows }, { lunchPlateIds }] = await Promise.all([
+  const [{ data: rows }, { lunchGroupIds }] = await Promise.all([
     supabase.from('stock_counts').select('stock_key, auto_sold_out').eq('date', date),
     getStockContext(supabase),
   ])
@@ -263,7 +268,7 @@ export async function syncAutoSoldOut(supabase: SupabaseClient, date: string = t
   for (const s of statuses) {
     // 「おにぎり全体」は商品ごとの売り切れ設定を変えずに、表示のときに売り切れ扱いにする（isAllOnigiriSoldOut）
     if (s.stock_key === ALL_ONIGIRI_STOCK_KEY) continue
-    const target = await soldOutTargets(supabase, s.stock_key, lunchPlateIds)
+    const target = await soldOutTargets(supabase, s.stock_key, lunchGroupIds)
     if (s.remaining <= 0 && !target.isSoldOut) {
       await target.set(true)
       await setAuto(s.stock_key, true)
