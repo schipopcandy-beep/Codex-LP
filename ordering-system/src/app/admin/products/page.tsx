@@ -15,6 +15,7 @@ import {
 import {
   isHiddenFromMenu,
   isLunchPlate,
+  isInLunchStockGroup,
   NIGIRI_CATEGORY,
   NO_OPTION_SOLD_OUT,
   OPTION_NAMES,
@@ -271,8 +272,8 @@ export default function SoldOutAdminPage() {
             onClick={() => toggleSoldOut(product)}
           />
         </div>
-        {isLunchPlate(product) ? (
-          <p className="text-xs text-brown-400">仕込み数は「ランチプレート（1個・2個の合計）」で入力します</p>
+        {isInLunchStockGroup(product) ? (
+          <p className="text-xs text-brown-400">仕込み数は「ランチプレート・おかずパック（合計）」で入力します</p>
         ) : (
           renderPrepInput(productStockKey(product.id))
         )}
@@ -395,12 +396,12 @@ export default function SoldOutAdminPage() {
           {others.length > 0 && (
             <section className="space-y-3">
               <h2 className="font-bold text-lg text-brown-800">ランチプレート・サイドほか</h2>
-              {others.some(isLunchPlate) && (
+              {others.some(isInLunchStockGroup) && (
                 <div className="card p-3 space-y-2 border-2 border-amber-200">
                   <div>
-                    <p className="font-bold text-base text-brown-800">ランチプレート（1個・2個の合計）</p>
+                    <p className="font-bold text-base text-brown-800">ランチプレート・おかずパック（合計）</p>
                     <p className="text-xs text-brown-400">
-                      1個用・2個用の注文を合わせて数え、残りが0になると両方とも売り切れになります
+                      ランチプレート（1個・2個）とおかずパックの注文を合わせて数え、残りが0になるとすべて売り切れになります
                     </p>
                   </div>
                   {renderPrepInput(LUNCH_PLATE_STOCK_KEY)}
