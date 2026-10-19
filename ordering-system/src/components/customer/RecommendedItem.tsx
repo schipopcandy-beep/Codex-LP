@@ -12,7 +12,8 @@ export const RECOMMENDATIONS: {
   productName: string
   options: NigiriOptions
   title: string
-  catchCopy: string
+  /** 紹介文（空なら出さない） */
+  catchCopy?: string
 }[] = [
   {
     productName: 'おかチー',
@@ -24,7 +25,6 @@ export const RECOMMENDATIONS: {
     productName: 'おかチー',
     options: { tororo: false, eggYolk: false, large: true },
     title: 'おかチー＋大満足120%おにぎり',
-    catchCopy: '当店一番人気のおかチーを、大満足120%のボリュームで',
   },
 ]
 
@@ -36,14 +36,22 @@ interface Props {
   onAdd: (product: Product, options: NigiriOptions) => void
 }
 
+/** 商品があって、商品もオプションも売り切れでない最初のおすすめ（どれもなければ null） */
+export function pickRecommendation(products: Product[], optionSoldOut: OptionSoldOut = NO_OPTION_SOLD_OUT) {
+  for (const r of RECOMMENDATIONS) {
+    const product = products.find((p) => p.name === r.productName)
+    if (product && !product.is_sold_out && !isComboSoldOut(r.options, optionSoldOut)) {
+      return { recommendation: r, product }
+    }
+  }
+  return null
+}
+
 /** メニューの上に出すおすすめ。押すとそのままカートに入る */
 export default function RecommendedItem({ products, optionSoldOut = NO_OPTION_SOLD_OUT, getQuantity, onAdd }: Props) {
-  // 商品があって、商品もオプションも売り切れでない最初のおすすめ（どれもなければ出さない）
-  const picked = RECOMMENDATIONS.map((r) => ({ r, product: products.find((p) => p.name === r.productName) })).find(
-    ({ r, product }) => product && !product.is_sold_out && !isComboSoldOut(r.options, optionSoldOut),
-  )
-  if (!picked?.product) return null
-  const { r: recommendation, product } = picked
+  const picked = pickRecommendation(products, optionSoldOut)
+  if (!picked) return null
+  const { recommendation, product } = picked
   const quantity = getQuantity(product, recommendation.options)
 
   const columns = optionColumns(recommendation.options)
@@ -62,7 +70,9 @@ export default function RecommendedItem({ products, optionSoldOut = NO_OPTION_SO
           <p className="font-bold text-lg text-brown-800 leading-tight">
             {recommendation.title}
           </p>
-          <p className="text-xs text-brown-500 mt-1 leading-snug">{recommendation.catchCopy}</p>
+          {recommendation.catchCopy && (
+            <p className="text-xs text-brown-500 mt-1 leading-snug">{recommendation.catchCopy}</p>
+          )}
           <div className="mt-auto pt-2 flex items-center justify-between gap-2">
             <p className="text-lg font-bold text-brown-700 tabular-nums">¥{price.toLocaleString()}</p>
             <button
