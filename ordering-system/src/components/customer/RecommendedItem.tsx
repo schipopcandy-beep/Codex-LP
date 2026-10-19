@@ -8,7 +8,7 @@ import { NO_OPTION_SOLD_OUT, isComboSoldOut, optionColumns, optionLabel, optionP
 export const RECOMMENDED = {
   productName: 'おかチー',
   options: { tororo: false, eggYolk: true, large: false } as NigiriOptions,
-  catchCopy: '当店一番人気のおかチーに、とろっと濃厚な漬け卵黄をのせて',
+  catchCopy: '当店一番人気のおかチーに、とろっと濃厚な漬け卵黄をトッピング',
 }
 
 interface Props {
