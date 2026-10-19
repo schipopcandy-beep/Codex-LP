@@ -8,7 +8,7 @@ import DrinkCard from '@/components/customer/DrinkCard'
 import type { DinerAssignment } from '@/components/customer/DinerSplitPopup'
 import Cart from '@/components/customer/Cart'
 import LunchPlateSheet from '@/components/customer/LunchPlateSheet'
-import RecommendedItem, { RECOMMENDED } from '@/components/customer/RecommendedItem'
+import RecommendedItem from '@/components/customer/RecommendedItem'
 import type {
   Product,
   CartItem,
@@ -441,10 +441,7 @@ export default function OrderUI({ tableId, lineUserId, partySize, buildCompleteH
               key="recommended"
               products={products}
               optionSoldOut={optionSoldOut}
-              quantity={(() => {
-                const p = products.find((x) => x.name === RECOMMENDED.productName)
-                return p ? quantityOf(p)(RECOMMENDED.options) : 0
-              })()}
+              getQuantity={(p, o) => quantityOf(p)(o)}
               onAdd={handleAdd}
             />
           )

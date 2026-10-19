@@ -2,30 +2,51 @@
 
 import Image from 'next/image'
 import type { NigiriOptions, OptionSoldOut, Product } from '@/lib/types'
-import { NO_OPTION_SOLD_OUT, isComboSoldOut, optionColumns, optionLabel, optionPrice } from '@/lib/types'
+import { NO_OPTION_SOLD_OUT, isComboSoldOut, optionColumns, optionPrice } from '@/lib/types'
 
-/** おすすめメニュー（商品名とオプションの組み合わせ）。変えるときはここを書き換える */
-export const RECOMMENDED = {
-  productName: 'おかチー',
-  options: { tororo: false, eggYolk: true, large: false } as NigiriOptions,
-  catchCopy: '当店一番人気のおかチーに、とろっと濃厚な漬け卵黄をトッピング',
-}
+/**
+ * おすすめメニュー（上から順に、売り切れでない最初の1つを出す）。変えるときはここを書き換える
+ * 例: 漬け卵黄が売り切れたら、大満足120%のほうをおすすめする
+ */
+export const RECOMMENDATIONS: {
+  productName: string
+  options: NigiriOptions
+  title: string
+  catchCopy: string
+}[] = [
+  {
+    productName: 'おかチー',
+    options: { tororo: false, eggYolk: true, large: false },
+    title: 'おかチー＋漬け卵黄',
+    catchCopy: '当店一番人気のおかチーに、とろっと濃厚な漬け卵黄をトッピング',
+  },
+  {
+    productName: 'おかチー',
+    options: { tororo: false, eggYolk: false, large: true },
+    title: 'おかチー＋大満足120%おにぎり',
+    catchCopy: '当店一番人気のおかチーを、大満足120%のボリュームで',
+  },
+]
 
 interface Props {
   products: Product[]
   optionSoldOut?: OptionSoldOut
-  /** カートに入っている数（この組み合わせ） */
-  quantity: number
+  /** カートに入っている数（商品とオプションの組み合わせごと） */
+  getQuantity: (product: Product, options: NigiriOptions) => number
   onAdd: (product: Product, options: NigiriOptions) => void
 }
 
 /** メニューの上に出すおすすめ。押すとそのままカートに入る */
-export default function RecommendedItem({ products, optionSoldOut = NO_OPTION_SOLD_OUT, quantity, onAdd }: Props) {
-  const product = products.find((p) => p.name === RECOMMENDED.productName)
-  // 商品がない・売り切れのときは出さない
-  if (!product || product.is_sold_out || isComboSoldOut(RECOMMENDED.options, optionSoldOut)) return null
+export default function RecommendedItem({ products, optionSoldOut = NO_OPTION_SOLD_OUT, getQuantity, onAdd }: Props) {
+  // 商品があって、商品もオプションも売り切れでない最初のおすすめ（どれもなければ出さない）
+  const picked = RECOMMENDATIONS.map((r) => ({ r, product: products.find((p) => p.name === r.productName) })).find(
+    ({ r, product }) => product && !product.is_sold_out && !isComboSoldOut(r.options, optionSoldOut),
+  )
+  if (!picked?.product) return null
+  const { r: recommendation, product } = picked
+  const quantity = getQuantity(product, recommendation.options)
 
-  const columns = optionColumns(RECOMMENDED.options)
+  const columns = optionColumns(recommendation.options)
   const price = product.price + optionPrice(columns)
 
   return (
@@ -39,14 +60,14 @@ export default function RecommendedItem({ products, optionSoldOut = NO_OPTION_SO
         </div>
         <div className="flex-1 min-w-0 flex flex-col">
           <p className="font-bold text-lg text-brown-800 leading-tight">
-            {product.name}＋{optionLabel(columns).replace('追加', '')}
+            {recommendation.title}
           </p>
-          <p className="text-xs text-brown-500 mt-1 leading-snug">{RECOMMENDED.catchCopy}</p>
+          <p className="text-xs text-brown-500 mt-1 leading-snug">{recommendation.catchCopy}</p>
           <div className="mt-auto pt-2 flex items-center justify-between gap-2">
             <p className="text-lg font-bold text-brown-700 tabular-nums">¥{price.toLocaleString()}</p>
             <button
               type="button"
-              onClick={() => onAdd(product, RECOMMENDED.options)}
+              onClick={() => onAdd(product, recommendation.options)}
               className="relative px-3 py-2 rounded-xl bg-brown-600 text-white text-sm font-bold whitespace-nowrap active:bg-brown-700"
             >
               カートに入れる
