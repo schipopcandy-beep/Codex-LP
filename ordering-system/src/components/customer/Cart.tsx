@@ -5,19 +5,22 @@ import type { CartItem, CartPlate, Product } from '@/lib/types'
 import {
   calcCartTotal,
   calcPlatePrice,
+  isToppingSelectable,
   optionLabel,
   optionPrice,
 } from '@/lib/types'
 import TonjiruSuggestion from '@/components/customer/TonjiruSuggestion'
+import DinerSplitPopup, { type DinerAssignment } from '@/components/customer/DinerSplitPopup'
 
 interface Props {
   items: CartItem[]
   /** カートに入れたランチプレート（中のおにぎりは選び終えている） */
   plates?: CartPlate[]
-  onSubmit: () => Promise<void>
+  /** 注文を確定する（注文者ごとに分けた場合はその割り当てを渡す） */
+  onSubmit: (assignment?: DinerAssignment) => Promise<void>
   isSubmitting: boolean
-  /** 人数（2名以上のときだけ、カートを「○人目」ごとに分けて表示する。0 = 分けない） */
-  dinerCount?: number
+  /** 来店人数。2名以上でおにぎりが2個以上なら、確定の直前に注文者ごとに分けてもらう */
+  partySize?: number | null
   /** ランチプレートの金額・中のおにぎりの名前に使う */
   allProducts?: Product[]
   /** カートの個数変更（delta: +1 / -1） */
@@ -30,8 +33,6 @@ interface Props {
   onAddItem?: (product: Product) => void
   /** おすすめする豚汁商品（カートになければ「豚汁を追加」を出す） */
   tonjiruProduct?: Product
-  /** 豚汁を追加する先の表示（例: "2人目"） */
-  tonjiruTargetLabel?: string
 }
 
 export default function Cart({
@@ -39,16 +40,16 @@ export default function Cart({
   plates = [],
   onSubmit,
   isSubmitting,
-  dinerCount = 0,
+  partySize,
   allProducts = [],
   onQuantityChange,
   onItemDelete,
   onPlateDelete,
   onAddItem,
   tonjiruProduct,
-  tonjiruTargetLabel,
 }: Props) {
   const [isOpen, setIsOpen] = useState(false)
+  const [showDinerSplit, setShowDinerSplit] = useState(false)
 
   const hasTonjiru = tonjiruProduct ? items.some((i) => i.product.id === tonjiruProduct.id) : true
 
@@ -57,7 +58,10 @@ export default function Cart({
 
   const eatinCartItems = items.filter((item) => !item.is_takeout)
   const takeoutCartItems = items.filter((item) => item.is_takeout)
-  const diners = Array.from({ length: dinerCount }, (_, i) => i + 1)
+  /** 注文者ごとに分ける対象（店内で食べるおにぎり。ランチプレートの中のおにぎりはプレートで分かれるので含めない） */
+  const dinerSplitItems = eatinCartItems.filter((item) => isToppingSelectable(item.product))
+  const needsDinerSplit =
+    (partySize ?? 0) >= 2 && dinerSplitItems.reduce((sum, item) => sum + item.quantity, 0) >= 2
 
   /** カート1行分（店内分・お持ち帰り分で共通） */
   const renderCartItem = (item: CartItem) => {
@@ -67,7 +71,7 @@ export default function Cart({
 
     return (
       <div
-        key={`${item.product.id}-${item.with_topping}-${!!item.with_egg_yolk}-${!!item.with_large}-${item.timing ?? ''}-${item.is_takeout ? 'takeout' : ''}-${item.diner_no ?? ''}`}
+        key={`${item.product.id}-${item.with_topping}-${!!item.with_egg_yolk}-${!!item.with_large}-${item.timing ?? ''}-${item.is_takeout ? 'takeout' : ''}`}
         className="space-y-1.5"
       >
         <div className="flex justify-between items-start gap-2">
@@ -211,40 +215,11 @@ export default function Cart({
             <div className="overflow-y-auto flex-1 px-4 py-3 space-y-3">
               {/* 豚汁のおすすめ（カートになければ1行で出す） */}
               {tonjiruProduct && !hasTonjiru && onAddItem && (
-                <TonjiruSuggestion
-                  product={tonjiruProduct}
-                  targetLabel={tonjiruTargetLabel}
-                  onAdd={() => onAddItem(tonjiruProduct)}
-                />
+                <TonjiruSuggestion product={tonjiruProduct} onAdd={() => onAddItem(tonjiruProduct)} />
               )}
 
-              {diners.length > 0 ? (
-                // 2名以上: お一人ずつ1皿にまとめてお出しするので、人ごとに分けて表示する
-                diners.map((n) => {
-                  const dinerItems = eatinCartItems.filter((i) => i.diner_no === n)
-                  const dinerPlates = plates.filter((p) => p.diner_no === n)
-                  if (dinerItems.length === 0 && dinerPlates.length === 0) return null
-                  return (
-                    <div key={n} className="space-y-3 rounded-xl border border-cream-300 bg-white/60 p-3">
-                      <p className="text-sm font-bold text-brown-600">{n}人目</p>
-                      {dinerPlates.map(renderPlate)}
-                      {dinerItems.map(renderCartItem)}
-                    </div>
-                  )
-                })
-              ) : (
-                <>
-                  {plates.map(renderPlate)}
-                  {eatinCartItems.map(renderCartItem)}
-                </>
-              )}
-              {/* 人数を分ける前に入れたものなど、人の指定がない店内分 */}
-              {diners.length > 0 && (
-                <>
-                  {plates.filter((p) => !p.diner_no).map(renderPlate)}
-                  {eatinCartItems.filter((i) => !i.diner_no).map(renderCartItem)}
-                </>
-              )}
+              {plates.map(renderPlate)}
+              {eatinCartItems.map(renderCartItem)}
 
               {/* 店内のご注文と一緒に頼んだお持ち帰り分 */}
               {takeoutCartItems.length > 0 && (
@@ -267,6 +242,10 @@ export default function Cart({
               </p>
               <button
                 onClick={async () => {
+                  if (needsDinerSplit) {
+                    setShowDinerSplit(true)
+                    return
+                  }
                   await onSubmit()
                   setIsOpen(false)
                 }}
@@ -282,6 +261,21 @@ export default function Cart({
         </div>
       )}
 
+
+      {/* 確定の直前に、おにぎりを注文者ごとに分ける */}
+      {showDinerSplit && partySize && (
+        <DinerSplitPopup
+          items={dinerSplitItems}
+          partySize={partySize}
+          isSubmitting={isSubmitting}
+          onConfirm={async (assignment) => {
+            await onSubmit(assignment)
+            setShowDinerSplit(false)
+            setIsOpen(false)
+          }}
+          onCancel={() => setShowDinerSplit(false)}
+        />
+      )}
     </>
   )
 }
