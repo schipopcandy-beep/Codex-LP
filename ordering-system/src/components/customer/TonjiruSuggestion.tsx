@@ -8,12 +8,9 @@ const TONJIRU_IMAGE_URL =
 /** カートの中に1行で出す豚汁のおすすめ（押すとそのまま追加） */
 export default function TonjiruSuggestion({
   product,
-  targetLabel,
   onAdd,
 }: {
   product: Product
-  /** 追加する先の表示（例: "2人目"） */
-  targetLabel?: string
   onAdd: () => void
 }) {
   return (
@@ -30,10 +27,7 @@ export default function TonjiruSuggestion({
         className="flex-shrink-0 px-3 py-2 rounded-xl bg-brown-600 text-white text-sm font-bold active:bg-brown-700"
       >
         ＋追加
-        <span className="block text-xs font-normal">
-          ¥{product.price.toLocaleString()}
-          {targetLabel ? `・${targetLabel}` : ''}
-        </span>
+        <span className="block text-xs font-normal">¥{product.price.toLocaleString()}</span>
       </button>
     </div>
   )

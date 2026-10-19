@@ -506,8 +506,6 @@ export interface CartItem {
   timing?: DrinkTiming   // ドリンクのみ
   /** 店内注文と一緒に頼むお持ち帰り分 */
   is_takeout?: boolean
-  /** 何人目の分か（1始まり。2名以上の店内注文のとき） */
-  diner_no?: number
 }
 
 /** カートに入れたランチプレート1枚（おにぎりは追加するときに選び終えている） */
@@ -516,8 +514,6 @@ export interface CartPlate {
   id: string
   product: Product
   units: LunchNigiriUnit[]
-  /** 何人目の分か（1始まり。2名以上の店内注文のとき） */
-  diner_no?: number
 }
 
 /** ランチプレート1枚の金額（プレートの価格＋おにぎりの種類ごとの追加料金＋トッピング） */
