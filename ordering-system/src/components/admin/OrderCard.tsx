@@ -116,7 +116,10 @@ export default function OrderCard({ order, showStatus = false }: Props) {
               {eatinItems
                 .filter((i) => i.diner_no === n)
                 .map((item) => (
-                  <ItemLine key={item.id} item={item} batch={batchIndexes.get(item.id) ?? 0} />
+                  <div key={item.id}>
+                    <ItemLine item={item} batch={batchIndexes.get(item.id) ?? 0} />
+                    <PlateNigiri groups={plateNigiri.get(item.id)} />
+                  </div>
                 ))}
             </div>
           ))}

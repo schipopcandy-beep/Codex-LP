@@ -477,7 +477,11 @@ export function groupLunchPlateNigiri(items: OrderItem[]): Map<string, OrderItem
       const required = plate.product ? lunchPlateNigiriCount(plate.product) : 1
       const groups: OrderItem[][] = []
       for (let k = 0; k < plate.quantity && remaining.length > 0; k++) {
-        const matchIdx = remaining.findIndex((g) => g.length === required)
+        // 注文者が同じ組を優先する（同じ大きさのプレートを別々の人が頼んだときに入れ違わないように）
+        const sameDiner = remaining.findIndex(
+          (g) => g.length === required && (g[0]?.diner_no ?? null) === (plate.diner_no ?? null),
+        )
+        const matchIdx = sameDiner >= 0 ? sameDiner : remaining.findIndex((g) => g.length === required)
         groups.push(remaining.splice(matchIdx >= 0 ? matchIdx : 0, 1)[0])
       }
       result.set(plate.id, groups)
@@ -502,6 +506,33 @@ export interface CartItem {
   timing?: DrinkTiming   // ドリンクのみ
   /** 店内注文と一緒に頼むお持ち帰り分 */
   is_takeout?: boolean
+  /** 何人目の分か（1始まり。2名以上の店内注文のとき） */
+  diner_no?: number
+}
+
+/** カートに入れたランチプレート1枚（おにぎりは追加するときに選び終えている） */
+export interface CartPlate {
+  /** カートの中で区別するための番号 */
+  id: string
+  product: Product
+  units: LunchNigiriUnit[]
+  /** 何人目の分か（1始まり。2名以上の店内注文のとき） */
+  diner_no?: number
+}
+
+/** ランチプレート1枚の金額（プレートの価格＋おにぎりの種類ごとの追加料金＋トッピング） */
+export function calcPlatePrice(plate: CartPlate, products: Product[]): number {
+  return (
+    plate.product.price +
+    plate.units.reduce((sum, unit) => {
+      const product = products.find((p) => p.id === unit.productId)
+      return (
+        sum +
+        (product ? getLunchPlateSurcharge(product) : 0) +
+        optionPrice({ with_topping: unit.tororo, with_egg_yolk: unit.eggYolk, with_large: unit.large })
+      )
+    }, 0)
+  )
 }
 
 export function calcCartTotal(items: CartItem[]): number {

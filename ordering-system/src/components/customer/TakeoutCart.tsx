@@ -1,9 +1,9 @@
 'use client'
 
-import { useRef, useState } from 'react'
-import type { CartItem, NigiriOptions, OptionSoldOut, Product } from '@/lib/types'
-import { calcCartTotal, isToppingSelectable, optionLabel, optionPrice } from '@/lib/types'
-import RecommendPopup, { shouldShowRecommend } from '@/components/customer/RecommendPopup'
+import { useState } from 'react'
+import type { CartItem, Product } from '@/lib/types'
+import { calcCartTotal, optionLabel, optionPrice } from '@/lib/types'
+import TonjiruSuggestion from '@/components/customer/TonjiruSuggestion'
 import PickupDateTimePicker from '@/components/customer/PickupDateTimePicker'
 
 interface Props {
@@ -15,12 +15,8 @@ interface Props {
   onPickupSelect: (date: string, time: string) => void
   /** 商品をカートに追加（豚汁おすすめ用） */
   onAddItem?: (product: Product) => void
-  /** おすすめする豚汁商品（渡された場合のみポップアップ表示） */
+  /** おすすめする豚汁商品（カートになければ「豚汁を追加」を出す） */
   tonjiruProduct?: Product
-  /** おにぎりのトッピングのおすすめで、カートの行のオプションを変える */
-  onOptionsChange?: (item: CartItem, options: NigiriOptions) => void
-  /** トッピングの売り切れ状態（おすすめに出すものを決める） */
-  optionSoldOut?: OptionSoldOut
   /** カートの個数変更（delta: +1 / -1） */
   onQuantityChange?: (item: CartItem, delta: number) => void
   /** カートから商品を削除 */
@@ -41,15 +37,9 @@ export default function TakeoutCart({
   onQuantityChange,
   onItemDelete,
   isSeatOrder = false,
-  onOptionsChange,
-  optionSoldOut,
 }: Props) {
   const [isOpen, setIsOpen] = useState(false)
   const [confirmed, setConfirmed] = useState(false)
-  const [showRecommend, setShowRecommend] = useState(false)
-  /** 最後におすすめを出したときのカートの中身（同じ中身なら2回目は出さない） */
-  const recommendedFor = useRef<string | null>(null)
-
   const total = calcCartTotal(items)
   const totalCount = items.reduce((s, i) => s + i.quantity, 0)
   // 席からのお持ち帰りは、その場でお渡しするため受取日時を選ばない
@@ -59,27 +49,6 @@ export default function TakeoutCart({
   const hasTonjiru = tonjiruProduct
     ? items.some((i) => i.product.id === tonjiruProduct.id)
     : true
-  /** 豚汁をおすすめするか（カートにないとき） */
-  const recommendTonjiru = tonjiruProduct && !hasTonjiru ? tonjiruProduct : undefined
-
-  // おにぎりの中身だけで比べる（豚汁を足しただけで、もう一度出さないように）
-  const cartSignature = () =>
-    items
-      .filter((i) => isToppingSelectable(i.product))
-      .map((i) => `${i.product.id}:${i.quantity}:${i.with_topping}:${!!i.with_egg_yolk}:${!!i.with_large}:${!!i.is_takeout}`)
-      .join('|')
-
-  /** カートを開く前に、豚汁・おにぎりのトッピングのおすすめを出す（出すものがなければそのまま開く） */
-  function handleCartOpen() {
-    if (
-      cartSignature() !== recommendedFor.current &&
-      shouldShowRecommend(items, recommendTonjiru, optionSoldOut, !!onOptionsChange)
-    ) {
-      setShowRecommend(true)
-    } else {
-      setIsOpen(true)
-    }
-  }
 
   if (totalCount === 0) return null
 
@@ -89,7 +58,7 @@ export default function TakeoutCart({
       <div className="fixed bottom-0 left-0 right-0 z-40">
         <div className="bg-brown-600 text-white px-4 py-3 flex items-center justify-between shadow-lg">
           <button
-            onClick={handleCartOpen}
+            onClick={() => setIsOpen(true)}
             className="flex items-center gap-3 flex-1"
           >
             <div className="w-7 h-7 rounded-full bg-white/20 flex items-center justify-center">
@@ -107,26 +76,6 @@ export default function TakeoutCart({
           </span>
         </div>
       </div>
-
-      {/* おすすめ（豚汁・おにぎりのトッピング） */}
-      {showRecommend && (
-        <RecommendPopup
-          items={items}
-          tonjiruProduct={recommendTonjiru}
-          onAddTonjiru={onAddItem}
-          optionSoldOut={optionSoldOut}
-          onOptionsChange={onOptionsChange}
-          onNext={() => {
-            recommendedFor.current = cartSignature()
-            setShowRecommend(false)
-            setIsOpen(true)
-          }}
-          onClose={() => {
-            recommendedFor.current = cartSignature()
-            setShowRecommend(false)
-          }}
-        />
-      )}
 
       {/* カートドロワー */}
       {isOpen && (
@@ -153,6 +102,11 @@ export default function TakeoutCart({
 
             {/* 全コンテンツを1本スクロール */}
             <div className="px-4 py-3 space-y-4">
+              {/* 豚汁のおすすめ（カートになければ1行で出す） */}
+              {tonjiruProduct && !hasTonjiru && onAddItem && (
+                <TonjiruSuggestion product={tonjiruProduct} onAdd={() => onAddItem(tonjiruProduct)} />
+              )}
+
               {/* 注文明細 */}
               <div className="space-y-3">
                 {items.map((item) => {
