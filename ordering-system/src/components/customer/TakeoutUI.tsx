@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import Image from 'next/image'
 import ProductCard from '@/components/customer/ProductCard'
 import TakeoutCart from '@/components/customer/TakeoutCart'
+import RecommendedItem, { RECOMMENDED } from '@/components/customer/RecommendedItem'
 import type { Product, CartItem, NigiriOptions, OptionSoldOut } from '@/lib/types'
 import {
   storageUrl,
@@ -255,6 +256,17 @@ export default function TakeoutUI({ lineUserId, lineDisplayName, seat, seatTable
           </div>
         ) : (
           <>
+            {/* おすすめ（押すとそのままカートに入る） */}
+            <RecommendedItem
+              products={products}
+              optionSoldOut={optionSoldOut}
+              quantity={(() => {
+                const p = products.find((x) => x.name === RECOMMENDED.productName)
+                return p ? quantityOf(p)(RECOMMENDED.options) : 0
+              })()}
+              onAdd={handleAdd}
+            />
+
             {/* おにぎり */}
             <section>
               <h1 className="section-title mb-4 px-1">おにぎり</h1>

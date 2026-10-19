@@ -8,6 +8,7 @@ import DrinkCard from '@/components/customer/DrinkCard'
 import type { DinerAssignment } from '@/components/customer/DinerSplitPopup'
 import Cart from '@/components/customer/Cart'
 import LunchPlateSheet from '@/components/customer/LunchPlateSheet'
+import RecommendedItem, { RECOMMENDED } from '@/components/customer/RecommendedItem'
 import type {
   Product,
   CartItem,
@@ -434,6 +435,20 @@ export default function OrderUI({ tableId, lineUserId, partySize, buildCompleteH
             <p className="text-brown-400 text-lg">メニューを読み込み中...</p>
           </div>
         ) : (() => {
+          // メニューの一番上に出すおすすめ（押すとそのままカートに入る）
+          const recommendedSection = (
+            <RecommendedItem
+              key="recommended"
+              products={products}
+              optionSoldOut={optionSoldOut}
+              quantity={(() => {
+                const p = products.find((x) => x.name === RECOMMENDED.productName)
+                return p ? quantityOf(p)(RECOMMENDED.options) : 0
+              })()}
+              onAdd={handleAdd}
+            />
+          )
+
           // ─ 各セクションを変数化し、ランチタイム中はドリンクをおにぎりの上に表示する ─
           const lunchPlateSection = lunchPlateProducts.length > 0 && (
             <section key="lunch-plate">
@@ -515,6 +530,7 @@ export default function OrderUI({ tableId, lineUserId, partySize, buildCompleteH
           if (isTakeoutMode) {
             return (
               <>
+                {recommendedSection}
                 {nigiriSection}
                 {sideSection}
               </>
@@ -526,6 +542,7 @@ export default function OrderUI({ tableId, lineUserId, partySize, buildCompleteH
           // ※ランチ中も全商品を注文できる。並び順だけを入れ替えている
           return isLunchTime ? (
             <>
+              {recommendedSection}
               {lunchPlateSection}
               {drinkSection}
               {nigiriSection}
@@ -533,6 +550,7 @@ export default function OrderUI({ tableId, lineUserId, partySize, buildCompleteH
             </>
           ) : (
             <>
+              {recommendedSection}
               {lunchPlateSection}
               {nigiriSection}
               {sideSection}
