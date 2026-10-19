@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import Image from 'next/image'
 import ProductCard from '@/components/customer/ProductCard'
 import TakeoutCart from '@/components/customer/TakeoutCart'
-import RecommendedItem, { RECOMMENDED } from '@/components/customer/RecommendedItem'
+import RecommendedItem from '@/components/customer/RecommendedItem'
 import type { Product, CartItem, NigiriOptions, OptionSoldOut } from '@/lib/types'
 import {
   storageUrl,
@@ -260,10 +260,7 @@ export default function TakeoutUI({ lineUserId, lineDisplayName, seat, seatTable
             <RecommendedItem
               products={products}
               optionSoldOut={optionSoldOut}
-              quantity={(() => {
-                const p = products.find((x) => x.name === RECOMMENDED.productName)
-                return p ? quantityOf(p)(RECOMMENDED.options) : 0
-              })()}
+              getQuantity={(p, o) => quantityOf(p)(o)}
               onAdd={handleAdd}
             />
 
