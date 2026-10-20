@@ -92,14 +92,6 @@ export default function DinerSplitPopup({ items, partySize, isSubmitting, onConf
           >
             {isSubmitting ? '送信中...' : allAssigned ? '注文を確定する' : 'すべて選ぶと確定できます'}
           </button>
-          <button
-            type="button"
-            onClick={() => onConfirm(new Map())}
-            disabled={isSubmitting}
-            className="w-full py-2 text-sm text-brown-500 underline underline-offset-2"
-          >
-            分けずに1皿にまとめる
-          </button>
           <button type="button" onClick={onCancel} className="w-full py-2 text-sm text-brown-400">
             注文内容に戻る
           </button>
