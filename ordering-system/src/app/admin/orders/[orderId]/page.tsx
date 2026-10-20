@@ -14,6 +14,7 @@ import {
   optionPrice,
   DRINK_CATEGORY,
   DRINK_TIMING_LABELS,
+  DRINK_TEMP_LABELS,
   isLunchPlate,
   getOrderBatchIndexes,
   groupLunchPlateNigiri,
@@ -312,6 +313,15 @@ export default function OrderDetailPage({ params }: Props) {
                     <div className="flex-1">
                       <p className={`text-base font-bold ${item.quantity >= 2 ? 'text-red-600' : 'text-brown-800'}`}>
                         {item.product?.name ?? '不明商品'}
+                        {item.drink_temp && (
+                          <span
+                            className={`ml-2 text-xs font-semibold px-2 py-0.5 rounded-full ${
+                              item.drink_temp === 'hot' ? 'bg-red-100 text-red-700' : 'bg-blue-100 text-blue-700'
+                            }`}
+                          >
+                            {DRINK_TEMP_LABELS[item.drink_temp]}
+                          </span>
+                        )}
                         {timingLabel && (
                           <span className="ml-2 text-xs font-semibold px-2 py-0.5 rounded-full bg-blue-100 text-blue-700">
                             {timingLabel}

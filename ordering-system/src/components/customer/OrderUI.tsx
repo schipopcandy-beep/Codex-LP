@@ -13,6 +13,7 @@ import type {
   Product,
   CartItem,
   CartPlate,
+  DrinkTemp,
   LunchNigiriUnit,
   NigiriOptions,
   OptionSoldOut,
@@ -49,7 +50,7 @@ interface Props {
  */
 const cartKey = (productId: string, options: NigiriOptions, takeout = false) =>
   `${productId}-${options.tororo}${options.eggYolk ? '-egg' : ''}${options.large ? '-large' : ''}${takeout ? '-takeout' : ''}`
-const drinkKey = (productId: string) => `${productId}-drink`
+const drinkKey = (productId: string, temp?: DrinkTemp) => `${productId}-drink${temp ? `-${temp}` : ''}`
 
 export default function OrderUI({ tableId, lineUserId, partySize, buildCompleteHref }: Props) {
   const router = useRouter()
@@ -209,24 +210,24 @@ export default function OrderUI({ tableId, lineUserId, partySize, buildCompleteH
       : cartMap.get(cartKey(product.id, options, isTakeoutMode))?.quantity ?? 0
 
   /** ドリンク用 */
-  const handleAddDrink = useCallback((product: Product) => {
+  const handleAddDrink = useCallback((product: Product, temp?: DrinkTemp) => {
     setCartMap((prev) => {
       const next = new Map(prev)
-      const key = drinkKey(product.id)
+      const key = drinkKey(product.id, temp)
       const existing = next.get(key)
       if (existing) {
         next.set(key, { ...existing, quantity: existing.quantity + 1 })
       } else {
-        next.set(key, { product, quantity: 1, with_topping: false, timing: undefined })
+        next.set(key, { product, quantity: 1, with_topping: false, timing: undefined, ...(temp ? { drink_temp: temp } : {}) })
       }
       return next
     })
   }, [])
 
-  const handleRemoveDrink = useCallback((product: Product) => {
+  const handleRemoveDrink = useCallback((product: Product, temp?: DrinkTemp) => {
     setCartMap((prev) => {
       const next = new Map(prev)
-      const key = drinkKey(product.id)
+      const key = drinkKey(product.id, temp)
       const existing = next.get(key)
       if (existing) {
         if (existing.quantity > 1) next.set(key, { ...existing, quantity: existing.quantity - 1 })
@@ -239,7 +240,7 @@ export default function OrderUI({ tableId, lineUserId, partySize, buildCompleteH
   /** カート内の行のキー（おにぎり系とドリンクでキーの作り方が違う） */
   const itemKey = (item: CartItem) =>
     item.product.category === DRINK_CATEGORY
-      ? drinkKey(item.product.id)
+      ? drinkKey(item.product.id, item.drink_temp)
       : cartKey(item.product.id, optionsOfItem(item), !!item.is_takeout)
 
   /** カートの個数変更（delta: +1 / -1）。0個になった行は削除する */
@@ -318,6 +319,7 @@ export default function OrderUI({ tableId, lineUserId, partySize, buildCompleteH
                 with_large: !!item.with_large,
                 timing: item.timing ?? null,
                 ...(item.is_takeout ? { is_takeout: true } : {}),
+                ...(item.drink_temp ? { drink_temp: item.drink_temp } : {}),
               }
               // 注文者ごとに分けた行は、注文者ごとの明細にする
               const diners = assignment?.get(item)
@@ -514,9 +516,9 @@ export default function OrderUI({ tableId, lineUserId, partySize, buildCompleteH
                   <DrinkCard
                     key={product.id}
                     product={product}
-                    quantity={cartMap.get(drinkKey(product.id))?.quantity ?? 0}
-                    onAdd={() => handleAddDrink(product)}
-                    onRemove={() => handleRemoveDrink(product)}
+                    getQuantity={(temp) => cartMap.get(drinkKey(product.id, temp))?.quantity ?? 0}
+                    onAdd={(temp) => handleAddDrink(product, temp)}
+                    onRemove={(temp) => handleRemoveDrink(product, temp)}
                   />
                 ))}
               </div>
