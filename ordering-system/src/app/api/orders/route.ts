@@ -19,6 +19,8 @@ interface OrderRequestBody {
     with_large?: boolean
     /** 何人目の注文者の分か（1始まり） */
     diner_no?: number | null
+    /** ドリンクのホット・アイス（緑茶・ほうじ茶） */
+    drink_temp?: string | null
     timing?: string | null
     lunch_plate_index?: number | null
     /** 席から注文したお持ち帰り分 */
@@ -117,6 +119,8 @@ export async function POST(req: NextRequest) {
   // 注文者ごとに分けた注文か（分けていない注文では列を送らない）
   const validDinerNo = (n: unknown) => (Number.isInteger(n) && (n as number) >= 1 && (n as number) <= 20 ? (n as number) : null)
   const hasDiners = items.some((item) => validDinerNo(item.diner_no) !== null)
+  const validDrinkTemp = (t: unknown) => (t === 'hot' || t === 'ice' ? t : null)
+  const hasDrinkTemps = items.some((item) => validDrinkTemp(item.drink_temp) !== null)
 
   // 明細を挿入
   const orderItems = items.map((item) => ({
@@ -133,6 +137,7 @@ export async function POST(req: NextRequest) {
     // 既定値ではなく空（null）になるため、全行に明示して入れる
     is_takeout: !!item.is_takeout,
     ...(hasDiners ? { diner_no: validDinerNo(item.diner_no) } : {}),
+    ...(hasDrinkTemps ? { drink_temp: validDrinkTemp(item.drink_temp) } : {}),
   }))
 
   const { error: insertError } = await supabase

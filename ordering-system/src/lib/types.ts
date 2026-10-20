@@ -200,6 +200,8 @@ export interface OptionColumns {
   with_topping?: boolean | null
   with_egg_yolk?: boolean | null
   with_large?: boolean | null
+  /** ドリンクのホット・アイス（緑茶・ほうじ茶） */
+  drink_temp?: string | null
 }
 
 /** 明細1行のオプション追加料金（1個あたり） */
@@ -214,6 +216,7 @@ export function optionPrice(item: OptionColumns): number {
 /** 明細に添えるオプションの表記（例: 「とろろ昆布に変更・漬け卵黄追加」）。なければ空文字 */
 export function optionLabel(item: OptionColumns): string {
   return [
+    item.drink_temp === 'hot' || item.drink_temp === 'ice' ? DRINK_TEMP_LABELS[item.drink_temp] : null,
     item.with_large ? LARGE_CART_LABEL : null,
     item.with_topping ? TOPPING_CART_LABEL : null,
     item.with_egg_yolk ? EGG_YOLK_CART_LABEL : null,
@@ -232,6 +235,14 @@ export function comboLabel(options: NigiriOptions): string {
 }
 
 export const DRINK_CATEGORY = 'ドリンク'
+
+/** 緑茶・ほうじ茶の温度（ホット／アイス） */
+export type DrinkTemp = 'hot' | 'ice'
+export const DRINK_TEMP_LABELS: Record<DrinkTemp, string> = { hot: 'ホット', ice: 'アイス' }
+/** ホット・アイスを選べるドリンクか（緑茶・ほうじ茶） */
+export function hasDrinkTemp(product: { name: string; category?: string }): boolean {
+  return product.category === DRINK_CATEGORY && /緑茶|ほうじ茶/.test(product.name)
+}
 
 export type DrinkTiming = 'before' | 'with' | 'after'
 export const DRINK_TIMING_LABELS: Record<DrinkTiming, string> = {
@@ -415,6 +426,8 @@ export interface OrderItem {
   with_large?: boolean
   /** 同じ卓の何人目の注文者の分か（1始まり。同じ人のおにぎりを1皿にまとめるため）。null = 分けていない */
   diner_no?: number | null
+  /** ドリンクのホット・アイス（緑茶・ほうじ茶） */
+  drink_temp?: DrinkTemp | null
   timing?: DrinkTiming | null
   /** ランチプレート内おにぎりのプレート番号（0始まり）。null = 通常アイテム */
   lunch_plate_index?: number | null
@@ -512,6 +525,8 @@ export interface CartItem {
   /** 大満足120%おにぎりにする（+300円） */
   with_large?: boolean
   timing?: DrinkTiming   // ドリンクのみ
+  /** ドリンクのホット・アイス（緑茶・ほうじ茶） */
+  drink_temp?: DrinkTemp
   /** 店内注文と一緒に頼むお持ち帰り分 */
   is_takeout?: boolean
 }
