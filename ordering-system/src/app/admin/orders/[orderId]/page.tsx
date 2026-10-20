@@ -16,6 +16,7 @@ import {
   DRINK_TIMING_LABELS,
   isLunchPlate,
   getOrderBatchIndexes,
+  groupLunchPlateNigiri,
   orderBatchLabel,
   TAKEOUT_TABLE_ID,
   getStatusLabel,
@@ -131,17 +132,10 @@ export default function OrderDetailPage({ params }: Props) {
   // 席から注文されたお持ち帰り分は、イートインの下にまとめて表示する
   const otherItems = nonPlateItems.filter((i) => !i.is_takeout)
   const seatTakeoutItems = nonPlateItems.filter((i) => i.is_takeout)
-  const lunchNigiriItems = items.filter((i) => i.lunch_plate_index != null)
   const drinkItems = items.filter((i) => i.product?.category === DRINK_CATEGORY)
 
-  // ランチプレート内おにぎりをプレート番号でグループ化
-  const nigiriByPlate = new Map<number, OrderItem[]>()
-  for (const item of lunchNigiriItems) {
-    const idx = item.lunch_plate_index ?? 0
-    if (!nigiriByPlate.has(idx)) nigiriByPlate.set(idx, [])
-    nigiriByPlate.get(idx)!.push(item)
-  }
-  const plateCount = lunchPlateBaseItems.reduce((s, i) => s + i.quantity, 0)
+  // ランチプレートの行ごとの、中のおにぎり（プレート1枚ずつの組。追加注文の回ごとに対応させる）
+  const plateNigiri = groupLunchPlateNigiri(items)
 
   // 明細を注文された回ごとに分ける（0 = 最初の注文, 1 = 追加1, 2 = 追加2…）
   const batchIndexes = getOrderBatchIndexes(items)
@@ -259,11 +253,11 @@ export default function OrderDetailPage({ params }: Props) {
                 </div>
 
                 {/* プレート別おにぎり */}
-                {Array.from({ length: plateCount }, (_, i) => {
-                  const nigiri = nigiriByPlate.get(i) ?? []
+                {Array.from({ length: item.quantity }, (_, i) => {
+                  const nigiri = plateNigiri.get(item.id)?.[i] ?? []
                   return (
                     <div key={i} className="mt-2 ml-3 pl-3 border-l-2 border-amber-300">
-                      {plateCount > 1 && (
+                      {item.quantity > 1 && (
                         <p className="text-xs font-bold text-amber-700 mb-1">{i + 1}枚目</p>
                       )}
                       {nigiri.length === 0 ? (
