@@ -27,6 +27,18 @@ export default function LunchPlateSheet({ plate, products, optionSoldOut, onAdd,
 
   // メニューの上と同じおすすめを、プレートのおにぎりとしても出す
   const picked = pickRecommendation(products, optionSoldOut)
+  /** おすすめと同じおにぎり（同じオプション）か */
+  const isRecommendedUnit = (u: LunchNigiriUnit) =>
+    !!picked &&
+    u.productId === picked.product.id &&
+    u.tororo === picked.recommendation.options.tororo &&
+    !!u.eggYolk === picked.recommendation.options.eggYolk &&
+    !!u.large === picked.recommendation.options.large
+  /** プレートに入れたおすすめの数 */
+  const recommendedCount = units.filter(isRecommendedUnit).length
+  /** 押した直後に枠を光らせる */
+  const [flash, setFlash] = useState(false)
+
   const addRecommended = () => {
     if (!picked || units.length >= required) return
     const { options } = picked.recommendation
@@ -34,6 +46,15 @@ export default function LunchPlateSheet({ plate, products, optionSoldOut, onAdd,
       ...prev,
       { productId: picked.product.id, tororo: options.tororo, eggYolk: options.eggYolk, large: options.large },
     ])
+    setFlash(true)
+    setTimeout(() => setFlash(false), 600)
+  }
+  /** 入れたおすすめを1個取り消す */
+  const removeRecommended = () => {
+    setUnits((prev) => {
+      const idx = prev.findLastIndex(isRecommendedUnit)
+      return idx === -1 ? prev : prev.filter((_, i) => i !== idx)
+    })
   }
 
   return (
@@ -49,7 +70,11 @@ export default function LunchPlateSheet({ plate, products, optionSoldOut, onAdd,
 
         <div className="overflow-y-auto flex-1 px-4 pb-3">
           {picked && (
-            <div className="mt-3 flex items-center gap-3 rounded-xl border-2 border-amber-300 bg-amber-50 p-2">
+            <div
+              className={`mt-3 flex items-center gap-3 rounded-xl border-2 p-2 transition-all ${
+                recommendedCount > 0 ? 'border-matcha-500 bg-green-50' : 'border-amber-300 bg-amber-50'
+              } ${flash ? 'ring-4 ring-matcha-500/40 scale-[1.02]' : ''}`}
+            >
               <div className="relative w-14 h-14 flex-shrink-0 rounded-lg overflow-hidden bg-cream-200">
                 {picked.product.image_url && (
                   <Image src={picked.product.image_url} alt={picked.product.name} fill className="object-cover" sizes="56px" />
@@ -63,15 +88,34 @@ export default function LunchPlateSheet({ plate, products, optionSoldOut, onAdd,
                     getLunchPlateSurcharge(picked.product) + optionPrice(optionColumns(picked.recommendation.options))
                   return extra > 0 ? <p className="text-xs text-amber-700 font-bold">+¥{extra}</p> : null
                 })()}
+                {recommendedCount > 0 && (
+                  <p className="text-sm font-bold text-matcha-600">
+                    ✓ {recommendedCount}個 選びました
+                    <button
+                      type="button"
+                      onClick={removeRecommended}
+                      className="ml-2 text-xs font-normal text-brown-400 underline underline-offset-2"
+                    >
+                      取り消す
+                    </button>
+                  </p>
+                )}
               </div>
-              <button
-                type="button"
-                onClick={addRecommended}
-                disabled={units.length >= required}
-                className="flex-shrink-0 px-3 py-2 rounded-xl bg-brown-600 text-white text-sm font-bold disabled:opacity-40 active:bg-brown-700"
-              >
-                これにする
-              </button>
+              {units.length < required ? (
+                <button
+                  type="button"
+                  onClick={addRecommended}
+                  className="flex-shrink-0 px-3 py-2 rounded-xl bg-brown-600 text-white text-sm font-bold active:bg-brown-700"
+                >
+                  {recommendedCount > 0 ? 'もう1個' : 'これにする'}
+                </button>
+              ) : (
+                recommendedCount > 0 && (
+                  <span className="flex-shrink-0 px-3 py-2 rounded-xl bg-matcha-600 text-white text-sm font-bold">
+                    ✓ 選択済み
+                  </span>
+                )
+              )}
             </div>
           )}
           <LunchPlateSelector
