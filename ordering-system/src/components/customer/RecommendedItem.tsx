@@ -16,15 +16,15 @@ export const RECOMMENDATIONS: {
   catchCopy?: string
 }[] = [
   {
-    productName: 'おかチー',
+    productName: 'ルーロー',
     options: { tororo: false, eggYolk: true, large: false },
-    title: 'おかチー＋漬け卵黄',
-    catchCopy: '当店一番人気のおかチーに、とろっと濃厚な漬け卵黄をトッピング',
+    title: 'ルーロー＋漬け卵黄',
+    catchCopy: '台湾の人気グルメ ルーローに、とろっと濃厚な漬け卵黄をトッピング',
   },
   {
-    productName: 'おかチー',
+    productName: 'ルーロー',
     options: { tororo: false, eggYolk: false, large: true },
-    title: 'おかチー＋大満足120%おにぎり',
+    title: 'ルーロー＋大満足120%おにぎり',
   },
 ]
 
