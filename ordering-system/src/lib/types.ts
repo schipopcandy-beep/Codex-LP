@@ -260,6 +260,21 @@ export const LUNCH_PLATE_1_NAME = 'ランチプレート（おにぎり1個）'
 export const LUNCH_PLATE_2_NAME = 'ランチプレート（おにぎり2個）'
 
 /** ランチプレート商品かどうか */
+/**
+ * 期間を決めて販売を休む商品（until の日から販売再開。日本時間）
+ * 夜中の売り切れリセットで戻らないよう、売り切れの設定とは別に持つ。終わったものは消してよい
+ */
+export const SALES_PAUSES: { productName: string; until: string }[] = [
+  { productName: '限定おにぎり', until: '2026-11-01' },
+]
+
+/** 販売休止中なら再開日（YYYY-MM-DD）を返す。休止していなければ null */
+export function salesPausedUntil(product: { name: string }, now: Date = new Date()): string | null {
+  const today = new Date(now.getTime() + 9 * 60 * 60 * 1000).toISOString().slice(0, 10)
+  const pause = SALES_PAUSES.find((p) => p.productName === product.name && today < p.until)
+  return pause ? pause.until : null
+}
+
 /** おかずパック（ランチプレートと合わせて仕込み数を数える） */
 export const OKAZU_PACK_NAME = 'おかずパック'
 

@@ -20,6 +20,8 @@ import {
   NO_OPTION_SOLD_OUT,
   OPTION_NAMES,
   OPTION_PRICES,
+  formatScheduleDate,
+  salesPausedUntil,
 } from '@/lib/types'
 
 /** 販売中・売り切れの切り替えボタン */
@@ -265,6 +267,11 @@ export default function SoldOutAdminPage() {
           <div className="flex-1 min-w-0">
             <p className="font-bold text-base text-brown-800 truncate">{product.name}</p>
             <p className="text-brown-500 text-sm">¥{product.price.toLocaleString()}</p>
+            {salesPausedUntil(product) && (
+              <p className="text-xs font-bold text-red-600">
+                販売休止中（{formatScheduleDate(salesPausedUntil(product)!)}から自動で再開）
+              </p>
+            )}
           </div>
           <SoldOutButton
             soldOut={product.is_sold_out}
