@@ -13,7 +13,7 @@ type Tab = 'all' | 'eatin' | 'takeout'
 
 /**
  * Web Audio API でチャイム音を鳴らす（新しい注文・追加注文のお知らせ）
- * 厨房でも聞こえるよう、はっきりした音色で大きめに、3回くり返す
+ * 厨房でも聞こえるよう、はっきりした音色で大きめに、2回くり返す
  */
 function playChime(ctx: AudioContext) {
   const now = ctx.currentTime
@@ -24,9 +24,9 @@ function playChime(ctx: AudioContext) {
   compressor.connect(master)
   master.connect(ctx.destination)
 
-  // ピンポン（A5 880Hz → C#6 1109Hz）を3回
+  // ピンポン（A5 880Hz → C#6 1109Hz）を2回
   const notes = [880, 1109]
-  for (let round = 0; round < 3; round++) {
+  for (let round = 0; round < 2; round++) {
     notes.forEach((freq, i) => {
       const t = now + round * 0.7 + i * 0.2
       // 基本の音（三角波）と1オクターブ上を重ねて、通る音にする
