@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient, createServiceRoleClient } from '@/lib/supabase/server'
 import { isAllOnigiriSoldOut } from '@/lib/stock'
-import { NIGIRI_CATEGORY, isLunchPlate, type Product } from '@/lib/types'
+import { NIGIRI_CATEGORY, isLunchPlate, salesPausedUntil, type Product } from '@/lib/types'
 
 /**
  * 商品一覧
@@ -30,13 +30,18 @@ export async function GET(req: NextRequest) {
     return true
   })
 
-  if (!raw && (await isAllOnigiriSoldOut(createServiceRoleClient()).catch(() => false))) {
+  if (raw) return NextResponse.json(unique)
+
+  // 販売休止中の商品（期間限定で休む商品）は売り切れとして返す
+  const shown = unique.map((p) => (salesPausedUntil(p) ? { ...p, is_sold_out: true } : p))
+
+  if (await isAllOnigiriSoldOut(createServiceRoleClient()).catch(() => false)) {
     return NextResponse.json(
-      unique.map((p) =>
+      shown.map((p) =>
         p.category === NIGIRI_CATEGORY || isLunchPlate(p as Product) ? { ...p, is_sold_out: true } : p,
       ),
     )
   }
 
-  return NextResponse.json(unique)
+  return NextResponse.json(shown)
 }
