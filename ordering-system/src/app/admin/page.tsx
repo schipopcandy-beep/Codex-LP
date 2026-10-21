@@ -11,25 +11,43 @@ import OrderBoard from '@/components/admin/OrderBoard'
 
 type Tab = 'all' | 'eatin' | 'takeout'
 
-/** Web Audio API でチャイム音を鳴らす */
+/**
+ * Web Audio API でチャイム音を鳴らす（新しい注文・追加注文のお知らせ）
+ * 厨房でも聞こえるよう、はっきりした音色で大きめに、3回くり返す
+ */
 function playChime(ctx: AudioContext) {
   const now = ctx.currentTime
-  // 2音のチャイム: A5(880Hz) → C#6(1109Hz)
+  // 音割れしないよう、まとめて音量をそろえてから出す
+  const compressor = ctx.createDynamicsCompressor()
+  const master = ctx.createGain()
+  master.gain.value = 1
+  compressor.connect(master)
+  master.connect(ctx.destination)
+
+  // ピンポン（A5 880Hz → C#6 1109Hz）を3回
   const notes = [880, 1109]
-  notes.forEach((freq, i) => {
-    const osc = ctx.createOscillator()
-    const gain = ctx.createGain()
-    osc.connect(gain)
-    gain.connect(ctx.destination)
-    osc.type = 'sine'
-    osc.frequency.value = freq
-    const t = now + i * 0.18
-    gain.gain.setValueAtTime(0, t)
-    gain.gain.linearRampToValueAtTime(0.35, t + 0.01)
-    gain.gain.exponentialRampToValueAtTime(0.001, t + 0.6)
-    osc.start(t)
-    osc.stop(t + 0.6)
-  })
+  for (let round = 0; round < 3; round++) {
+    notes.forEach((freq, i) => {
+      const t = now + round * 0.7 + i * 0.2
+      // 基本の音（三角波）と1オクターブ上を重ねて、通る音にする
+      for (const [type, f, peak] of [
+        ['triangle', freq, 0.9],
+        ['sine', freq * 2, 0.3],
+      ] as const) {
+        const osc = ctx.createOscillator()
+        const gain = ctx.createGain()
+        osc.connect(gain)
+        gain.connect(compressor)
+        osc.type = type
+        osc.frequency.value = f
+        gain.gain.setValueAtTime(0, t)
+        gain.gain.linearRampToValueAtTime(peak, t + 0.01)
+        gain.gain.exponentialRampToValueAtTime(0.001, t + 0.55)
+        osc.start(t)
+        osc.stop(t + 0.6)
+      }
+    })
+  }
 }
 
 export default function AdminDashboard() {
@@ -52,8 +70,8 @@ export default function AdminDashboard() {
   const [audioReady, setAudioReady] = useState(false)
   /** 初回ロード済みフラグ（初回取得時は音を鳴らさない） */
   const isInitialLoad = useRef(true)
-  /** 既知の注文IDセット */
-  const knownOrderIds = useRef<Set<string>>(new Set())
+  /** 注文IDごとの明細の数（増えたら追加注文が入ったと分かる） */
+  const knownItemCounts = useRef<Map<string, number>>(new Map())
 
   const fetchOrders = useCallback(async () => {
     // 注文が入るたびに残り数も変わるので、一緒に取り直す（失敗しても注文一覧は出す）
@@ -69,18 +87,21 @@ export default function AdminDashboard() {
     setOrders(data)
     setLoading(false)
 
+    const itemCount = (o: Order) => o.order_items?.length ?? 0
+
     if (isInitialLoad.current) {
-      // 初回: 既存IDを記録するだけ（音は鳴らさない）
-      data.forEach((o) => knownOrderIds.current.add(o.id))
+      // 初回: 今ある注文を記録するだけ（音は鳴らさない）
+      data.forEach((o) => knownItemCounts.current.set(o.id, itemCount(o)))
       isInitialLoad.current = false
       return
     }
 
-    // 新規注文（status === 'new'）が追加されたか確認
-    const hasNewOrder = data.some(
-      (o) => o.status === 'new' && !knownOrderIds.current.has(o.id),
-    )
-    data.forEach((o) => knownOrderIds.current.add(o.id))
+    // 新しい注文が入ったか、既存の伝票に追加注文が入った（明細が増えた）か
+    const hasNewOrder = data.some((o) => {
+      const known = knownItemCounts.current.get(o.id)
+      return known === undefined ? o.status === 'new' || o.status === 'added' : itemCount(o) > known
+    })
+    data.forEach((o) => knownItemCounts.current.set(o.id, itemCount(o)))
 
     if (hasNewOrder && soundEnabledRef.current && audioCtxRef.current) {
       playChime(audioCtxRef.current)
