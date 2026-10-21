@@ -354,13 +354,13 @@ export interface LunchNigiriUnit {
 
 /**
  * ランチプレート選択時のおにぎり追加料金
- * しゃけ筋子: +300円 / 筋子: +200円 / 限定おにぎり: +100円 /
+ * しゃけ筋子: +300円 / 筋子: +200円 / 限定おにぎり: +200円 /
  * 450円以上: +50円 / その他: 0円
  */
 export function getLunchPlateSurcharge(product: Product): number {
   if (product.name === 'しゃけ筋子') return 300
   if (product.name.includes('筋子')) return 200   // 筋子・極み筋子など
-  if (product.name === LIMITED_ONIGIRI_NAME) return 100
+  if (product.name === LIMITED_ONIGIRI_NAME) return 200
   if (product.price >= 450) return 50
   return 0
 }
