@@ -2,7 +2,9 @@
 
 import { useEffect, useRef, useState } from 'react'
 import OrderCard from '@/components/admin/OrderCard'
+import { useConfirm } from '@/components/admin/useConfirm'
 import type { Order, OrderStatus } from '@/lib/types'
+import { TABLE_NAMES, TAKEOUT_TABLE_ID, calcOrderTotal, orderShortId } from '@/lib/types'
 
 /** 調理済みの列に入れるステータス */
 const isCooked = (o: Order) => o.status === 'served'
@@ -34,6 +36,7 @@ export default function OrderBoard({ orders, onChanged }: Props) {
   const [hover, setHover] = useState<'left' | 'right' | null>(null)
   const leftRef = useRef<HTMLDivElement>(null)
   const rightRef = useRef<HTMLDivElement>(null)
+  const [confirm, confirmDialog] = useConfirm()
 
   // 一覧を取り直したら、保存済みの仮表示を消す
   useEffect(() => {
@@ -45,7 +48,10 @@ export default function OrderBoard({ orders, onChanged }: Props) {
     })
   }, [orders])
 
-  const shown = orders.map((o) => (pending.has(o.id) ? { ...o, status: pending.get(o.id)! } : o))
+  // 会計済みにしたカードは、一覧を取り直すのを待たずに消す
+  const shown = orders
+    .map((o) => (pending.has(o.id) ? { ...o, status: pending.get(o.id)! } : o))
+    .filter((o) => o.status !== 'paid')
   // 追加注文が入った伝票は、未調理の一番下へ（追加が入った順に並べる）
   const uncooked = [
     ...shown.filter((o) => !isCooked(o) && o.status !== 'added'),
@@ -72,9 +78,26 @@ export default function OrderBoard({ orders, onChanged }: Props) {
         next.delete(order.id)
         return next
       })
-      setError('移動できませんでした。通信状況を確認して、もう一度お試しください。')
+      setError(
+        status === 'paid'
+          ? '会計済みにできませんでした。通信状況を確認して、もう一度お試しください。'
+          : '移動できませんでした。通信状況を確認して、もう一度お試しください。',
+      )
     }
     onChanged()
+  }
+
+  /** 調理済みのカードから、そのまま会計済みにする（間違えて押さないよう確認する） */
+  const markPaid = async (order: Order) => {
+    const name =
+      order.table_id === TAKEOUT_TABLE_ID
+        ? `テイクアウト No.${orderShortId(order.id)}`
+        : TABLE_NAMES[order.table_id] ?? order.table_id
+    const total = calcOrderTotal(order.order_items ?? [])
+    if (!(await confirm(`${name}（¥${total.toLocaleString()}）を会計済みにしますか？`, { confirmLabel: '会計済みにする' }))) {
+      return
+    }
+    await moveTo(order, 'paid')
   }
 
   /** ドロップした位置から、どちらの列かを判定する */
@@ -105,6 +128,15 @@ export default function OrderBoard({ orders, onChanged }: Props) {
       }}
     >
       <OrderCard order={order} />
+      {isCooked(order) && (
+        <button
+          type="button"
+          onClick={() => markPaid(order)}
+          className="mt-1 w-full py-3 rounded-xl text-base font-bold bg-matcha-600 text-white active:bg-matcha-500"
+        >
+          会計済みにする
+        </button>
+      )}
       <button
         type="button"
         onClick={() => moveTo(order, isCooked(order) ? 'preparing' : 'served')}
@@ -155,6 +187,7 @@ export default function OrderBoard({ orders, onChanged }: Props) {
           )}
         </div>
       </div>
+      {confirmDialog}
     </div>
   )
 }
