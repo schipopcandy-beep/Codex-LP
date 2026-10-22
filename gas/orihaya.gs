@@ -31,7 +31,7 @@ const CONFIG = {
   TOPPING_PRICE: 50,     // とろろ昆布に変更
   EGG_YOLK_PRICE: 100,   // 漬け卵黄を追加
   LARGE_PRICE: 300,      // 大満足120%おにぎりにする
-  FOLLOW_UP_MESSAGE: '先日は織はやにご来店いただきありがとうございました😊\nまたのご来店をお待ちしております！',
+  FOLLOW_UP_MESSAGE: '先日は織はやにご来店いただきありがとうございました😊\nまたのご来店をお待ちしております！\n\n下のメニューからテイクアウト予約もできます🍙\nお持ち帰りの際は、ぜひご利用ください。',
   SALES_DAYS: 30,        // 日次販売数の集計期間（日）
   SUMMARY_DAYS: 92,      // 日次サマリーの集計期間（日）約3ヶ月
   BACKFILL_MONTHS: 12,   // backfillMonthlyHistory で遡る月数
