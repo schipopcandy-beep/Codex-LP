@@ -213,8 +213,8 @@ export default function Cart({
             </div>
 
             <div className="overflow-y-auto flex-1 px-4 py-3 space-y-3">
-              {/* 豚汁のおすすめ（カートになければ1行で出す） */}
-              {tonjiruProduct && !hasTonjiru && onAddItem && (
+              {/* 豚汁のおすすめ（カートになく、ランチプレートも頼んでいなければ1行で出す） */}
+              {tonjiruProduct && !hasTonjiru && plates.length === 0 && onAddItem && (
                 <TonjiruSuggestion product={tonjiruProduct} onAdd={() => onAddItem(tonjiruProduct)} />
               )}
 
