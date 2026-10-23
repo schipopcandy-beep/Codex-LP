@@ -6,36 +6,32 @@ import type { AvailableDay } from '@/lib/types'
 interface Props {
   selectedDate: string | null
   selectedTime: string | null
+  /** 日付・時間を選んだとき（時間がまだ決まっていないときは time を空文字で呼ぶ） */
   onSelect: (date: string, time: string) => void
 }
 
+const selectClass =
+  'w-full rounded-xl border-2 border-brown-300 bg-white px-3 py-3 text-base font-semibold text-brown-800 disabled:opacity-50'
+
+/** テイクアウトの受け取り日・時間を、プルダウンで選ぶ */
 export default function PickupDateTimePicker({ selectedDate, selectedTime, onSelect }: Props) {
   const [days, setDays] = useState<AvailableDay[]>([])
   const [loading, setLoading] = useState(true)
-  const [activeDate, setActiveDate] = useState<string | null>(selectedDate)
 
   useEffect(() => {
     fetch('/api/takeout/schedule')
       .then((r) => r.json())
       .then((data: AvailableDay[]) => {
         setDays(data)
-        // デフォルトで最初の日を選択
-        if (!activeDate && data.length > 0) {
-          setActiveDate(data[0].date)
-        }
         setLoading(false)
+        // 最初は一番近い受け取り日を選んでおく（時間はお客様に選んでもらう）
+        if (!selectedDate && data.length > 0) onSelect(data[0].date, '')
       })
       .catch(() => setLoading(false))
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
-  const activeDay = days.find((d) => d.date === activeDate)
-
   if (loading) {
-    return (
-      <div className="py-3 text-center text-sm text-brown-400">
-        受取日時を読み込み中...
-      </div>
-    )
+    return <div className="py-3 text-center text-sm text-brown-400">受取日時を読み込み中...</div>
   }
 
   if (days.length === 0) {
@@ -46,64 +42,51 @@ export default function PickupDateTimePicker({ selectedDate, selectedTime, onSel
     )
   }
 
+  const activeDay = days.find((d) => d.date === selectedDate)
+
   return (
     <div className="space-y-3">
-      {/* 日付選択 */}
-      <div>
-        <p className="text-sm font-semibold text-brown-600 mb-2">受取日</p>
-        <div className="flex gap-2 flex-wrap">
+      <label className="block">
+        <span className="block text-sm font-semibold text-brown-600 mb-1">受取日</span>
+        <select
+          value={activeDay?.date ?? ''}
+          onChange={(e) => {
+            const day = days.find((d) => d.date === e.target.value)
+            if (!day) return
+            // 同じ時間がその日にもあれば、時間はそのまま
+            onSelect(day.date, selectedTime && day.slots.includes(selectedTime) ? selectedTime : '')
+          }}
+          className={selectClass}
+        >
+          {!activeDay && <option value="">選んでください</option>}
           {days.map((day) => (
-            <button
-              key={day.date}
-              type="button"
-              onClick={() => {
-                setActiveDate(day.date)
-                // 日付が変わったら時間選択をリセット（別の日のスロットへ）
-                if (activeDate !== day.date) {
-                  // 時間は未選択に戻す（親へ通知しない）
-                }
-              }}
-              className={`px-3 py-2 rounded-xl text-sm font-semibold border transition-colors ${
-                activeDate === day.date
-                  ? 'bg-brown-600 text-white border-brown-600'
-                  : 'bg-white text-brown-600 border-brown-300 active:bg-cream-100'
-              }`}
-            >
+            <option key={day.date} value={day.date}>
               {day.label}
-            </button>
+            </option>
           ))}
-        </div>
-      </div>
+        </select>
+      </label>
 
-      {/* 時間選択 */}
-      {activeDay && (
-        <div>
-          <p className="text-sm font-semibold text-brown-600 mb-2">受取時間</p>
-          <div className="flex gap-2 flex-wrap">
-            {activeDay.slots.map((slot) => {
-              const isSelected = selectedDate === activeDay.date && selectedTime === slot
-              return (
-                <button
-                  key={slot}
-                  type="button"
-                  onClick={() => onSelect(activeDay.date, slot)}
-                  className={`px-3 py-2 rounded-xl text-sm font-semibold border transition-colors ${
-                    isSelected
-                      ? 'bg-brown-600 text-white border-brown-600'
-                      : 'bg-white text-brown-600 border-brown-300 active:bg-cream-100'
-                  }`}
-                >
-                  {slot}
-                </button>
-              )
-            })}
-          </div>
-        </div>
-      )}
+      <label className="block">
+        <span className="block text-sm font-semibold text-brown-600 mb-1">受取時間</span>
+        <select
+          value={activeDay && selectedTime ? selectedTime : ''}
+          onChange={(e) => activeDay && onSelect(activeDay.date, e.target.value)}
+          disabled={!activeDay}
+          className={selectClass}
+        >
+          <option value="">時間を選んでください</option>
+          {activeDay?.slots.map((slot) => (
+            <option key={slot} value={slot}>
+              {slot}
+            </option>
+          ))}
+        </select>
+      </label>
 
-      {selectedDate && selectedTime && (
+      {activeDay && selectedTime && (
         <p className="text-sm text-matcha-700 font-semibold">
-          ✓ {days.find((d) => d.date === selectedDate)?.label} {selectedTime} 受取
+          ✓ {activeDay.label} {selectedTime} 受取
         </p>
       )}
     </div>

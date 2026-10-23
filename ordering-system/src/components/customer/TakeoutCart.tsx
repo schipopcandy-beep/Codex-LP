@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import type { CartItem, Product } from '@/lib/types'
-import { calcCartTotal, optionLabel, optionPrice } from '@/lib/types'
+import { TAKEOUT_LEAD_MINUTES, calcCartTotal, optionLabel, optionPrice } from '@/lib/types'
 import TonjiruSuggestion from '@/components/customer/TonjiruSuggestion'
 import PickupDateTimePicker from '@/components/customer/PickupDateTimePicker'
 
@@ -183,7 +183,7 @@ export default function TakeoutCart({
               <div className={`border-t border-cream-300 pt-4 ${isSeatOrder ? 'hidden' : ''}`}>
                 <p className="font-bold text-brown-700 mb-1">受取日時を選択</p>
                 <p className="text-xs text-brown-400 mb-3">
-                  ※ 注文から30分後以降の時間帯のみ選択できます
+                  ※ 本日のお受け取りは、注文から{TAKEOUT_LEAD_MINUTES}分後以降の時間を選べます
                 </p>
                 <PickupDateTimePicker
                   selectedDate={pickupDate}
