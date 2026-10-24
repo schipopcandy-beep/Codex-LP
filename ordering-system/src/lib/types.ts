@@ -412,6 +412,31 @@ export function toggleCustomerFeature(current: string[], feature: string): strin
   return CUSTOMER_FEATURES.filter((f) => next.includes(f))
 }
 
+/** 順番待ち: 満席のとき1組あたりの待ち時間の目安（分）。滞在時間の中央値33分 ÷ 同時に入れる約6組 から */
+export const WAIT_MINUTES_PER_GROUP = 6
+
+export type WaitlistStatus = 'waiting' | 'called' | 'absent' | 'seated' | 'canceled'
+
+/** 順番待ちの受付1件 */
+export interface WaitlistEntry {
+  id: string
+  /** 受付日（日本時間 YYYY-MM-DD） */
+  date: string
+  /** 受付番号（毎日1番から） */
+  number: number
+  party_size: number
+  status: WaitlistStatus
+  line_user_id: string | null
+  display_name: string | null
+  token: string | null
+  notified_soon: boolean
+  /** 不在のあと戻ってきた時刻（次に空いた席へ優先して案内する） */
+  returned_at: string | null
+  called_at: string | null
+  seated_at: string | null
+  created_at: string
+}
+
 export interface Order {
   id: string
   table_id: string

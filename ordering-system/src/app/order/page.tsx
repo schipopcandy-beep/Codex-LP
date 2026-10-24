@@ -5,6 +5,7 @@ import { useSearchParams } from 'next/navigation'
 import Image from 'next/image'
 import OrderAccessGuard from '@/components/customer/OrderAccessGuard'
 import OrderUI from '@/components/customer/OrderUI'
+import WaitlistUI from '@/components/customer/WaitlistUI'
 import { seatToTableId, storageUrl } from '@/lib/types'
 
 /**
@@ -46,23 +47,32 @@ function ScanQrScreen() {
  * LINEアプリ経由（LIFFのURL）で開くと、最初は ?liff.state=%3Fseat%3D... の形で届き、
  * LINEの初期化のあとで ?seat=... に置き換わる。初期化が動くよう、どちらからも読む。
  */
-function readSeatCode(searchParams: URLSearchParams): string {
-  const direct = searchParams.get('seat')
+function readParam(searchParams: URLSearchParams, key: string): string {
+  const direct = searchParams.get(key)
   if (direct) return direct
 
   const liffState = searchParams.get('liff.state')
   if (!liffState) return ''
   const query = liffState.includes('?') ? liffState.slice(liffState.indexOf('?') + 1) : liffState
-  return new URLSearchParams(query).get('seat') ?? ''
+  return new URLSearchParams(query).get(key) ?? ''
 }
+
+const readSeatCode = (searchParams: URLSearchParams) => readParam(searchParams, 'seat')
 
 function OrderPageContent() {
   const searchParams = useSearchParams()
-  const seat = readSeatCode(new URLSearchParams(searchParams.toString()))
+  const params = new URLSearchParams(searchParams.toString())
+  const seat = readSeatCode(params)
   const tableId = seatToTableId(seat)
+  // 順番待ちの受付（LINEのリッチメニュー・空席確認ページから ?wait=1 で開く）
+  const isWaitlist = readParam(params, 'wait') === '1'
 
   const [lineUserId, setLineUserId] = useState<string | null>(null)
   const [partySize, setPartySize] = useState<number | null>(null)
+
+  if (isWaitlist) {
+    return <WaitlistUI />
+  }
 
   if (!seat || !tableId) {
     return <ScanQrScreen />

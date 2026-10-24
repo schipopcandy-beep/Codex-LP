@@ -2,7 +2,16 @@
 
 import { useEffect, useState, useCallback } from 'react'
 import Image from 'next/image'
-import { storageUrl } from '@/lib/types'
+import { ORDER_LIFF_ID, storageUrl } from '@/lib/types'
+
+/** LINEで開く順番待ちの受付（店内注文のLIFFを ?wait=1 で開く） */
+const WAITLIST_URL = `https://liff.line.me/${ORDER_LIFF_ID}?wait=1`
+
+interface WaitInfo {
+  accepting: boolean
+  waiting_count: number
+  estimate_minutes: number
+}
 
 interface SeatGroup {
   total: number
@@ -22,9 +31,15 @@ export default function VacancyPage() {
   const [data, setData] = useState<Vacancy | null>(null)
   const [loading, setLoading] = useState(true)
   const [updatedAt, setUpdatedAt] = useState<string>('')
+  const [wait, setWait] = useState<WaitInfo | null>(null)
 
   const load = useCallback(async () => {
     try {
+      // 順番待ちの状況（取れなくても空席は出す）
+      fetch('/api/waitlist', { cache: 'no-store' })
+        .then((r) => (r.ok ? r.json() : null))
+        .then((w) => w && setWait(w))
+        .catch(() => {})
       const res = await fetch('/api/vacancy', { cache: 'no-store' })
       if (res.ok) {
         setData(await res.json())
@@ -86,6 +101,27 @@ export default function VacancyPage() {
               <SeatGroupCard label="テーブル" group={data.table} unit="卓" />
               <SeatGroupCard label="カウンター" group={data.counter} unit="席" />
             </div>
+
+            {/* 順番待ち */}
+            {wait && (
+              <div className="w-full card p-5 text-center space-y-3">
+                <p className="text-sm font-semibold text-brown-600">現在の順番待ち</p>
+                <p className="text-4xl font-bold text-brown-800 tabular-nums leading-none">
+                  {wait.waiting_count}
+                  <span className="text-base text-brown-400 ml-0.5">組</span>
+                </p>
+                <p className="text-sm text-brown-600">
+                  {wait.estimate_minutes === 0 ? '今すぐご案内できます' : `待ち時間の目安 約${wait.estimate_minutes}分`}
+                </p>
+                {wait.accepting ? (
+                  <a href={WAITLIST_URL} className="btn-primary block w-full py-3 text-base">
+                    LINEで順番待ちを受付する
+                  </a>
+                ) : (
+                  <p className="text-xs text-brown-400">順番待ちの受付は営業時間内のみです</p>
+                )}
+              </div>
+            )}
 
             <div className="flex flex-col items-center gap-3">
               <button
