@@ -118,8 +118,12 @@ function supabaseGetAll(table, params, pageSize) {
 
 // ─── 日付ヘルパー ──────────────────────────────────────────────
 
+// 日時はすべて「実際の時刻」のまま持ち、表示するときに 'Asia/Tokyo' で整形する。
+// （以前は 9 時間足してから 'Asia/Tokyo' で整形していたため、表示が 9 時間ずれていた）
+
+/** ISO 形式の日時を Date にする（整形は jstDateStr / jstTimeStr で日本時間にする） */
 function toJstDate(isoStr) {
-  return new Date(new Date(isoStr).getTime() + 9 * 3600000)
+  return new Date(isoStr)
 }
 
 function jstDateStr(jstDate) {
@@ -130,12 +134,15 @@ function jstTimeStr(isoStr) {
   return Utilities.formatDate(toJstDate(isoStr), 'Asia/Tokyo', 'HH:mm')
 }
 
+/** 日本時間の YYYY-MM-DD の 0:00 を Date にする */
+function jstMidnightOf(ymd) {
+  return new Date(ymd + 'T00:00:00+09:00')
+}
+
 function utcRangeForJstDay(jstDate) {
   // jstDate の日本時間 0:00〜24:00 を UTC に変換して返す
-  const jstMidnight = new Date(jstDate.getFullYear(), jstDate.getMonth(), jstDate.getDate())
-  const start = new Date(jstMidnight.getTime() - 9 * 3600000).toISOString()
-  const end   = new Date(jstMidnight.getTime() - 9 * 3600000 + 86400000).toISOString()
-  return { start, end }
+  const start = jstMidnightOf(Utilities.formatDate(jstDate, 'Asia/Tokyo', 'yyyy-MM-dd'))
+  return { start: start.toISOString(), end: new Date(start.getTime() + 86400000).toISOString() }
 }
 
 /**
@@ -151,10 +158,11 @@ function toDateKey(value) {
   return String(value).trim()
 }
 
+/** 日本時間で n 日前（n がマイナスなら n 日後）の日の正午を返す（整形は 'Asia/Tokyo' で行う） */
 function nDaysAgoJst(n) {
-  const now = new Date()
-  const jst = new Date(now.getTime() + 9 * 3600000)
-  return new Date(jst.getFullYear(), jst.getMonth(), jst.getDate() - n)
+  const todayStr = Utilities.formatDate(new Date(), 'Asia/Tokyo', 'yyyy-MM-dd')
+  const noon = new Date(todayStr + 'T12:00:00+09:00')
+  return new Date(noon.getTime() - n * 86400000)
 }
 
 /**
@@ -163,14 +171,16 @@ function nDaysAgoJst(n) {
  * 返り値: { label: 'yyyy-MM', startUtc, endUtc }（月初0:00〜翌月初0:00 JST のUTC範囲）
  */
 function jstMonthRange(offsetMonths) {
-  const now = new Date()
-  const jst = new Date(now.getTime() + 9 * 3600000)
-  const start = new Date(jst.getFullYear(), jst.getMonth() + offsetMonths, 1)
-  const end   = new Date(jst.getFullYear(), jst.getMonth() + offsetMonths + 1, 1)
+  const [y, m] = Utilities.formatDate(new Date(), 'Asia/Tokyo', 'yyyy-MM').split('-').map(Number)
+  const monthStart = (k) => {
+    const total = y * 12 + (m - 1) + k
+    return Math.floor(total / 12) + '-' + String((total % 12) + 1).padStart(2, '0')
+  }
+  const label = monthStart(offsetMonths)
   return {
-    label:    Utilities.formatDate(start, 'Asia/Tokyo', 'yyyy-MM'),
-    startUtc: new Date(start.getTime() - 9 * 3600000).toISOString(),
-    endUtc:   new Date(end.getTime() - 9 * 3600000).toISOString(),
+    label:    label,
+    startUtc: jstMidnightOf(label + '-01').toISOString(),
+    endUtc:   jstMidnightOf(monthStart(offsetMonths + 1) + '-01').toISOString(),
   }
 }
 
@@ -263,7 +273,7 @@ function exportHistoryForMonth(kind, offsetMonths) {
     const jst     = toJstDate(order.created_at)
     const dateStr = jstDateStr(jst)
     const timeStr = isTakeout
-      ? (order.pickup_at ? jstTimeStr(order.pickup_at) : '—')
+      ? (order.pickup_at ? String(order.pickup_at).slice(11, 16) : '—')  // pickup_at は "YYYY-MM-DD HH:MM"（日本時間）
       : Utilities.formatDate(jst, 'Asia/Tokyo', 'HH:mm')
     const items = order.order_items || []
 
@@ -939,7 +949,7 @@ function sendWeeklyFollowUp() {
     }
   }
 
-  const nowJstStr = Utilities.formatDate(new Date(Date.now() + 9 * 3600000), 'Asia/Tokyo', 'yyyy/MM/dd HH:mm')
+  const nowJstStr = Utilities.formatDate(new Date(), 'Asia/Tokyo', 'yyyy/MM/dd HH:mm')
   let sentCount = 0
   let skipCount = 0
 
@@ -1075,7 +1085,7 @@ function sendReengagementMessage() {
     }
   }
 
-  const nowJstStr = Utilities.formatDate(new Date(Date.now() + 9 * 3600000), 'Asia/Tokyo', 'yyyy/MM/dd HH:mm')
+  const nowJstStr = Utilities.formatDate(new Date(), 'Asia/Tokyo', 'yyyy/MM/dd HH:mm')
   let sentCount = 0
   let skipCount = 0
 
