@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { createServiceRoleClient } from '@/lib/supabase/server'
-import { TAKEOUT_LEAD_MINUTES, generatePickupSlots, formatScheduleDate, type AvailableDay } from '@/lib/types'
+import { TAKEOUT_BOOKING_DAYS, TAKEOUT_LEAD_MINUTES, generatePickupSlots, formatScheduleDate, type AvailableDay } from '@/lib/types'
 import { addDays, getEffectiveDays, todayJST } from '@/lib/business-hours'
 
 /** JST の現在時刻を HH:MM で返す */
@@ -15,13 +15,13 @@ function toMin(t: string): number {
   return h * 60 + m
 }
 
-/** お客様向け: 受け取りを選べる日（今日〜7日後）と時間帯。休業日は含めない */
+/** お客様向け: 受け取りを選べる日（今日〜TAKEOUT_BOOKING_DAYS 日後）と時間帯。休業日は含めない */
 export async function GET() {
   const supabase = createServiceRoleClient()
   const today = todayJST()
   const nowTime = currentTimeJST()
 
-  const dates = Array.from({ length: 8 }, (_, i) => addDays(today, i))
+  const dates = Array.from({ length: TAKEOUT_BOOKING_DAYS + 1 }, (_, i) => addDays(today, i))
   const days = await getEffectiveDays(supabase, dates)
 
   const available: AvailableDay[] = []

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServiceRoleClient } from '@/lib/supabase/server'
-import { CUSTOMER_FEATURES, formatScheduleDate, generatePickupSlots, optionLabel, optionPrice } from '@/lib/types'
-import { getEffectiveDays } from '@/lib/business-hours'
+import { CUSTOMER_FEATURES, TAKEOUT_BOOKING_DAYS, formatScheduleDate, generatePickupSlots, optionLabel, optionPrice } from '@/lib/types'
+import { addDays, getEffectiveDays, todayJST } from '@/lib/business-hours'
 import { sendLineMessage } from '@/lib/line-message'
 import { checkStock, countByStockKey, getStockContext, stockDateFor, syncAutoSoldOut } from '@/lib/stock'
 
@@ -99,6 +99,14 @@ export async function POST(req: NextRequest) {
   // 店頭で店員が入力した注文は、その場の判断を優先して確認しない
   if (pickup_at && !staff_entry) {
     const [pickupDate, pickupTime] = pickup_at.split(' ')
+    // 予約できるのは今日から TAKEOUT_BOOKING_DAYS 日後まで
+    const today = todayJST()
+    if (pickupDate < today || pickupDate > addDays(today, TAKEOUT_BOOKING_DAYS)) {
+      return NextResponse.json(
+        { error: `ご予約は${TAKEOUT_BOOKING_DAYS}日後までの日付でお願いします。別の日をお選びください。` },
+        { status: 400 },
+      )
+    }
     const [day] = await getEffectiveDays(supabase, [pickupDate])
     if (!day || !day.is_open) {
       return NextResponse.json(

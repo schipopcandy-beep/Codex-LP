@@ -20,6 +20,8 @@ export const TAKEOUT_DEFAULT_OPEN = '07:30'
 export const TAKEOUT_DEFAULT_CLOSE = '14:00'
 /** 受取スロットの間隔（分） */
 export const TAKEOUT_SLOT_MINUTES = 15
+/** テイクアウト予約で選べる日（今日から何日後まで。30 ＝ 約1か月後まで） */
+export const TAKEOUT_BOOKING_DAYS = 30
 /** 当日のテイクアウト予約は、今から何分後以降の受け取りを選べるか */
 export const TAKEOUT_LEAD_MINUTES = 15
 
