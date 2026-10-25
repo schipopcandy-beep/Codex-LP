@@ -1,0 +1,55 @@
+# 織はや 注文システム: GitHub の main に入ったら Cloud Run へデプロイする（Cloud Build のトリガーから実行）
+#
+# トリガーの「置換変数」に設定するもの（どれもブラウザから見える値）:
+#   _NEXT_PUBLIC_SUPABASE_URL / _NEXT_PUBLIC_SUPABASE_ANON_KEY / _NEXT_PUBLIC_LIFF_ID / _NEXT_PUBLIC_ORDER_LIFF_ID
+# 秘密の値（SUPABASE_SERVICE_ROLE_KEY・LINE のトークンなど）は、Cloud Run のサービス側の環境変数に設定する
+# （ここには書かない。--image だけでデプロイするので、サービス側の環境変数はそのまま引き継がれる）
+substitutions:
+  _REGION: asia-northeast1
+  _SERVICE: orihaya
+  _REPOSITORY: orihaya
+  _NEXT_PUBLIC_SUPABASE_URL: ''
+  _NEXT_PUBLIC_SUPABASE_ANON_KEY: ''
+  _NEXT_PUBLIC_LIFF_ID: ''
+  _NEXT_PUBLIC_ORDER_LIFF_ID: ''
+
+steps:
+  - id: build
+    name: gcr.io/cloud-builders/docker
+    dir: ordering-system
+    args:
+      - build
+      - -t
+      - ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPOSITORY}/${_SERVICE}:$SHORT_SHA
+      - --build-arg=NEXT_PUBLIC_SUPABASE_URL=${_NEXT_PUBLIC_SUPABASE_URL}
+      - --build-arg=NEXT_PUBLIC_SUPABASE_ANON_KEY=${_NEXT_PUBLIC_SUPABASE_ANON_KEY}
+      - --build-arg=NEXT_PUBLIC_LIFF_ID=${_NEXT_PUBLIC_LIFF_ID}
+      - --build-arg=NEXT_PUBLIC_ORDER_LIFF_ID=${_NEXT_PUBLIC_ORDER_LIFF_ID}
+      - .
+
+  - id: push
+    name: gcr.io/cloud-builders/docker
+    args: ['push', '${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPOSITORY}/${_SERVICE}:$SHORT_SHA']
+
+  - id: deploy
+    name: gcr.io/google.com/cloudsdktool/cloud-sdk:slim
+    entrypoint: gcloud
+    args:
+      - run
+      - deploy
+      - ${_SERVICE}
+      - --image=${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPOSITORY}/${_SERVICE}:$SHORT_SHA
+      - --region=${_REGION}
+      - --allow-unauthenticated
+      # 費用の上限を守るため、同時に動くインスタンスは最大3つまで。使わないときは0（無料枠を使い切らない）
+      - --min-instances=0
+      - --max-instances=3
+      - --memory=512Mi
+      - --cpu=1
+      - --concurrency=80
+
+images:
+  - ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPOSITORY}/${_SERVICE}:$SHORT_SHA
+
+options:
+  logging: CLOUD_LOGGING_ONLY

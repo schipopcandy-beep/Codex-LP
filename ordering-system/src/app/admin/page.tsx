@@ -119,8 +119,9 @@ export default function AdminDashboard() {
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'order_items' }, () => fetchOrders())
       .subscribe()
 
-    // Realtime が無効な環境向けに15秒ポーリングをフォールバックとして追加
-    const timer = setInterval(fetchOrders, 15000)
+    // Realtime が届かなかったときの念のための取り直し（新しい注文は Realtime ですぐ反映される）
+    // 間隔を短くするとサーバーの負荷と費用が増えるため、60秒にしている
+    const timer = setInterval(fetchOrders, 60000)
 
     return () => {
       supabase.removeChannel(channel)
