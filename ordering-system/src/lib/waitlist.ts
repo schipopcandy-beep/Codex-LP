@@ -44,18 +44,10 @@ export function estimateMinutes(ahead: number, hasVacancy: boolean): number {
   return Math.ceil(((ahead + 1) * WAIT_MINUTES_PER_GROUP) / 5) * 5
 }
 
-/**
- * 動作確認のため、営業時間外でも受付する期間（日本時間）。この時刻を過ぎたら通常どおり。使い終わったら null に戻す
- */
-const TEST_ACCEPT_UNTIL: string | null = '2026-10-24T17:30:00+09:00'
-
 /** 今、順番待ちを受け付けられるか（今日が営業日で、営業時間内） */
 export async function getAcceptance(
   supabase: SupabaseClient,
 ): Promise<{ accepting: boolean; open_time: string | null; close_time: string | null }> {
-  if (TEST_ACCEPT_UNTIL && Date.now() < new Date(TEST_ACCEPT_UNTIL).getTime()) {
-    return { accepting: true, open_time: 'テスト', close_time: TEST_ACCEPT_UNTIL.slice(11, 16) }
-  }
   const [day] = await getEffectiveDays(supabase, [todayJST()])
   if (!day || !day.is_open) return { accepting: false, open_time: null, close_time: null }
   const open = day.open_time.slice(0, 5)
