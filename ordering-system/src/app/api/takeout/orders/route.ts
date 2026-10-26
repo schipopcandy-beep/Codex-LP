@@ -3,6 +3,7 @@ import { createServiceRoleClient } from '@/lib/supabase/server'
 import { CUSTOMER_FEATURES, TAKEOUT_BOOKING_DAYS, formatScheduleDate, generatePickupSlots, optionLabel, optionPrice } from '@/lib/types'
 import { addDays, getEffectiveDays, todayJST } from '@/lib/business-hours'
 import { sendLineMessage } from '@/lib/line-message'
+import { priceOrderItems } from '@/lib/order-pricing'
 import { checkStock, countByStockKey, getStockContext, stockDateFor, syncAutoSoldOut } from '@/lib/stock'
 
 interface TakeoutOrderItem {
@@ -78,14 +79,14 @@ function buildOrderMessage(
 
 export async function POST(req: NextRequest) {
   const body: TakeoutOrderRequestBody = await req.json()
-  const { table_id, line_user_id, pickup_at, staff_entry, items } = body
+  const { table_id, line_user_id, pickup_at, staff_entry } = body
   const customerName = body.customer_name?.trim().slice(0, 50) || null
   // 決められた特徴だけを受け付ける
   const customerFeatures = Array.isArray(body.customer_features)
     ? CUSTOMER_FEATURES.filter((f) => body.customer_features!.includes(f))
     : []
 
-  if (!table_id || !items || items.length === 0) {
+  if (!table_id || !Array.isArray(body.items) || body.items.length === 0) {
     return NextResponse.json(
       { error: 'table_id と items は必須です' },
       { status: 400 },
@@ -93,6 +94,15 @@ export async function POST(req: NextRequest) {
   }
 
   const supabase = createServiceRoleClient()
+
+  // 値段・商品名はデータベースの商品で付け直す（LINEの確認メッセージの金額・商品名もこちらを使う）
+  // テイクアウトにはランチプレートの中のおにぎりの行はない
+  const priced = await priceOrderItems(
+    supabase,
+    body.items.map((item) => ({ ...item, lunch_plate_index: null })),
+  )
+  if ('error' in priced) return NextResponse.json({ error: priced.error }, { status: 400 })
+  const items = priced.items
 
   // お客様の予約は、休業日や営業時間外の受け取りを受け付けない
   // （画面を開いた後に休業日に変更された場合などに備え、注文を受ける側でも確認する）
