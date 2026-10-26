@@ -47,7 +47,7 @@ export function estimateMinutes(ahead: number, hasVacancy: boolean): number {
 /**
  * 臨時に、営業時間外でも受付する期間（日本時間）。この時刻を過ぎたら通常どおり。使い終わったら null に戻す
  */
-const TEMP_ACCEPT_UNTIL: string | null = null
+const TEMP_ACCEPT_UNTIL: string | null = '2026-10-27T00:00:00+09:00'
 
 /** 今、順番待ちを受け付けられるか（今日が営業日で、営業時間内） */
 export async function getAcceptance(
