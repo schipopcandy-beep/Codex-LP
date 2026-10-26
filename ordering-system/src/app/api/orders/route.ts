@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createServiceRoleClient } from '@/lib/supabase/server'
 import { checkStock, countByStockKey, getStockContext, syncAutoSoldOut } from '@/lib/stock'
 import { todayJST } from '@/lib/business-hours'
+import { priceOrderItems } from '@/lib/order-pricing'
 
 interface OrderRequestBody {
   table_id: string
@@ -30,9 +31,9 @@ interface OrderRequestBody {
 
 export async function POST(req: NextRequest) {
   const body: OrderRequestBody = await req.json()
-  const { table_id, line_user_id, party_size, items } = body
+  const { table_id, line_user_id, party_size } = body
 
-  if (!table_id || !items || items.length === 0) {
+  if (!table_id || !Array.isArray(body.items) || body.items.length === 0) {
     return NextResponse.json(
       { error: 'table_id と items は必須です' },
       { status: 400 },
@@ -40,6 +41,11 @@ export async function POST(req: NextRequest) {
   }
 
   const supabase = createServiceRoleClient()
+
+  // 値段・商品名はデータベースの商品で付け直す
+  const priced = await priceOrderItems(supabase, body.items)
+  if ('error' in priced) return NextResponse.json({ error: priced.error }, { status: 400 })
+  const items = priced.items
 
   // 仕込み数を入れている商品は、残り数を超える注文を断る
   const shortage = await checkStock(
