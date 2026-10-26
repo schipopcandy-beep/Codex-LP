@@ -9,7 +9,7 @@ import {
   getTodayEntries,
   queueOf,
 } from '@/lib/waitlist'
-import type { WaitlistEntry } from '@/lib/types'
+import { toSeatPreference, type WaitlistEntry } from '@/lib/types'
 
 /** お客様の受付（token か LINE ID で探す）。まだ案内していないものだけ */
 function findMine(entries: WaitlistEntry[], token?: string | null, lineUserId?: string | null) {
@@ -28,6 +28,7 @@ function entryView(entry: WaitlistEntry, entries: WaitlistEntry[], hasVacancy: b
   return {
     number: entry.number,
     party_size: entry.party_size,
+    seat_preference: entry.seat_preference,
     status: entry.status,
     ahead,
     estimate_minutes: entry.status === 'waiting' ? estimateMinutes(ahead, hasVacancy) : 0,
@@ -71,12 +72,17 @@ export async function GET(req: NextRequest) {
 
 /**
  * お客様向け: 順番待ちを受付する（営業時間内のみ）
- * body: { party_size, token, line_user_id?, display_name? }
+ * body: { party_size, seat_preference?, token, line_user_id?, display_name? }
  * すでに受付中なら、その受付を返す
  */
 export async function POST(req: NextRequest) {
-  const body: { party_size?: number; token?: string; line_user_id?: string; display_name?: string } =
-    await req.json()
+  const body: {
+    party_size?: number
+    seat_preference?: string
+    token?: string
+    line_user_id?: string
+    display_name?: string
+  } = await req.json()
   const partySize = Number(body.party_size)
   if (!Number.isInteger(partySize) || partySize < 1 || partySize > 20) {
     return NextResponse.json({ error: '人数を選んでください' }, { status: 400 })
@@ -108,6 +114,7 @@ export async function POST(req: NextRequest) {
         date: todayJST(),
         number: next,
         party_size: partySize,
+        seat_preference: toSeatPreference(body.seat_preference),
         token: body.token,
         line_user_id: body.line_user_id || null,
         display_name: body.display_name?.slice(0, 50) || null,
