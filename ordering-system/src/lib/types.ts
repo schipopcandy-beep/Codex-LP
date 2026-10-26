@@ -307,6 +307,16 @@ export const LUNCH_PLATE_END_HOUR = 15
  */
 export const LUNCH_PLATE_ALWAYS_AVAILABLE = false
 
+/**
+ * テスト用に、この時刻（日本時間）までランチプレートを時間帯に関係なく注文できる。使い終わったら null に戻す
+ */
+const LUNCH_PLATE_TEST_UNTIL: string | null = '2026-10-26T23:45:00+09:00'
+
+/** 今、ランチプレートを時間帯に関係なく注文できるか（LUNCH_PLATE_ALWAYS_AVAILABLE か、テスト期間中） */
+export function isLunchPlateAlwaysAvailable(): boolean {
+  return LUNCH_PLATE_ALWAYS_AVAILABLE || (LUNCH_PLATE_TEST_UNTIL !== null && Date.now() < new Date(LUNCH_PLATE_TEST_UNTIL).getTime())
+}
+
 /** ランチタイムの表示用ラベル（例: "11:00〜14:00"） */
 export const LUNCH_TIME_LABEL =
   LUNCH_END_HOUR !== null
@@ -332,14 +342,14 @@ export function isLunchTimeNow(): boolean {
 
 /** ランチプレートが注文できる時間帯か（11:00〜15:00） */
 export function isLunchPlateOrderable(): boolean {
-  if (LUNCH_PLATE_ALWAYS_AVAILABLE) return true
+  if (isLunchPlateAlwaysAvailable()) return true
   const hour = jstHourNow()
   return hour >= LUNCH_START_HOUR && hour < LUNCH_PLATE_END_HOUR
 }
 
 /** ランチプレートの販売が終了したか（15:00以降） */
 export function isLunchPlateClosed(): boolean {
-  if (LUNCH_PLATE_ALWAYS_AVAILABLE) return false
+  if (isLunchPlateAlwaysAvailable()) return false
   return jstHourNow() >= LUNCH_PLATE_END_HOUR
 }
 
