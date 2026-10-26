@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useState } from 'react'
-import type { WaitlistEntry } from '@/lib/types'
+import { SEAT_PREFERENCES, SEAT_PREFERENCE_LABELS, type SeatPreference, type WaitlistEntry } from '@/lib/types'
 import { useConfirm } from '@/components/admin/useConfirm'
 
 type QueueEntry = WaitlistEntry & { ahead: number; estimate_minutes: number }
@@ -26,6 +26,17 @@ const minutesSince = (iso: string | null) =>
 const timeOf = (iso: string | null) =>
   iso ? new Date(iso).toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Tokyo' }) : ''
 
+/** 希望の席の目印（テーブル・カウンターの希望だけ色を付けて目立たせる） */
+function SeatBadge({ preference }: { preference: SeatPreference }) {
+  const tone =
+    preference === 'table'
+      ? 'text-blue-700 bg-blue-50'
+      : preference === 'counter'
+        ? 'text-amber-800 bg-amber-100'
+        : 'text-brown-500 bg-cream-100'
+  return <span className={`ml-2 text-xs font-bold px-2 py-0.5 rounded-full ${tone}`}>{SEAT_PREFERENCE_LABELS[preference]}</span>
+}
+
 /**
  * 順番待ちの管理
  * 呼び出す → 来たら「案内済み」／いなければ「不在」。
@@ -36,6 +47,7 @@ export default function WaitlistAdminPage() {
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState<string | null>(null)
   const [walkInSize, setWalkInSize] = useState(1)
+  const [walkInSeat, setWalkInSeat] = useState<SeatPreference>('any')
   const [walkInName, setWalkInName] = useState('')
   const [issued, setIssued] = useState<number | null>(null)
   const [, setTick] = useState(0)
@@ -92,13 +104,14 @@ export default function WaitlistAdminPage() {
       const res = await fetch('/api/admin/waitlist', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ party_size: walkInSize, display_name: walkInName }),
+        body: JSON.stringify({ party_size: walkInSize, seat_preference: walkInSeat, display_name: walkInName }),
       })
       const json = await res.json()
       if (!res.ok) throw new Error(json.error)
       setIssued(json.number)
       setWalkInName('')
       setWalkInSize(1)
+      setWalkInSeat('any')
     } catch {
       setError('受付できませんでした')
     }
@@ -128,6 +141,7 @@ export default function WaitlistAdminPage() {
       <p className="font-bold text-brown-800">
         <span className="text-2xl tabular-nums mr-2">{entry.number}</span>
         {entry.party_size}名
+        <SeatBadge preference={entry.seat_preference ?? 'any'} />
         {entry.returned_at && <span className="ml-2 text-xs font-bold text-red-600 bg-red-50 px-2 py-0.5 rounded-full">不在から戻り・優先</span>}
       </p>
       <p className="text-xs text-brown-500">
@@ -231,6 +245,17 @@ export default function WaitlistAdminPage() {
               </option>
             ))}
           </select>
+          <select
+            value={walkInSeat}
+            onChange={(e) => setWalkInSeat(e.target.value as SeatPreference)}
+            className="rounded-xl border border-cream-300 bg-white px-3 py-2 text-base"
+          >
+            {SEAT_PREFERENCES.map((pref) => (
+              <option key={pref} value={pref}>
+                {SEAT_PREFERENCE_LABELS[pref]}
+              </option>
+            ))}
+          </select>
           <input
             type="text"
             value={walkInName}
@@ -255,7 +280,7 @@ export default function WaitlistAdminPage() {
               <div key={e.id} className="py-2 flex items-center justify-between gap-3">
                 <p className="text-sm text-brown-600">
                   <span className="font-bold tabular-nums mr-2">{e.number}</span>
-                  {e.party_size}名・{e.status === 'seated' ? `案内済み ${timeOf(e.seated_at)}` : '取消'}
+                  {e.party_size}名・{SEAT_PREFERENCE_LABELS[e.seat_preference ?? 'any']}・{e.status === 'seated' ? `案内済み ${timeOf(e.seated_at)}` : '取消'}
                 </p>
                 {button('待ちに戻す', () => act(e, 'undo'), 'plain', busy === e.id)}
               </div>

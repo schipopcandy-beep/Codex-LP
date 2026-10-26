@@ -429,6 +429,19 @@ export const WAIT_MINUTES_PER_GROUP = 6
 
 export type WaitlistStatus = 'waiting' | 'called' | 'absent' | 'seated' | 'canceled'
 
+/** 順番待ちで希望する席 */
+export type SeatPreference = 'table' | 'counter' | 'any'
+export const SEAT_PREFERENCE_LABELS: Record<SeatPreference, string> = {
+  table: 'テーブル席',
+  counter: 'カウンター',
+  any: 'どちらでもよい',
+}
+export const SEAT_PREFERENCES = Object.keys(SEAT_PREFERENCE_LABELS) as SeatPreference[]
+/** 届いた値を希望の席にする（決められた値でなければ「どちらでもよい」） */
+export function toSeatPreference(value: unknown): SeatPreference {
+  return SEAT_PREFERENCES.includes(value as SeatPreference) ? (value as SeatPreference) : 'any'
+}
+
 /** 順番待ちの受付1件 */
 export interface WaitlistEntry {
   id: string
@@ -437,6 +450,8 @@ export interface WaitlistEntry {
   /** 受付番号（毎日1番から） */
   number: number
   party_size: number
+  /** 希望の席 */
+  seat_preference: SeatPreference
   status: WaitlistStatus
   line_user_id: string | null
   display_name: string | null

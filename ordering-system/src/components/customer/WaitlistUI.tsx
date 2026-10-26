@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react'
 import Image from 'next/image'
-import { ORDER_LIFF_ID, storageUrl } from '@/lib/types'
+import { ORDER_LIFF_ID, SEAT_PREFERENCES, SEAT_PREFERENCE_LABELS, storageUrl, type SeatPreference } from '@/lib/types'
 import { useConfirm } from '@/components/admin/useConfirm'
 
 interface SeatGroup {
@@ -20,6 +20,7 @@ interface WaitlistStatusResponse {
   entry: {
     number: number
     party_size: number
+    seat_preference: SeatPreference
     status: 'waiting' | 'called' | 'absent'
     ahead: number
     estimate_minutes: number
@@ -61,6 +62,7 @@ export default function WaitlistUI() {
   const [status, setStatus] = useState<WaitlistStatusResponse | null>(null)
   const [loadError, setLoadError] = useState(false)
   const [partySize, setPartySize] = useState<number | null>(null)
+  const [seatPreference, setSeatPreference] = useState<SeatPreference>('any')
   const [submitting, setSubmitting] = useState(false)
   const [message, setMessage] = useState<string | null>(null)
   const [confirm, confirmDialog] = useConfirm()
@@ -137,6 +139,7 @@ export default function WaitlistUI() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           party_size: partySize,
+          seat_preference: seatPreference,
           token,
           line_user_id: lineUserId ?? undefined,
           display_name: displayName ?? undefined,
@@ -192,7 +195,9 @@ export default function WaitlistUI() {
               >
                 <p className="text-sm font-bold text-brown-600">あなたの受付番号</p>
                 <p className="text-6xl font-bold text-brown-800 tabular-nums">{entry.number}</p>
-                <p className="text-sm text-brown-500">{entry.party_size}名様</p>
+                <p className="text-sm text-brown-500">
+                  {entry.party_size}名様・{SEAT_PREFERENCE_LABELS[entry.seat_preference ?? 'any']}
+                </p>
                 {entry.status === 'called' && (
                   <p className="text-xl font-bold text-matcha-600">順番になりました！お店にお越しください</p>
                 )}
@@ -279,6 +284,31 @@ export default function WaitlistUI() {
                       </button>
                     ))}
                   </div>
+                  <p className="font-bold text-brown-800 text-center">ご希望のお席</p>
+                  <div className="grid grid-cols-3 gap-2">
+                    {SEAT_PREFERENCES.map((pref) => (
+                      <button
+                        key={pref}
+                        type="button"
+                        onClick={() => setSeatPreference(pref)}
+                        aria-pressed={seatPreference === pref}
+                        className={`h-12 rounded-xl text-sm font-bold border-2 ${
+                          seatPreference === pref
+                            ? 'bg-brown-600 text-white border-brown-600'
+                            : 'bg-cream-50 text-brown-700 border-cream-300'
+                        }`}
+                      >
+                        {SEAT_PREFERENCE_LABELS[pref]}
+                      </button>
+                    ))}
+                  </div>
+                  {seatPreference !== 'any' && (
+                    <p className="text-xs text-brown-500 text-center leading-relaxed">
+                      ご希望のお席が空くまでお待ちいただく場合があります。
+                      <br />
+                      「どちらでもよい」を選ぶと、早くご案内できることがあります。
+                    </p>
+                  )}
                   <button
                     type="button"
                     onClick={register}
