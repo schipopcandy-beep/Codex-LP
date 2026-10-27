@@ -14,6 +14,17 @@ export const ADMIN_COOKIE = 'orihaya_admin'
 export const ADMIN_SESSION_SECONDS = 30 * 24 * 60 * 60
 /** 残りがこれより短くなったら、使ったときに期限を延ばす（秒） */
 const RENEW_BELOW_SECONDS = 20 * 24 * 60 * 60
+/**
+ * この時刻（日本時間）からパスワードが必要になる。それまではログインなしで使える（ログインしておくこともできる）
+ * null ならいつも必要
+ */
+const ADMIN_AUTH_START: string | null = '2026-11-01T00:00:00+09:00'
+
+/** 今、管理画面にパスワードが必要か */
+export function adminAuthRequired(): boolean {
+  return ADMIN_AUTH_START === null || Date.now() >= new Date(ADMIN_AUTH_START).getTime()
+}
+
 /** パスワードの最低文字数 */
 export const ADMIN_PASSWORD_MIN_LENGTH = 12
 
@@ -72,7 +83,7 @@ export async function isAdminRequest(req: {
   headers: Headers
   cookies: { get(name: string): { value: string } | undefined }
 }): Promise<boolean> {
-  if (isCronRequest(req.headers.get('authorization'))) return true
+  if (!adminAuthRequired() || isCronRequest(req.headers.get('authorization'))) return true
   return (await verifyAdminToken(req.cookies.get(ADMIN_COOKIE)?.value)) !== null
 }
 
