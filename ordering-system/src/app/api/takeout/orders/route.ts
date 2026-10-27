@@ -4,6 +4,7 @@ import { CUSTOMER_FEATURES, TAKEOUT_BOOKING_DAYS, formatScheduleDate, generatePi
 import { addDays, getEffectiveDays, todayJST } from '@/lib/business-hours'
 import { sendLineMessage } from '@/lib/line-message'
 import { priceOrderItems } from '@/lib/order-pricing'
+import { isAdminRequest } from '@/lib/admin-auth'
 import { checkStock, countByStockKey, getStockContext, stockDateFor, syncAutoSoldOut } from '@/lib/stock'
 
 interface TakeoutOrderItem {
@@ -79,7 +80,9 @@ function buildOrderMessage(
 
 export async function POST(req: NextRequest) {
   const body: TakeoutOrderRequestBody = await req.json()
-  const { table_id, line_user_id, pickup_at, staff_entry } = body
+  const { table_id, line_user_id, pickup_at } = body
+  // 店頭での入力（営業日の確認を省く）は、管理画面にログインした端末からだけ受け付ける
+  const staff_entry = !!body.staff_entry && (await isAdminRequest(req))
   const customerName = body.customer_name?.trim().slice(0, 50) || null
   // 決められた特徴だけを受け付ける
   const customerFeatures = Array.isArray(body.customer_features)
