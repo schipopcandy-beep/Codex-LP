@@ -1,12 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { ADMIN_COOKIE, adminCookieOptions, createAdminToken, isCronRequest, shouldRenew, verifyAdminToken } from '@/lib/admin-auth'
+import { ADMIN_COOKIE, adminAuthRequired, adminCookieOptions, createAdminToken, isCronRequest, shouldRenew, verifyAdminToken } from '@/lib/admin-auth'
 
 /**
  * 管理画面（/admin）と管理用API（/api/admin）は、ログインした端末と定期実行だけが使える
  * ログインしていなければ、画面はログイン画面へ、APIは 401 を返す
  */
 export async function middleware(req: NextRequest) {
-  if (isCronRequest(req.headers.get('authorization'))) return NextResponse.next()
+  if (!adminAuthRequired() || isCronRequest(req.headers.get('authorization'))) return NextResponse.next()
 
   const expires = await verifyAdminToken(req.cookies.get(ADMIN_COOKIE)?.value)
   if (expires === null) {
