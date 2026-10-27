@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServiceRoleClient } from '@/lib/supabase/server'
 import type { OrderStatus } from '@/lib/types'
+import { isAdminRequest } from '@/lib/admin-auth'
 
 interface Params {
   params: Promise<{ orderId: string }>
@@ -30,7 +31,9 @@ export async function GET(_req: NextRequest, { params }: Params) {
   return NextResponse.json(data)
 }
 
+/** 管理用: 伝票の状態を変える（調理中・提供済み・会計済みなど）。ログインした端末だけ */
 export async function PATCH(req: NextRequest, { params }: Params) {
+  if (!(await isAdminRequest(req))) return NextResponse.json({ error: 'ログインしてください' }, { status: 401 })
   const { orderId } = await params
   const body: { status: OrderStatus } = await req.json()
 
