@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback, useRef } from 'react'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
+import { usePolling } from '@/lib/usePolling'
 import type { Order } from '@/lib/types'
 import { TAKEOUT_TABLE_ID } from '@/lib/types'
 import OrderCard from '@/components/admin/OrderCard'
@@ -119,15 +120,14 @@ export default function AdminDashboard() {
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'order_items' }, () => fetchOrders())
       .subscribe()
 
-    // Realtime が届かなかったときの念のための取り直し（新しい注文は Realtime ですぐ反映される）
-    // 間隔を短くするとサーバーの負荷と費用が増えるため、60秒にしている
-    const timer = setInterval(fetchOrders, 60000)
-
     return () => {
       supabase.removeChannel(channel)
-      clearInterval(timer)
     }
   }, [fetchOrders])
+
+  // Realtime が届かなかったときの念のための取り直し（新しい注文は Realtime ですぐ反映される）
+  // 間隔を短くするとデータベースの負荷と費用が増えるため、60秒にしている。画面が裏にある間は取り直さない
+  usePolling(fetchOrders, 60000)
 
   /**
    * 音を鳴らす準備（AudioContext の作成・再開）

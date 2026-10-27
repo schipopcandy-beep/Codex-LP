@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback } from 'react'
 import Image from 'next/image'
 import { ORDER_LIFF_ID, storageUrl } from '@/lib/types'
+import { usePolling } from '@/lib/usePolling'
 
 /** LINEで開く順番待ちの受付（店内注文のLIFFを ?wait=1 で開く） */
 const WAITLIST_URL = `https://liff.line.me/${ORDER_LIFF_ID}?wait=1`
@@ -58,9 +59,8 @@ export default function VacancyPage() {
 
   useEffect(() => {
     load()
-    const timer = setInterval(load, 30000)
-    return () => clearInterval(timer)
   }, [load])
+  usePolling(load, 30000)
 
   const isFull = data ? data.vacant === 0 : false
 

@@ -53,6 +53,7 @@ export async function getVacancy(): Promise<VacancyResult> {
   const { data, error } = await supabase
     .from('orders')
     .select('table_id, party_size')
+    .in('table_id', SEAT_IDS)
     .neq('status', 'paid')
 
   if (error) throw new Error(error.message)

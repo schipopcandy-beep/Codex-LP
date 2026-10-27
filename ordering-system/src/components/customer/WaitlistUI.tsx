@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from 'react'
 import Image from 'next/image'
 import { ORDER_LIFF_ID, SEAT_PREFERENCES, SEAT_PREFERENCE_LABELS, storageUrl, type SeatPreference } from '@/lib/types'
 import { useConfirm } from '@/components/admin/useConfirm'
+import { usePolling } from '@/lib/usePolling'
 
 interface SeatGroup {
   total: number
@@ -31,7 +32,7 @@ interface WaitlistStatusResponse {
 const TOKEN_KEY = 'orihaya-waitlist-token'
 const LOGIN_TRIED_KEY = 'orihaya-waitlist-login-tried'
 /** 状況を取り直す間隔（ミリ秒） */
-const REFRESH_MS = 15000
+const REFRESH_MS = 30000
 
 function readOrCreateToken(): string {
   try {
@@ -123,11 +124,9 @@ export default function WaitlistUI() {
   }, [token, lineUserId])
 
   useEffect(() => {
-    if (!lineReady) return
-    load()
-    const timer = setInterval(load, REFRESH_MS)
-    return () => clearInterval(timer)
+    if (lineReady) load()
   }, [lineReady, load])
+  usePolling(load, REFRESH_MS, lineReady)
 
   const register = async () => {
     if (!token || !partySize || submitting) return

@@ -22,7 +22,7 @@
  *   exportSalesForecast()    - 売上予測シートを更新（今後1か月）
  *   sendWeeklyFollowUp()     - 7日前来店者にLINEメッセージ送信（毎日トリガー推奨）
  *   setupFollowUpTrigger()   - sendWeeklyFollowUp を毎日11時台に自動実行する設定（初回に1度だけ実行）
- *   setupRefreshTrigger()    - refreshAll を1時間ごとに自動実行する設定（初回に1度だけ実行）
+ *   setupRefreshTrigger()    - refreshAll を毎日9時台に自動実行する設定・古い自動実行の削除（初回に1度だけ実行）
  */
 
 // ─── 設定 ───────────────────────────────────────────────────────
@@ -405,17 +405,25 @@ function refreshAll() {
 }
 
 // ─── シートの自動更新を設定する ───────────────────────────────────
-// 初回に1度だけ手動で実行する。refreshAll が1時間ごとに動き、シートが
-// ほぼ最新（最大1時間遅れ）になる。すでにある refreshAll の自動実行は作り直す。
+// 初回に1度だけ手動で実行する。refreshAll が毎日9時台に動く（11時台の来店後メッセージより前）。
+// データベースの負荷を抑えるため1日1回。日中に最新にしたいときは refreshAll を手動で実行する。
+// すでにある refreshAll の自動実行は作り直し、このスクリプトにない関数の自動実行（古い版の残り）は消す。
 // ※シートに載るのは「会計済み」の注文のみ
+
+/** 自動実行してよい関数（これ以外の自動実行は古い版の残りとして消す） */
+const TRIGGER_FUNCTIONS = ['refreshAll', 'sendWeeklyFollowUp']
 
 function setupRefreshTrigger() {
   for (const trigger of ScriptApp.getProjectTriggers()) {
-    if (trigger.getHandlerFunction() === 'refreshAll') ScriptApp.deleteTrigger(trigger)
+    const name = trigger.getHandlerFunction()
+    if (name === 'refreshAll' || !TRIGGER_FUNCTIONS.includes(name)) {
+      ScriptApp.deleteTrigger(trigger)
+      if (name !== 'refreshAll') console.log(`古い自動実行を削除しました: ${name}`)
+    }
   }
-  ScriptApp.newTrigger('refreshAll').timeBased().everyHours(1).create()
-  console.log('シートを1時間ごとに自動更新する設定をしました')
-  SpreadsheetApp.getActiveSpreadsheet().toast('シートを1時間ごとに自動更新する設定をしました', '完了', 5)
+  ScriptApp.newTrigger('refreshAll').timeBased().everyDays(1).atHour(9).inTimezone('Asia/Tokyo').create()
+  console.log('シートを毎日9時台に自動更新する設定をしました')
+  SpreadsheetApp.getActiveSpreadsheet().toast('シートを毎日9時台に自動更新する設定をしました', '完了', 5)
 }
 
 // ─── 4.5 日次サマリー（1日1行のダッシュボード）───────────────────
