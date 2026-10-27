@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { SEAT_PREFERENCES, SEAT_PREFERENCE_LABELS, type SeatPreference, type WaitlistEntry } from '@/lib/types'
 import { useConfirm } from '@/components/admin/useConfirm'
+import { usePolling } from '@/lib/usePolling'
 
 type QueueEntry = WaitlistEntry & { ahead: number; estimate_minutes: number }
 
@@ -71,12 +72,12 @@ export default function WaitlistAdminPage() {
 
   useEffect(() => {
     load()
-    const timer = setInterval(() => {
-      load()
-      setTick((t) => t + 1)
-    }, 10000)
-    return () => clearInterval(timer)
   }, [load])
+  // 20秒ごとに取り直す（経過時間の表示もあわせて更新する）
+  usePolling(() => {
+    load()
+    setTick((t) => t + 1)
+  }, 20000)
 
   const act = async (entry: WaitlistEntry, action: Action) => {
     if (action === 'cancel' && !(await confirm(`${entry.number}番の順番待ちを取り消しますか？`, { confirmLabel: '取り消す', danger: true }))) {
