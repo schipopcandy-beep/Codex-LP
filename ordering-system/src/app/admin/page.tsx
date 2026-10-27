@@ -2,7 +2,6 @@
 
 import { useEffect, useState, useCallback, useRef } from 'react'
 import Link from 'next/link'
-import { createClient } from '@/lib/supabase/client'
 import { usePolling } from '@/lib/usePolling'
 import type { Order } from '@/lib/types'
 import { TAKEOUT_TABLE_ID } from '@/lib/types'
@@ -111,23 +110,12 @@ export default function AdminDashboard() {
 
   useEffect(() => {
     fetchOrders()
-
-    // Supabase Realtime：注文変更を即時反映
-    const supabase = createClient()
-    const channel = supabase
-      .channel('admin-orders')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, () => fetchOrders())
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'order_items' }, () => fetchOrders())
-      .subscribe()
-
-    return () => {
-      supabase.removeChannel(channel)
-    }
   }, [fetchOrders])
 
-  // Realtime が届かなかったときの念のための取り直し（新しい注文は Realtime ですぐ反映される）
-  // 間隔を短くするとデータベースの負荷と費用が増えるため、60秒にしている。画面が裏にある間は取り直さない
-  usePolling(fetchOrders, 60000)
+  // 20秒ごとに取り直して、新しい注文を知らせる。画面が裏にある間は取り直さない
+  // （以前は Supabase Realtime で即時反映していたが、変更を見張る処理がデータベースの
+  //   読み書きの予算（Disk IO）をいちばん多く使っていたため、取り直しだけにした）
+  usePolling(fetchOrders, 20000)
 
   /**
    * 音を鳴らす準備（AudioContext の作成・再開）
