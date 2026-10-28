@@ -21,7 +21,8 @@ function TakeoutPageContent() {
   }, [])
 
   return (
-    <TakeoutAccessGuard onUserIdReady={handleUserIdReady}>
+    // テイクアウト予約はお店のLINEの友だちだけ（席からのお持ち帰りは対象外）
+    <TakeoutAccessGuard onUserIdReady={handleUserIdReady} requireFriend={!seatTableId}>
       <TakeoutUI
         lineUserId={lineUserId}
         lineDisplayName={lineDisplayName}

@@ -6,6 +6,7 @@ import { usePolling } from '@/lib/usePolling'
 import type { Order } from '@/lib/types'
 import { TAKEOUT_TABLE_ID } from '@/lib/types'
 import OrderCard from '@/components/admin/OrderCard'
+import LineContactButton from '@/components/admin/LineContactButton'
 import RiceTimer from '@/components/admin/RiceTimer'
 import OrderBoard from '@/components/admin/OrderBoard'
 
@@ -296,7 +297,14 @@ export default function AdminDashboard() {
               </h2>
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                 {laterOrders.map((order) => (
-                  <OrderCard key={order.id} order={order} />
+                  <div key={order.id}>
+                    <OrderCard order={order} />
+                    {order.table_id === TAKEOUT_TABLE_ID && (
+                      <div className="mt-1">
+                        <LineContactButton order={order} />
+                      </div>
+                    )}
+                  </div>
                 ))}
               </div>
             </section>

@@ -65,6 +65,46 @@ export async function sendLineMessage(lineUserId: string, text: string): Promise
 }
 
 /**
+ * お店のLINEの友だちか（ブロックされていないか）
+ * プロフィールが取れれば友だち。取れない（404）なら、友だちでないかブロックされている。
+ * トークンがない・LINEの障害など確かめられないときは null（注文を止めないため、呼ぶ側で通す）
+ */
+export async function isLineFriend(lineUserId: string): Promise<boolean | null> {
+  const token = process.env.LINE_CHANNEL_ACCESS_TOKEN
+  if (!token) return null
+  try {
+    const res = await fetch(`https://api.line.me/v2/bot/profile/${encodeURIComponent(lineUserId)}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+    if (res.ok) return true
+    if (res.status === 404 || res.status === 400) return false
+    console.error(`友だちの確認に失敗 status=${res.status}`)
+    return null
+  } catch (err) {
+    console.error('友だちの確認に失敗:', err)
+    return null
+  }
+}
+
+/** お店のLINEを友だち追加するURL（一度取れたらサーバーで覚えておく） */
+let addFriendUrlCache: string | null = null
+export async function getAddFriendUrl(): Promise<string | null> {
+  if (addFriendUrlCache) return addFriendUrlCache
+  const token = process.env.LINE_CHANNEL_ACCESS_TOKEN
+  if (!token) return null
+  try {
+    const res = await fetch('https://api.line.me/v2/bot/info', { headers: { Authorization: `Bearer ${token}` } })
+    if (!res.ok) return null
+    const { basicId } = (await res.json()) as { basicId?: string }
+    if (!basicId) return null
+    addFriendUrlCache = `https://line.me/R/ti/p/${encodeURIComponent(basicId)}`
+    return addFriendUrlCache
+  } catch {
+    return null
+  }
+}
+
+/**
  * 友だち追加・ブロック解除後の再登録時にウェルカムメッセージを送信する
  *
  * LINEの follow イベントは「友だち追加」「ブロック後の再登録」両方で発火するため、
