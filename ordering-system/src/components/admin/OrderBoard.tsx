@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react'
 import OrderCard from '@/components/admin/OrderCard'
+import LineContactButton from '@/components/admin/LineContactButton'
 import { useConfirm } from '@/components/admin/useConfirm'
 import type { Order, OrderStatus } from '@/lib/types'
 import { TABLE_NAMES, TAKEOUT_TABLE_ID, calcOrderTotal, orderShortId } from '@/lib/types'
@@ -128,6 +129,11 @@ export default function OrderBoard({ orders, onChanged }: Props) {
       }}
     >
       <OrderCard order={order} />
+      {order.table_id === TAKEOUT_TABLE_ID && (
+        <div className="mt-1">
+          <LineContactButton order={order} />
+        </div>
+      )}
       {isCooked(order) && (
         <button
           type="button"

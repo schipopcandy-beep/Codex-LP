@@ -1,10 +1,15 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 
 interface Props {
   /** LINE IDと表示名が取れたら呼ばれる（表示名は注文者名の初期値に使う） */
   onUserIdReady?: (userId: string, displayName?: string) => void
+  /**
+   * お店のLINEの友だちだけ注文できるようにする（テイクアウト予約）
+   * 確認メッセージを届け、注文について連絡できるようにするため
+   */
+  requireFriend?: boolean
   children: React.ReactNode
 }
 
@@ -34,7 +39,22 @@ type GuardState =
   | 'loading'    // LINEの初期化中
   | 'reloading'  // 応答がないため自動で開き直し中
   | 'stuck'      // 開き直した後も応答がない
+  | 'not_friend' // お店のLINEを友だち追加していない（requireFriend のとき）
   | 'ready'
+
+type Liff = (typeof import('@line/liff'))['default']
+
+/**
+ * お店のLINEの友だちか。確かめられない（LINEの設定・通信の問題）ときは true として進める
+ * （最後は注文を受けるサーバーでも確かめる）
+ */
+async function checkFriend(liff: Liff): Promise<boolean> {
+  try {
+    return (await liff.getFriendship()).friendFlag
+  } catch {
+    return true
+  }
+}
 
 /** 直近に自動で開き直していなければ true */
 function canAutoRetry(): boolean {
@@ -66,8 +86,12 @@ function reopenViaLiff() {
  * LINEの応答が返らない場合は、まず自動でLIFFのURLから開き直し、
  * それでも駄目なら再読み込みボタンを出す。
  */
-export default function TakeoutAccessGuard({ onUserIdReady, children }: Props) {
+export default function TakeoutAccessGuard({ onUserIdReady, requireFriend = false, children }: Props) {
   const [state, setState] = useState<GuardState>('loading')
+  const liffRef = useRef<Liff | null>(null)
+  const [addFriendUrl, setAddFriendUrl] = useState<string | null>(null)
+  const [rechecking, setRechecking] = useState(false)
+  const [stillNotFriend, setStillNotFriend] = useState(false)
 
   useEffect(() => {
     if (!LIFF_ID) {
@@ -104,6 +128,7 @@ export default function TakeoutAccessGuard({ onUserIdReady, children }: Props) {
       try {
         const liff = (await import('@line/liff')).default
         await liff.init({ liffId: LIFF_ID })
+        liffRef.current = liff
 
         if (cancelled) return
 
@@ -122,6 +147,14 @@ export default function TakeoutAccessGuard({ onUserIdReady, children }: Props) {
         if (liff.isLoggedIn()) {
           const profile = await liff.getProfile()
           if (!cancelled) onUserIdReady?.(profile.userId, profile.displayName)
+          if (requireFriend && !(await checkFriend(liff))) {
+            if (cancelled) return
+            settled = true
+            clearTimeout(timer)
+            markAutoRetried(false)
+            setState('not_friend')
+            return
+          }
         }
         finish()
       } catch {
@@ -136,7 +169,63 @@ export default function TakeoutAccessGuard({ onUserIdReady, children }: Props) {
       clearTimeout(timer)
       clearTimeout(loginTimer)
     }
-  }, [onUserIdReady])
+  }, [onUserIdReady, requireFriend])
+
+  // 友だち追加のURLを用意する
+  useEffect(() => {
+    if (state !== 'not_friend' || addFriendUrl) return
+    fetch('/api/line/add-friend')
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data: { url: string | null } | null) => data?.url && setAddFriendUrl(data.url))
+      .catch(() => {})
+  }, [state, addFriendUrl])
+
+  /** 友だち追加したあと、もう一度確かめて注文画面へ進む */
+  const recheckFriend = useCallback(async () => {
+    const liff = liffRef.current
+    if (!liff) return
+    setRechecking(true)
+    const ok = await checkFriend(liff)
+    setRechecking(false)
+    if (ok) setState('ready')
+    else setStillNotFriend(true)
+  }, [])
+
+  if (state === 'not_friend') {
+    return (
+      <div className="min-h-dvh flex flex-col items-center justify-center p-6 bg-cream-50">
+        <div className="w-full max-w-sm bg-white rounded-2xl shadow-md p-6 space-y-5 text-center">
+          <div className="space-y-2">
+            <h1 className="text-lg font-bold text-brown-800">友だち追加をお願いします</h1>
+            <p className="text-sm text-brown-500 leading-relaxed">
+              テイクアウトのご予約は、織はやのLINEを友だち追加してからお願いしております。
+              ご注文の確認メッセージや、ご注文についてのご連絡をLINEでお送りするためです。
+            </p>
+          </div>
+          {addFriendUrl && (
+            <a href={addFriendUrl} className="btn-primary block w-full py-3 text-base">
+              友だち追加する
+            </a>
+          )}
+          <button
+            type="button"
+            onClick={recheckFriend}
+            disabled={rechecking}
+            className="w-full py-3 rounded-xl border-2 border-brown-300 text-brown-700 font-bold text-base disabled:opacity-50"
+          >
+            {rechecking ? '確認中...' : '友だち追加したので注文へ進む'}
+          </button>
+          {stillNotFriend && (
+            <p className="text-sm font-bold text-red-700">
+              まだ友だち追加が確認できません。追加したあと、もう一度お試しください。
+              <br />
+              ブロックしている場合は、解除をお願いします。
+            </p>
+          )}
+        </div>
+      </div>
+    )
+  }
 
   if (state === 'stuck') {
     return (
@@ -156,13 +245,16 @@ export default function TakeoutAccessGuard({ onUserIdReady, children }: Props) {
           >
             再読み込みする
           </button>
-          <button
-            type="button"
-            onClick={() => setState('ready')}
-            className="w-full py-2 text-xs text-brown-400 underline underline-offset-2"
-          >
-            確認メッセージなしで注文する
-          </button>
+          {/* テイクアウト予約はLINEのIDが必要なため、LINEなしでは進めない */}
+          {!requireFriend && (
+            <button
+              type="button"
+              onClick={() => setState('ready')}
+              className="w-full py-2 text-xs text-brown-400 underline underline-offset-2"
+            >
+              確認メッセージなしで注文する
+            </button>
+          )}
         </div>
       </div>
     )

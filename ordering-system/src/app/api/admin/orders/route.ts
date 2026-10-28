@@ -22,7 +22,8 @@ export async function GET() {
       order_items(
         *,
         product:products(*)
-      )
+      ),
+      order_messages(*)
     `)
     .neq('status', 'paid')
     .or(`created_at.gte.${since}T00:00:00+09:00,pickup_at.gte.${since}`)

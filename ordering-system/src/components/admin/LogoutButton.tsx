@@ -3,7 +3,6 @@
 /** 管理画面からログアウトする（この端末だけ） */
 export default function LogoutButton() {
   const logout = async () => {
-    if (!window.confirm('この端末からログアウトしますか？')) return
     await fetch('/api/logout', { method: 'POST' }).catch(() => {})
     window.location.href = '/login'
   }

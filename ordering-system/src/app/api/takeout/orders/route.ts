@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServiceRoleClient } from '@/lib/supabase/server'
-import { CUSTOMER_FEATURES, TAKEOUT_BOOKING_DAYS, formatScheduleDate, generatePickupSlots, optionLabel, optionPrice } from '@/lib/types'
+import { CUSTOMER_FEATURES, TAKEOUT_BOOKING_DAYS, TAKEOUT_TABLE_ID, formatScheduleDate, generatePickupSlots, optionLabel, optionPrice } from '@/lib/types'
 import { addDays, getEffectiveDays, todayJST } from '@/lib/business-hours'
-import { sendLineMessage } from '@/lib/line-message'
+import { getAddFriendUrl, isLineFriend, sendLineMessage } from '@/lib/line-message'
 import { priceOrderItems } from '@/lib/order-pricing'
 import { isAdminRequest } from '@/lib/admin-auth'
 import { checkStock, countByStockKey, getStockContext, stockDateFor, syncAutoSoldOut } from '@/lib/stock'
@@ -106,6 +106,22 @@ export async function POST(req: NextRequest) {
   )
   if ('error' in priced) return NextResponse.json({ error: priced.error }, { status: 400 })
   const items = priced.items
+
+  // お客様のテイクアウト予約は、お店のLINEの友だちだけ受け付ける
+  // （確認メッセージを届け、注文について連絡できるようにするため）
+  // 店頭での入力と、席からのお持ち帰り（席の伝票に加える）は対象外
+  if (!staff_entry && table_id === TAKEOUT_TABLE_ID) {
+    const friend = line_user_id ? await isLineFriend(line_user_id) : false
+    if (friend === false) {
+      return NextResponse.json(
+        {
+          error: 'テイクアウトのご予約は、織はやのLINEを友だち追加してからお願いします。',
+          add_friend_url: await getAddFriendUrl(),
+        },
+        { status: 403 },
+      )
+    }
+  }
 
   // お客様の予約は、休業日や営業時間外の受け取りを受け付けない
   // （画面を開いた後に休業日に変更された場合などに備え、注文を受ける側でも確認する）

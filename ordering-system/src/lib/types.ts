@@ -476,8 +476,22 @@ export interface Order {
   customer_name?: string | null
   /** 店頭テイクアウトで店員が選んだお客様の特徴（例: ["男性", "メガネ"]） */
   customer_features?: string[] | null
+  /** LINEから注文したお客様のLINEのID */
+  line_user_id?: string | null
   table?: Table
   order_items?: OrderItem[]
+  /** 管理画面からお客様に送ったLINE（古い順） */
+  order_messages?: OrderMessage[]
+}
+
+/** 管理画面からお客様に送ったLINEの記録 */
+export interface OrderMessage {
+  id: string
+  order_id: string
+  text: string
+  /** 送れたか */
+  ok: boolean
+  created_at: string
 }
 
 export interface OrderItem {
