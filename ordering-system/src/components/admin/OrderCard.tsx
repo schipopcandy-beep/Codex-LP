@@ -160,12 +160,17 @@ function PlateNigiri({ groups }: { groups?: OrderItem[][] }) {
       {groups.map((group, i) => (
         <p key={i} className="text-sm text-brown-600">
           {groups.length > 1 && <span className="text-brown-400 mr-1">{i + 1}枚目</span>}
-          {group
-            .map((n) => {
-              const options = optionLabel(n)
-              return `${n.product?.name ?? '不明'}${options ? `（${options}）` : ''}${n.quantity > 1 ? ` ×${n.quantity}` : ''}`
-            })
-            .join('・')}
+          {group.map((n, j) => {
+            const options = optionLabel(n)
+            return (
+              <span key={n.id}>
+                {j > 0 && '・'}
+                {n.product?.name ?? '不明'}
+                {options && <span className="text-orange-600 font-bold">（{options}）</span>}
+                {n.quantity > 1 && ` ×${n.quantity}`}
+              </span>
+            )
+          })}
         </p>
       ))}
     </div>
@@ -188,7 +193,7 @@ function ItemLine({ item, batch }: { item: OrderItem; batch: number }) {
         )}
         {item.product?.name ?? '不明'}
         {optionLabel(item) && (
-          <span className="text-brown-400 ml-1">{optionLabel(item)}</span>
+          <span className="text-orange-600 font-bold ml-1">{optionLabel(item)}</span>
         )}
         {timingLabel && (
           <span className="text-blue-600 ml-1">（{timingLabel}）</span>
