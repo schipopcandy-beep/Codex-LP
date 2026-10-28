@@ -37,6 +37,7 @@ Vercel で動かしたまま Cloud Run を用意し、動作を確認してか�
    - `LINE_CHANNEL_ACCESS_TOKEN` / `LINE_CHANNEL_SECRET` / `LINE_HARNESS_WEBHOOK_SECRET`
    - `NEXT_PUBLIC_LIFF_ID` / `NEXT_PUBLIC_ORDER_LIFF_ID`
    - `CRON_SECRET` / `OPENWEATHERMAP_API_KEY`
+   - `ADMIN_PASSWORD`（管理画面のパスワード。12文字以上）
    一度入れれば、以後の自動デプロイでも引き継がれる。
 
 ## ④ 定期実行（Vercel Cron の代わり）
@@ -49,12 +50,13 @@ Cloud Scheduler で 3 つ作る（無料は 3 ジョブまで）。タイムゾ�
 | weather-night | `0 21 * * *` | `https://<Cloud Run のURL>/api/admin/weather` | GET |
 | reset-sold-out | `0 0 * * *` | `https://<Cloud Run のURL>/api/cron/reset-sold-out` | GET |
 
-`reset-sold-out` だけ、HTTP ヘッダーに `Authorization: Bearer <CRON_SECRET と同じ値>` を付ける。
+3 つとも、HTTP ヘッダーに `Authorization: Bearer <CRON_SECRET と同じ値>` を付ける
+（`/api/admin/...` は管理画面のログインが必要なため、定期実行はこのヘッダーで通す）。
 
 ## ⑤ 動作確認（Cloud Run の URL で）
 
 - `/order?seat=...`（席の注文）・`/takeout`・`/vacancy`・`/order?wait=1` が開く
-- `/admin` で注文が見え、テスト注文が届く（音が鳴る）
+- `/admin` でログインでき、注文が見え、テスト注文が届く（音が鳴る）
 - 売り切れ・店頭テイクアウト・順番待ちの操作ができる
 - 失敗したときは Cloud Run →「ログ」を見る
 
