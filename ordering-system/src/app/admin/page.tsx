@@ -105,7 +105,10 @@ export default function AdminDashboard() {
     data.forEach((o) => knownItemCounts.current.set(o.id, itemCount(o)))
 
     if (hasNewOrder && soundEnabledRef.current && audioCtxRef.current) {
-      playChime(audioCtxRef.current)
+      const ctx = audioCtxRef.current
+      // 画面が裏に回るなどして音が止められていたら、鳴らす前に戻す
+      if (ctx.state === 'suspended') await ctx.resume().catch(() => {})
+      playChime(ctx)
     }
   }, [])
 
@@ -113,10 +116,11 @@ export default function AdminDashboard() {
     fetchOrders()
   }, [fetchOrders])
 
-  // 20秒ごとに取り直して、新しい注文を知らせる。画面が裏にある間は取り直さない
+  // 20秒ごとに取り直して、新しい注文を知らせる
+  // 別のタブ・アプリを開いている間も音で知らせるため、画面が裏にあっても取り直す
   // （以前は Supabase Realtime で即時反映していたが、変更を見張る処理がデータベースの
   //   読み書きの予算（Disk IO）をいちばん多く使っていたため、取り直しだけにした）
-  usePolling(fetchOrders, 20000)
+  usePolling(fetchOrders, 20000, true, false)
 
   /**
    * 音を鳴らす準備（AudioContext の作成・再開）
