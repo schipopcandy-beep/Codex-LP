@@ -428,7 +428,7 @@ export default function TakeoutEntryPage() {
                 <p key={qtyKey(l.product.id, l.options)} className="flex justify-between gap-2">
                   <span>
                     {l.product.name}
-                    {optionLabel(l) && <span className="text-orange-600 font-bold">（{optionLabel(l)}）</span>}
+                    {optionLabel(l) && <span className="bg-yellow-200 text-brown-900 font-bold px-1 rounded">（{optionLabel(l)}）</span>}
                     <span className="text-brown-400"> ×{l.quantity}</span>
                   </span>
                   <span className="tabular-nums">

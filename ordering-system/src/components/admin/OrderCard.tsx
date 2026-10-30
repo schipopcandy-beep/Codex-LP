@@ -166,7 +166,7 @@ function PlateNigiri({ groups }: { groups?: OrderItem[][] }) {
               <span key={n.id}>
                 {j > 0 && '・'}
                 {n.product?.name ?? '不明'}
-                {options && <span className="text-orange-600 font-bold">（{options}）</span>}
+                {options && <span className="bg-yellow-200 text-brown-900 font-bold px-1 rounded">（{options}）</span>}
                 {n.quantity > 1 && ` ×${n.quantity}`}
               </span>
             )
@@ -193,7 +193,7 @@ function ItemLine({ item, batch }: { item: OrderItem; batch: number }) {
         )}
         {item.product?.name ?? '不明'}
         {optionLabel(item) && (
-          <span className="text-orange-600 font-bold ml-1">{optionLabel(item)}</span>
+          <span className="bg-yellow-200 text-brown-900 font-bold px-1 rounded ml-1">{optionLabel(item)}</span>
         )}
         {timingLabel && (
           <span className="text-blue-600 ml-1">（{timingLabel}）</span>

@@ -271,7 +271,7 @@ export default function OrderDetailPage({ params }: Props) {
                           return (
                             <p key={n.id} className="text-sm text-brown-600">
                               {n.product?.name ?? '不明'}
-                              {options && <span className="text-orange-600 font-bold ml-1">（{options}）</span>}
+                              {options && <span className="bg-yellow-200 text-brown-900 font-bold px-1 rounded ml-1">（{options}）</span>}
                               {surcharge > 0 && (
                                 <span className="text-amber-600 ml-1 text-xs">+¥{surcharge}</span>
                               )}
@@ -402,7 +402,7 @@ function ItemRow({ item, batch = 0 }: { item: OrderItem; batch?: number }) {
           {item.product?.name ?? '不明商品'}
         </p>
         {optionLabel(item) && (
-          <p className="text-sm text-orange-600 font-bold">（{optionLabel(item)}）</p>
+          <p className="text-sm bg-yellow-200 text-brown-900 font-bold px-1 rounded">（{optionLabel(item)}）</p>
         )}
         <p className="text-sm text-brown-400">
           ¥{(item.unit_price + toppingCost).toLocaleString()} ×{' '}
