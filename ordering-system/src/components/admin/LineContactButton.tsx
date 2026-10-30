@@ -51,7 +51,12 @@ export default function LineContactButton({ order }: { order: Order }) {
       setOpen(false)
       setText(TEMPLATES[0].text)
     } catch (err) {
-      setError((err as Error).message)
+      // 通信が途中で切れた（送信は済んでいることがある）。二重に送らないよう、確かめてもらう
+      setError(
+        err instanceof TypeError
+          ? '通信が途中で切れました。送れている場合があるので、少し待ってカードの「送信済み」の記録を確かめてから、必要なら送り直してください'
+          : (err as Error).message,
+      )
     } finally {
       setSending(false)
     }
