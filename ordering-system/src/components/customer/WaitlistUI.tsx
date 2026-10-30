@@ -17,6 +17,8 @@ interface WaitlistStatusResponse {
   close_time: string | null
   vacancy: { vacant: number; table: SeatGroup; counter: SeatGroup }
   waiting_count: number
+  /** 今日これまでにお呼びした受付番号のうち、いちばん大きいもの（まだなら null） */
+  called_number: number | null
   estimate_minutes: number
   entry: {
     number: number
@@ -175,7 +177,7 @@ export default function WaitlistUI() {
       </header>
 
       <main className="flex-1 max-w-md mx-auto w-full px-4 py-6 space-y-5">
-        <h1 className="section-title text-center">順番待ち受付</h1>
+        <h1 className="section-title text-center">空席確認・順番待ち受付</h1>
 
         {!status ? (
           <p className="text-center text-brown-400 py-12">{loadError ? '状況を取得できませんでした' : '確認中...'}</p>
@@ -247,6 +249,19 @@ export default function WaitlistUI() {
                     <span className="text-sm text-brown-400">/{status.vacancy.counter.total}席</span>
                   </p>
                 </div>
+              </div>
+              <div className="border-t border-cream-300 pt-3 text-center">
+                <p className="text-sm font-semibold text-brown-500">ただいまのお呼び出し</p>
+                <p className="text-3xl font-bold text-brown-800 tabular-nums">
+                  {status.called_number != null ? (
+                    <>
+                      {status.called_number}
+                      <span className="text-base ml-0.5">番まで</span>
+                    </>
+                  ) : (
+                    <span className="text-base">まだお呼びしていません</span>
+                  )}
+                </p>
               </div>
               <div className="border-t border-cream-300 pt-3 text-center">
                 <p className="text-sm font-semibold text-brown-500">現在の順番待ち</p>
@@ -335,7 +350,7 @@ export default function WaitlistUI() {
             )}
 
             <p className="text-xs text-brown-400 text-center leading-relaxed">
-              ※ 待ち時間は目安です。前後する場合がございます。
+              ※ 空席・待ち時間は目安です。前後する場合がございます。
               <br />
               ※ お呼びしたときにいらっしゃらない場合は、次の方を先にご案内します。
             </p>
