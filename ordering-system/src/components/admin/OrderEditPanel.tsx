@@ -220,7 +220,7 @@ export default function OrderEditPanel({ order, onChanged }: Props) {
                   {isNigiriInPlate && (
                     <p className="text-xs text-brown-400">{nigiriPlate.get(item.id) ?? 'ランチプレート'}のおにぎり</p>
                   )}
-                  {options && <p className="text-xs text-orange-600 font-bold">（{options}）</p>}
+                  {options && <p className="text-xs bg-yellow-200 text-brown-900 font-bold px-1 rounded">（{options}）</p>}
                 </div>
                 <button
                   type="button"
