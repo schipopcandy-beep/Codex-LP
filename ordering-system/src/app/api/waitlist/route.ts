@@ -53,12 +53,16 @@ export async function GET(req: NextRequest) {
     const hasVacancy = vacancy.vacant > 0
     const waitingCount = queueOf(entries).length
     const mine = findMine(entries, token, lineUserId)
+    // 今日これまでにお呼びした（呼び出し中・案内済み・不在）受付番号のうち、いちばん大きいもの
+    const called = entries.filter((e) => e.status === 'called' || e.status === 'seated' || e.status === 'absent')
+    const calledNumber = called.length > 0 ? Math.max(...called.map((e) => e.number)) : null
 
     return NextResponse.json(
       {
         ...acceptance,
         vacancy,
         waiting_count: waitingCount,
+        called_number: calledNumber,
         // これから受付する人の目安
         estimate_minutes: estimateMinutes(waitingCount, hasVacancy),
         entry: mine ? entryView(mine, entries, hasVacancy) : null,
