@@ -24,6 +24,10 @@ interface Props {
   plateLabel?: string
   /** とろろ昆布・漬け卵黄の売り切れ状態 */
   optionSoldOut?: OptionSoldOut
+  /** おにぎりごとの追加料金（既定はランチプレートの追加料金） */
+  surchargeOf?: (product: Product) => number
+  /** トッピング（大満足・とろろ昆布・漬け卵黄）を選べるか（お弁当では選べない） */
+  allowOptions?: boolean
 }
 
 export default function LunchPlateSelector({
@@ -33,6 +37,8 @@ export default function LunchPlateSelector({
   required,
   plateLabel,
   optionSoldOut = NO_OPTION_SOLD_OUT,
+  surchargeOf = getLunchPlateSurcharge,
+  allowOptions = true,
 }: Props) {
   const nigiri = products.filter((p) => p.category === 'おにぎり' && !p.is_sold_out)
   const totalSelected = units.length
@@ -75,7 +81,7 @@ export default function LunchPlateSelector({
 
       <div className="space-y-2">
         {nigiri.map((product) => {
-          const surcharge = getLunchPlateSurcharge(product)
+          const surcharge = surchargeOf(product)
           const count = countOf(product.id)
 
           return (
@@ -115,7 +121,7 @@ export default function LunchPlateSelector({
       </div>
 
       {/* 選択したおにぎりごとのオプション（単品と同じく全おにぎりが対象） */}
-      {units.some((u) => {
+      {allowOptions && units.some((u) => {
         const product = products.find((p) => p.id === u.productId)
         return product != null && isToppingSelectable(product)
       }) && (

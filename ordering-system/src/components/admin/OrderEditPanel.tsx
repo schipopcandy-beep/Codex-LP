@@ -13,7 +13,7 @@ import {
   TOPPING_PRICE,
   getOrderBatchIndexes,
   groupLunchPlateNigiri,
-  isLunchPlate,
+  isNigiriSet,
   isToppingSelectable,
   optionLabel,
   orderBatchLabel,
@@ -83,7 +83,7 @@ export default function OrderEditPanel({ order, onChanged }: Props) {
   }
 
   const onigiri = products.filter(isToppingSelectable)
-  const addable = products.filter((p) => !isLunchPlate(p))
+  const addable = products.filter((p) => !isNigiriSet(p))
   const addProduct = addable.find((p) => p.id === addProductId)
   const isEatin = order.table_id !== TAKEOUT_TABLE_ID
 
@@ -201,7 +201,7 @@ export default function OrderEditPanel({ order, onChanged }: Props) {
       <div className="divide-y divide-cream-200">
         {items.map((item) => {
           const isNigiriInPlate = item.lunch_plate_index != null
-          const isPlate = item.product != null && isLunchPlate(item.product)
+          const isPlate = item.product != null && isNigiriSet(item.product)
           const canOptions = item.product != null && isToppingSelectable(item.product)
           const batchLabel = orderBatchLabel(batches.get(item.id) ?? 0)
           const options = optionLabel(item)
@@ -276,7 +276,7 @@ export default function OrderEditPanel({ order, onChanged }: Props) {
               {canOptions && !isPlate && <OptionToggles item={item} />}
               {isPlate && (
                 <p className="text-xs text-brown-400">
-                  ランチプレートは削除のみできます（中のおにぎりは上の各行で入れ替えられます）
+                  ランチプレート・お弁当は削除のみできます（中のおにぎりは上の各行で入れ替えられます）
                 </p>
               )}
             </div>

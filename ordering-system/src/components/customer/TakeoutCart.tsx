@@ -1,8 +1,8 @@
 'use client'
 
 import { useState } from 'react'
-import type { CartItem, Product } from '@/lib/types'
-import { TAKEOUT_LEAD_MINUTES, calcCartTotal, optionLabel, optionPrice } from '@/lib/types'
+import type { CartItem, CartPlate, Product } from '@/lib/types'
+import { BENTO_LEAD_DAYS, TAKEOUT_LEAD_MINUTES, calcCartTotal, calcPlatePrice, optionLabel, optionPrice } from '@/lib/types'
 import TonjiruSuggestion from '@/components/customer/TonjiruSuggestion'
 import PickupDateTimePicker from '@/components/customer/PickupDateTimePicker'
 
@@ -23,6 +23,14 @@ interface Props {
   onItemDelete?: (item: CartItem) => void
   /** 席からのお持ち帰り注文（受取日時の指定は不要） */
   isSeatOrder?: boolean
+  /** カートのお弁当（中のおにぎりを選んだもの） */
+  bentos?: CartPlate[]
+  /** お弁当の中のおにぎりの名前・追加料金を出すための全商品 */
+  allProducts?: Product[]
+  /** カートからお弁当を削除 */
+  onBentoDelete?: (bento: CartPlate) => void
+  /** これより前の受け取り日は選べない（お弁当があるとき） */
+  minPickupDate?: string | null
 }
 
 export default function TakeoutCart({
@@ -37,11 +45,15 @@ export default function TakeoutCart({
   onQuantityChange,
   onItemDelete,
   isSeatOrder = false,
+  bentos = [],
+  allProducts = [],
+  onBentoDelete,
+  minPickupDate,
 }: Props) {
   const [isOpen, setIsOpen] = useState(false)
   const [confirmed, setConfirmed] = useState(false)
-  const total = calcCartTotal(items)
-  const totalCount = items.reduce((s, i) => s + i.quantity, 0)
+  const total = calcCartTotal(items) + bentos.reduce((sum, b) => sum + calcPlatePrice(b, allProducts), 0)
+  const totalCount = items.reduce((s, i) => s + i.quantity, 0) + bentos.length
   // 席からのお持ち帰りは、その場でお渡しするため受取日時を選ばない
   const pickupReady = isSeatOrder || !!(pickupDate && pickupTime)
   const canSubmit = pickupReady && confirmed
@@ -109,6 +121,33 @@ export default function TakeoutCart({
 
               {/* 注文明細 */}
               <div className="space-y-3">
+                {/* お弁当（中のおにぎりを添える） */}
+                {bentos.map((bento) => (
+                  <div key={bento.id} className="space-y-1">
+                    <div className="flex justify-between items-start gap-2">
+                      <div className="flex-1 min-w-0">
+                        <p className="font-bold text-base text-brown-800">{bento.product.name}</p>
+                        <p className="text-sm text-brown-500">
+                          {bento.units.map((u) => allProducts.find((p) => p.id === u.productId)?.name ?? '').join('・')}
+                        </p>
+                      </div>
+                      <p className="font-bold text-brown-700 tabular-nums whitespace-nowrap">
+                        ¥{calcPlatePrice(bento, allProducts).toLocaleString()}
+                      </p>
+                    </div>
+                    {onBentoDelete && (
+                      <div className="flex justify-end">
+                        <button
+                          type="button"
+                          onClick={() => onBentoDelete(bento)}
+                          className="text-xs text-brown-400 underline underline-offset-2 px-1 py-1"
+                        >
+                          削除
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                ))}
                 {items.map((item) => {
                   const toppingCost = optionPrice(item)
                   const options = optionLabel(item)
@@ -183,12 +222,15 @@ export default function TakeoutCart({
               <div className={`border-t border-cream-300 pt-4 ${isSeatOrder ? 'hidden' : ''}`}>
                 <p className="font-bold text-brown-700 mb-1">受取日時を選択</p>
                 <p className="text-xs text-brown-400 mb-3">
-                  ※ 本日のお受け取りは、注文から{TAKEOUT_LEAD_MINUTES}分後以降の時間を選べます
+                  {bentos.length > 0
+                    ? `※ お弁当は${BENTO_LEAD_DAYS}日前までのご予約のため、${BENTO_LEAD_DAYS}日後以降の日を選べます`
+                    : `※ 本日のお受け取りは、注文から${TAKEOUT_LEAD_MINUTES}分後以降の時間を選べます`}
                 </p>
                 <PickupDateTimePicker
                   selectedDate={pickupDate}
                   selectedTime={pickupTime}
                   onSelect={onPickupSelect}
+                  minDate={minPickupDate}
                 />
               </div>
 

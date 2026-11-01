@@ -8,6 +8,8 @@ interface Props {
   selectedTime: string | null
   /** 日付・時間を選んだとき（時間がまだ決まっていないときは time を空文字で呼ぶ） */
   onSelect: (date: string, time: string) => void
+  /** これより前の日（YYYY-MM-DD）は選べない（お弁当は2日前までの予約のため） */
+  minDate?: string | null
 }
 
 const WEEKDAYS = ['日', '月', '火', '水', '木', '金', '土']
@@ -31,8 +33,8 @@ function shiftMonth(month: string, n: number): string {
 }
 
 /** テイクアウトの受け取り日をカレンダーで、時間をプルダウンで選ぶ */
-export default function PickupDateTimePicker({ selectedDate, selectedTime, onSelect }: Props) {
-  const [days, setDays] = useState<AvailableDay[]>([])
+export default function PickupDateTimePicker({ selectedDate, selectedTime, onSelect, minDate }: Props) {
+  const [allDays, setAllDays] = useState<AvailableDay[]>([])
   const [loading, setLoading] = useState(true)
   /** 表示している月（YYYY-MM） */
   const [month, setMonth] = useState<string | null>(null)
@@ -41,16 +43,23 @@ export default function PickupDateTimePicker({ selectedDate, selectedTime, onSel
     fetch('/api/takeout/schedule')
       .then((r) => r.json())
       .then((data: AvailableDay[]) => {
-        setDays(data)
+        setAllDays(data)
         setLoading(false)
-        if (data.length > 0) {
-          setMonth((selectedDate ?? data[0].date).slice(0, 7))
-          // 最初は一番近い受け取り日を選んでおく（時間はお客様に選んでもらう）
-          if (!selectedDate) onSelect(data[0].date, '')
-        }
       })
       .catch(() => setLoading(false))
-  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [])
+
+  // 選べる日（minDate より前の日を除く）
+  const days = minDate ? allDays.filter((d) => d.date >= minDate) : allDays
+
+  // 最初は一番近い受け取り日を選んでおく（時間はお客様に選んでもらう）
+  // お弁当を入れて、選んでいた日が選べなくなったときも、選べる一番近い日に変える
+  useEffect(() => {
+    if (days.length === 0) return
+    const stillAvailable = selectedDate != null && days.some((d) => d.date === selectedDate)
+    if (!stillAvailable) onSelect(days[0].date, '')
+    setMonth((prev) => prev ?? (stillAvailable ? selectedDate : days[0].date).slice(0, 7))
+  }, [allDays, minDate]) // eslint-disable-line react-hooks/exhaustive-deps
 
   if (loading) {
     return <div className="py-3 text-center text-sm text-brown-400">受取日時を読み込み中...</div>

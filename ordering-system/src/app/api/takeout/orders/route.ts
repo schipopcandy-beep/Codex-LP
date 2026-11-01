@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServiceRoleClient } from '@/lib/supabase/server'
-import { CUSTOMER_FEATURES, TAKEOUT_BOOKING_DAYS, TAKEOUT_TABLE_ID, formatScheduleDate, generatePickupSlots, optionLabel, optionPrice } from '@/lib/types'
+import { BENTO_LEAD_DAYS, CUSTOMER_FEATURES, TAKEOUT_BOOKING_DAYS, TAKEOUT_TABLE_ID, isBento, formatScheduleDate, generatePickupSlots, optionLabel, optionPrice } from '@/lib/types'
 import { addDays, getEffectiveDays, todayJST } from '@/lib/business-hours'
 import { getAddFriendUrl, isLineFriend, sendLineMessage } from '@/lib/line-message'
 import { priceOrderItems } from '@/lib/order-pricing'
@@ -17,6 +17,10 @@ interface TakeoutOrderItem {
   with_egg_yolk?: boolean
   /** 大満足120%おにぎりにする */
   with_large?: boolean
+  /** お弁当の中のおにぎりなら、何番目のお弁当に入るか */
+  lunch_plate_index?: number | null
+  /** お弁当の行が何番目か（中のおにぎりの lunch_plate_index と対応させる） */
+  container_index?: number | null
 }
 
 interface TakeoutOrderRequestBody {
@@ -51,6 +55,11 @@ function buildOrderMessage(
 
     const options = optionLabel(item)
     const toppingNote = options ? `（${options}）` : ''
+    if (item.lunch_plate_index != null) {
+      // お弁当の中のおにぎり（追加料金があるときだけ金額を出す）
+      lines.push(`　└ ${item.product_name}${toppingNote}${item.quantity > 1 ? ` ×${item.quantity}` : ''}${subtotal > 0 ? `　+¥${subtotal.toLocaleString()}` : ''}`)
+      continue
+    }
     lines.push(`・${item.product_name}${toppingNote} ×${item.quantity}　¥${subtotal.toLocaleString()}`)
   }
 
@@ -99,13 +108,23 @@ export async function POST(req: NextRequest) {
   const supabase = createServiceRoleClient()
 
   // 値段・商品名はデータベースの商品で付け直す（LINEの確認メッセージの金額・商品名もこちらを使う）
-  // テイクアウトにはランチプレートの中のおにぎりの行はない
-  const priced = await priceOrderItems(
-    supabase,
-    body.items.map((item) => ({ ...item, lunch_plate_index: null })),
-  )
+  const priced = await priceOrderItems(supabase, body.items)
   if ('error' in priced) return NextResponse.json({ error: priced.error }, { status: 400 })
   const items = priced.items
+
+  // お弁当は受け取り日の BENTO_LEAD_DAYS 日前までの予約（今日から BENTO_LEAD_DAYS 日後から受け取れる）
+  if (items.some((item) => isBento({ category: item.product_category }))) {
+    const pickupDate = pickup_at?.split(' ')[0]
+    if (!pickupDate) {
+      return NextResponse.json({ error: 'お弁当は受け取り日時を選んでご予約ください' }, { status: 400 })
+    }
+    if (!staff_entry && pickupDate < addDays(todayJST(), BENTO_LEAD_DAYS)) {
+      return NextResponse.json(
+        { error: `お弁当は${BENTO_LEAD_DAYS}日前までのご予約です。${formatScheduleDate(addDays(todayJST(), BENTO_LEAD_DAYS))}以降の受け取り日をお選びください。` },
+        { status: 400 },
+      )
+    }
+  }
 
   // お客様のテイクアウト予約は、お店のLINEの友だちだけ受け付ける
   // （確認メッセージを届け、注文について連絡できるようにするため）
@@ -199,6 +218,8 @@ export async function POST(req: NextRequest) {
     with_topping: item.with_topping,
     with_egg_yolk: !!item.with_egg_yolk,
     with_large: !!item.with_large,
+    // お弁当の中のおにぎりは、何番目のお弁当か（ほかの行は空。全行に明示する）
+    lunch_plate_index: item.lunch_plate_index ?? null,
   }))
 
   const { error: insertError } = await supabase

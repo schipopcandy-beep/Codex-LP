@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient, createServiceRoleClient } from '@/lib/supabase/server'
 import { isAllOnigiriSoldOut } from '@/lib/stock'
-import { NIGIRI_CATEGORY, isLunchPlate, salesPausedUntil, type Product } from '@/lib/types'
+import { NIGIRI_CATEGORY, isNigiriSet, salesPausedUntil, type Product } from '@/lib/types'
 
 /**
  * 商品一覧
@@ -38,7 +38,7 @@ export async function GET(req: NextRequest) {
   if (await isAllOnigiriSoldOut(createServiceRoleClient()).catch(() => false)) {
     return NextResponse.json(
       shown.map((p) =>
-        p.category === NIGIRI_CATEGORY || isLunchPlate(p as Product) ? { ...p, is_sold_out: true } : p,
+        p.category === NIGIRI_CATEGORY || isNigiriSet(p as Product) ? { ...p, is_sold_out: true } : p,
       ),
     )
   }

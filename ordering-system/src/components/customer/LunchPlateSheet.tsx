@@ -3,7 +3,15 @@
 import { useState } from 'react'
 import type { LunchNigiriUnit, OptionSoldOut, Product } from '@/lib/types'
 import Image from 'next/image'
-import { calcPlatePrice, getLunchPlateSurcharge, lunchPlateNigiriCount, optionColumns, optionPrice } from '@/lib/types'
+import {
+  calcPlatePrice,
+  getBentoSurcharge,
+  getLunchPlateSurcharge,
+  isBento,
+  optionColumns,
+  optionPrice,
+  setNigiriCount,
+} from '@/lib/types'
 import LunchPlateSelector from '@/components/customer/LunchPlateSelector'
 import { pickRecommendation } from '@/components/customer/RecommendedItem'
 
@@ -16,17 +24,19 @@ interface Props {
 }
 
 /**
- * ランチプレートを追加するときに、その場で中のおにぎりを選ぶシート
- * 選び終えたら「このプレートを追加」でカートに入る
+ * ランチプレート・お弁当を追加するときに、その場で中のおにぎりを選ぶシート
+ * 選び終えたら「このプレートを追加」（お弁当は「このお弁当を追加」）でカートに入る
+ * お弁当は、トッピングなし・お弁当の追加料金で選ぶ（おすすめは出さない）
  */
 export default function LunchPlateSheet({ plate, products, optionSoldOut, onAdd, onClose }: Props) {
   const [units, setUnits] = useState<LunchNigiriUnit[]>([])
-  const required = lunchPlateNigiriCount(plate)
+  const bento = isBento(plate)
+  const required = setNigiriCount(plate)
   const ready = units.length === required
   const price = calcPlatePrice({ id: 'preview', product: plate, units }, products)
 
   // メニューの上と同じおすすめを、プレートのおにぎりとしても出す
-  const picked = pickRecommendation(products, optionSoldOut)
+  const picked = bento ? null : pickRecommendation(products, optionSoldOut)
   /** おすすめと同じおにぎり（同じオプション）か */
   const isRecommendedUnit = (u: LunchNigiriUnit) =>
     !!picked &&
@@ -124,6 +134,8 @@ export default function LunchPlateSheet({ plate, products, optionSoldOut, onAdd,
             onChange={setUnits}
             required={required}
             optionSoldOut={optionSoldOut}
+            surchargeOf={bento ? getBentoSurcharge : getLunchPlateSurcharge}
+            allowOptions={!bento}
           />
         </div>
 
@@ -135,7 +147,7 @@ export default function LunchPlateSheet({ plate, products, optionSoldOut, onAdd,
             className="btn-primary w-full text-lg py-3 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {ready
-              ? `このプレートを追加（¥${price.toLocaleString()}）`
+              ? `${bento ? 'このお弁当' : 'このプレート'}を追加（¥${price.toLocaleString()}）`
               : `おにぎりをあと${required - units.length}個選んでください`}
           </button>
           <div className="pb-safe" />

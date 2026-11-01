@@ -5,7 +5,7 @@ import Link from 'next/link'
 import Image from 'next/image'
 import { useSearchParams } from 'next/navigation'
 import type { Order } from '@/lib/types'
-import { calcOrderTotal, optionLabel, optionPrice, storageUrl, formatScheduleDate } from '@/lib/types'
+import { calcOrderTotal, groupLunchPlateNigiri, optionLabel, optionPrice, storageUrl, formatScheduleDate } from '@/lib/types'
 
 function TakeoutCompleteContent() {
   const searchParams = useSearchParams()
@@ -25,6 +25,8 @@ function TakeoutCompleteContent() {
 
   const items = order?.order_items ?? []
   const total = calcOrderTotal(items)
+  // お弁当の中のおにぎりは、お弁当の行の下に添える
+  const setNigiri = groupLunchPlateNigiri(items)
 
   // pickup_at: "YYYY-MM-DD HH:MM" 形式
   const pickupAt = (order as (Order & { pickup_at?: string }) | null)?.pickup_at
@@ -89,9 +91,12 @@ function TakeoutCompleteContent() {
               ご注文内容
             </h2>
             <div className="space-y-2">
-              {items.map((item) => {
+              {items.filter((item) => item.lunch_plate_index == null).map((item) => {
                 const toppingCost = optionPrice(item)
-                const subtotal = (item.unit_price + toppingCost) * item.quantity
+                // お弁当は、中のおにぎりの追加料金も含めた金額にする
+                const nigiri = (setNigiri.get(item.id) ?? []).flat()
+                const nigiriCost = nigiri.reduce((sum, n) => sum + (n.unit_price + optionPrice(n)) * n.quantity, 0)
+                const subtotal = (item.unit_price + toppingCost) * item.quantity + nigiriCost
 
                 return (
                   <div key={item.id} className="flex justify-between items-start">
@@ -102,9 +107,17 @@ function TakeoutCompleteContent() {
                       {optionLabel(item) && (
                         <p className="text-sm text-brown-400">（{optionLabel(item)}）</p>
                       )}
-                      <p className="text-sm text-brown-400">
-                        ¥{(item.unit_price + toppingCost).toLocaleString()} × {item.quantity}
-                      </p>
+                      {nigiri.length > 0 ? (
+                        <p className="text-sm text-brown-500">
+                          {nigiri
+                            .map((n) => `${n.product?.name ?? '不明'}${n.unit_price > 0 ? `（+¥${n.unit_price}）` : ''}`)
+                            .join('・')}
+                        </p>
+                      ) : (
+                        <p className="text-sm text-brown-400">
+                          ¥{(item.unit_price + toppingCost).toLocaleString()} × {item.quantity}
+                        </p>
+                      )}
                     </div>
                     <p className="font-bold text-brown-700 tabular-nums">
                       ¥{subtotal.toLocaleString()}
