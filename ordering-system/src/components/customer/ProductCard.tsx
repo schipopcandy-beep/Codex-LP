@@ -108,6 +108,8 @@ export default function ProductCard({
             src={product.image_url}
             alt={product.name}
             fill
+            // アプリに同梱した写真（/products/…）は、Vercelの画像変換を通さずにそのまま出す（すでに軽いWebP）
+            unoptimized={product.image_url.startsWith('/')}
             className="object-cover"
             sizes="(max-width: 640px) 50vw, 33vw"
           />
