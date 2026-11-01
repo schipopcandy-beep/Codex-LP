@@ -14,7 +14,6 @@ import {
   TOPPING_CHANGE_LABEL,
   TOPPING_PRICE,
   comboLabel,
-  OKAZU_PACK_NAME,
   isBento,
   isNigiriSet,
   isToppingSelectable,
@@ -112,8 +111,8 @@ export default function ProductCard({
             fill
             // アプリに同梱した写真（/products/…）は、Vercelの画像変換を通さずにそのまま出す（すでに軽いWebP）
             unoptimized={product.image_url.startsWith('/')}
-            // お弁当・おかずパックは横長の写真で、名前と値段も写っているため、切らずに全体を見せる
-            className={isBento(product) || product.name === OKAZU_PACK_NAME ? 'object-contain' : 'object-cover'}
+            // お弁当は横長の写真で、名前と値段も写っているため、切らずに全体を見せる
+            className={isBento(product) ? 'object-contain' : 'object-cover'}
             sizes="(max-width: 640px) 50vw, 33vw"
           />
         ) : (
