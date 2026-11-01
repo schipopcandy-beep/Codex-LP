@@ -231,7 +231,7 @@ export default function TakeoutEntryPage() {
         <div className="flex items-center justify-between gap-3">
           <div className="relative w-14 h-14 flex-shrink-0 rounded-lg overflow-hidden bg-cream-200">
             {product.image_url && (
-              <Image src={product.image_url} alt={product.name} fill className="object-cover" sizes="56px" />
+              <Image src={product.image_url} alt={product.name} fill className="object-cover" sizes="56px" unoptimized={product.image_url.startsWith('/')} />
             )}
           </div>
           <div className="min-w-0 flex-1">

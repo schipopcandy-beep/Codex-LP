@@ -87,7 +87,7 @@ export default function LunchPlateSheet({ plate, products, optionSoldOut, onAdd,
             >
               <div className="relative w-14 h-14 flex-shrink-0 rounded-lg overflow-hidden bg-cream-200">
                 {picked.product.image_url && (
-                  <Image src={picked.product.image_url} alt={picked.product.name} fill className="object-cover" sizes="56px" />
+                  <Image src={picked.product.image_url} alt={picked.product.name} fill className="object-cover" sizes="56px" unoptimized={picked.product.image_url.startsWith('/')} />
                 )}
               </div>
               <div className="flex-1 min-w-0">

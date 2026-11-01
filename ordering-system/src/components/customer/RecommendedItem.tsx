@@ -63,7 +63,7 @@ export default function RecommendedItem({ products, optionSoldOut = NO_OPTION_SO
       <div className="flex gap-3 p-3 pt-2">
         <div className="relative w-28 h-28 flex-shrink-0 rounded-xl overflow-hidden bg-cream-200">
           {product.image_url && (
-            <Image src={product.image_url} alt={product.name} fill className="object-cover" sizes="112px" />
+            <Image src={product.image_url} alt={product.name} fill className="object-cover" sizes="112px" unoptimized={product.image_url.startsWith('/')} />
           )}
         </div>
         <div className="flex-1 min-w-0 flex flex-col">
