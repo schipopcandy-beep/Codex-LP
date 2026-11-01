@@ -6,10 +6,14 @@ import Image from 'next/image'
 import ProductCard from '@/components/customer/ProductCard'
 import TakeoutCart from '@/components/customer/TakeoutCart'
 import RecommendedItem from '@/components/customer/RecommendedItem'
-import type { Product, CartItem, NigiriOptions, OptionSoldOut } from '@/lib/types'
+import LunchPlateSheet from '@/components/customer/LunchPlateSheet'
+import type { Product, CartItem, CartPlate, LunchNigiriUnit, NigiriOptions, OptionSoldOut } from '@/lib/types'
+import { addDays, todayJST } from '@/lib/business-hours'
 import {
   storageUrl,
   isLunchPlate,
+  isBento,
+  BENTO_LEAD_DAYS,
   DRINK_CATEGORY,
   TAKEOUT_TABLE_ID,
   NO_OPTIONS,
@@ -48,6 +52,10 @@ export default function TakeoutUI({ lineUserId, lineDisplayName, seat, seatTable
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [pickupDate, setPickupDate] = useState<string | null>(null)
   const [pickupTime, setPickupTime] = useState<string | null>(null)
+  /** カートのお弁当（中のおにぎりを選んだもの） */
+  const [bentos, setBentos] = useState<CartPlate[]>([])
+  /** おにぎりを選んでいるお弁当 */
+  const [bentoSheet, setBentoSheet] = useState<Product | null>(null)
 
   const handlePickupSelect = useCallback((date: string, time: string) => {
     setPickupDate(date)
@@ -59,8 +67,27 @@ export default function TakeoutUI({ lineUserId, lineDisplayName, seat, seatTable
   // ランチプレートを除外したメニュー（ドリンクはテイクアウト対象外）
   const nigiriProducts = products.filter((p) => p.category === 'おにぎり')
   const sideProducts = products.filter(
-    (p) => p.category !== 'おにぎり' && p.category !== DRINK_CATEGORY && !isHiddenFromMenu(p),
+    (p) => p.category !== 'おにぎり' && p.category !== DRINK_CATEGORY && !isHiddenFromMenu(p) && !isBento(p),
   )
+  // お弁当は2日前までの予約のため、テイクアウト予約だけで扱う（席からのお持ち帰りでは出さない）
+  const bentoProducts = isSeatOrder ? [] : products.filter(isBento)
+  /** お弁当があるときは、今日から BENTO_LEAD_DAYS 日後より前の日を選べない */
+  const minPickupDate = bentos.length > 0 ? addDays(todayJST(), BENTO_LEAD_DAYS) : null
+
+  const handleBentoAdd = useCallback((product: Product, units: LunchNigiriUnit[]) => {
+    setBentos((prev) => [...prev, { id: `${Date.now()}-${prev.length}`, product, units }])
+    setBentoSheet(null)
+  }, [])
+  /** 同じお弁当の最後の1つを取り除く */
+  const handleBentoRemove = useCallback((product: Product) => {
+    setBentos((prev) => {
+      const idx = prev.findLastIndex((b) => b.product.id === product.id)
+      return idx === -1 ? prev : prev.filter((_, i) => i !== idx)
+    })
+  }, [])
+  const handleBentoDelete = useCallback((bento: CartPlate) => {
+    setBentos((prev) => prev.filter((b) => b.id !== bento.id))
+  }, [])
   const tonjiruProduct = products.find((p) => p.name.includes('豚汁'))
 
   /** メニューのカードに出す、オプションの組み合わせごとの注文数 */
@@ -151,7 +178,7 @@ export default function TakeoutUI({ lineUserId, lineDisplayName, seat, seatTable
   }, [])
 
   const handleSubmit = useCallback(async () => {
-    if (cartItems.length === 0) return
+    if (cartItems.length === 0 && bentos.length === 0) return
     setIsSubmitting(true)
 
     const items = cartItems.map((item) => ({
@@ -163,6 +190,26 @@ export default function TakeoutUI({ lineUserId, lineDisplayName, seat, seatTable
       with_egg_yolk: !!item.with_egg_yolk,
       with_large: !!item.with_large,
     }))
+    // お弁当は1つずつ、お弁当の行と中のおにぎりの行にする（おにぎりには何番目のお弁当かを付ける）
+    // 値段はサーバーで付け直す
+    const bentoItems = bentos.flatMap((bento, index) => [
+      {
+        product_id: bento.product.id,
+        product_name: bento.product.name,
+        quantity: 1,
+        unit_price: bento.product.price,
+        with_topping: false,
+        container_index: index,
+      },
+      ...bento.units.map((unit) => ({
+        product_id: unit.productId,
+        product_name: products.find((p) => p.id === unit.productId)?.name ?? '',
+        quantity: 1,
+        unit_price: 0,
+        with_topping: false,
+        lunch_plate_index: index,
+      })),
+    ])
 
     try {
       // 席からのお持ち帰りは、その卓の伝票に加える（LINE通知は送らない）
@@ -183,7 +230,7 @@ export default function TakeoutUI({ lineUserId, lineDisplayName, seat, seatTable
               line_user_id: lineUserId ?? undefined,
               pickup_at: pickupDate && pickupTime ? `${pickupDate} ${pickupTime}` : undefined,
               customer_name: lineDisplayName ?? undefined,
-              items,
+              items: [...items, ...bentoItems],
             }),
           })
 
@@ -203,7 +250,7 @@ export default function TakeoutUI({ lineUserId, lineDisplayName, seat, seatTable
     } finally {
       setIsSubmitting(false)
     }
-  }, [cartItems, lineUserId, lineDisplayName, pickupDate, pickupTime, router, isSeatOrder, seat, seatTableId])
+  }, [cartItems, bentos, products, lineUserId, lineDisplayName, pickupDate, pickupTime, router, isSeatOrder, seat, seatTableId])
 
   if (error) {
     return (
@@ -281,6 +328,27 @@ export default function TakeoutUI({ lineUserId, lineDisplayName, seat, seatTable
               </div>
             </section>
 
+            {/* お弁当（2日前までの予約。押すと中のおにぎりを選ぶ） */}
+            {bentoProducts.length > 0 && (
+              <section>
+                <h2 className="section-title mb-1 px-1">お弁当</h2>
+                <p className="text-sm text-amber-700 font-bold mb-3 px-1">
+                  ※ {BENTO_LEAD_DAYS}日前までのご予約が必要です（{BENTO_LEAD_DAYS}日後以降のお受け取り）
+                </p>
+                <div className="grid grid-cols-2 gap-3">
+                  {bentoProducts.map((product) => (
+                    <ProductCard
+                      key={product.id}
+                      product={product}
+                      getQuantity={() => bentos.filter((b) => b.product.id === product.id).length}
+                      onAdd={() => setBentoSheet(product)}
+                      onRemove={() => handleBentoRemove(product)}
+                    />
+                  ))}
+                </div>
+              </section>
+            )}
+
             {/* サイド（豚汁など） */}
             {sideProducts.length > 0 && (
               <section>
@@ -314,7 +382,20 @@ export default function TakeoutUI({ lineUserId, lineDisplayName, seat, seatTable
         onItemDelete={handleCartItemDelete}
         isSeatOrder={isSeatOrder}
         tonjiruProduct={tonjiruProduct}
+        bentos={bentos}
+        allProducts={products}
+        onBentoDelete={handleBentoDelete}
+        minPickupDate={minPickupDate}
       />
+
+      {bentoSheet && (
+        <LunchPlateSheet
+          plate={bentoSheet}
+          products={products}
+          onAdd={(units) => handleBentoAdd(bentoSheet, units)}
+          onClose={() => setBentoSheet(null)}
+        />
+      )}
     </div>
   )
 }

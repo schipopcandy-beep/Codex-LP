@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServiceRoleClient } from '@/lib/supabase/server'
-import { isLunchPlate, type Product } from '@/lib/types'
+import { isNigiriSet, type Product } from '@/lib/types'
 import { checkStock, countByStockKey, getStockContext, stockDateFor, syncAutoSoldOut } from '@/lib/stock'
 
 interface Params {
@@ -10,7 +10,7 @@ interface Params {
 /**
  * 管理用: 既存の注文に商品を追加する（お客様の注文ミスへの対応）
  * body: { product_id, quantity, with_topping?, with_egg_yolk?, with_large?, is_takeout? }
- * ランチプレートは中のおにぎりと組で扱う必要があるため、ここでは追加しない
+ * ランチプレート・お弁当は中のおにぎりと組で扱う必要があるため、ここでは追加しない
  */
 export async function POST(req: NextRequest, { params }: Params) {
   const { orderId } = await params
@@ -35,8 +35,8 @@ export async function POST(req: NextRequest, { params }: Params) {
   ])
   if (!order) return NextResponse.json({ error: '注文が見つかりません' }, { status: 404 })
   if (!product) return NextResponse.json({ error: '商品が見つかりません' }, { status: 404 })
-  if (isLunchPlate(product as Product)) {
-    return NextResponse.json({ error: 'ランチプレートはここからは追加できません' }, { status: 400 })
+  if (isNigiriSet(product as Product)) {
+    return NextResponse.json({ error: 'ランチプレート・お弁当はここからは追加できません' }, { status: 400 })
   }
 
   const requested = countByStockKey(

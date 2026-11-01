@@ -15,7 +15,7 @@ import {
   DRINK_CATEGORY,
   DRINK_TIMING_LABELS,
   DRINK_TEMP_LABELS,
-  isLunchPlate,
+  isNigiriSet,
   getOrderBatchIndexes,
   groupLunchPlateNigiri,
   orderBatchLabel,
@@ -128,8 +128,8 @@ export default function OrderDetailPage({ params }: Props) {
   const regularItems = items.filter(
     (i) => i.lunch_plate_index == null && i.product?.category !== DRINK_CATEGORY,
   )
-  const lunchPlateBaseItems = regularItems.filter((i) => i.product != null && isLunchPlate(i.product))
-  const nonPlateItems = regularItems.filter((i) => i.product == null || !isLunchPlate(i.product))
+  const lunchPlateBaseItems = regularItems.filter((i) => i.product != null && isNigiriSet(i.product))
+  const nonPlateItems = regularItems.filter((i) => i.product == null || !isNigiriSet(i.product))
   // 席から注文されたお持ち帰り分は、イートインの下にまとめて表示する
   const otherItems = nonPlateItems.filter((i) => !i.is_takeout)
   const seatTakeoutItems = nonPlateItems.filter((i) => i.is_takeout)

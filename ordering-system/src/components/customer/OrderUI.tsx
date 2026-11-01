@@ -22,6 +22,7 @@ import {
   TABLE_NAMES,
   storageUrl,
   isLunchPlate,
+  isBento,
   LUNCH_START_HOUR,
   LUNCH_PLATE_END_HOUR,
   isLunchPlateAlwaysAvailable,
@@ -84,7 +85,9 @@ export default function OrderUI({ tableId, lineUserId, partySize, buildCompleteH
       p.category !== DRINK_CATEGORY &&
       (isTakeoutMode || p.category !== TAKEOUT_ONLY_CATEGORY) &&
       !isHiddenFromMenu(p) &&
-      !isLunchPlate(p),
+      !isLunchPlate(p) &&
+      // お弁当は2日前までの予約のため、テイクアウト予約の画面だけで扱う
+      !isBento(p),
   )
   const tonjiruProduct = products.find((p) => p.name.includes('豚汁'))
 

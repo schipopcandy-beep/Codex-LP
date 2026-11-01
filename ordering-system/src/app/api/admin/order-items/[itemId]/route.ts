@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServiceRoleClient } from '@/lib/supabase/server'
-import { getLunchPlateSurcharge, isToppingSelectable, type Product } from '@/lib/types'
+import { getLunchPlateSurcharge, getSetSurcharge, groupLunchPlateNigiri, isToppingSelectable, type OrderItem, type Product } from '@/lib/types'
 import { checkStock, getStockContext, increasedByStockKey, stockDateFor, syncAutoSoldOut } from '@/lib/stock'
 
 interface Params {
@@ -68,7 +68,18 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     }
     productId = body.product_id
     updates.product_id = productId
-    updates.unit_price = getLunchPlateSurcharge(product as Product)
+    // 入っているランチプレート・お弁当に合わせて追加料金を付け直す
+    const { data: orderItems } = await supabase
+      .from('order_items')
+      .select('*, product:products(*)')
+      .eq('order_id', item.order_id)
+    const container = [...groupLunchPlateNigiri((orderItems ?? []) as OrderItem[]).entries()].find(([, groups]) =>
+      groups.some((g) => g.some((n) => n.id === item.id)),
+    )
+    const containerProduct = (orderItems as OrderItem[] | null)?.find((i) => i.id === container?.[0])?.product
+    updates.unit_price = containerProduct
+      ? getSetSurcharge(containerProduct, product as Product)
+      : getLunchPlateSurcharge(product as Product)
   }
 
   if (typeof body.with_topping === 'boolean') updates.with_topping = body.with_topping

@@ -14,7 +14,7 @@ import {
   TOPPING_CHANGE_LABEL,
   TOPPING_PRICE,
   comboLabel,
-  isLunchPlate,
+  isNigiriSet,
   isToppingSelectable,
 } from '@/lib/types'
 
@@ -138,8 +138,8 @@ export default function ProductCard({
         )}
         <p className="text-lg font-bold text-brown-600 mt-auto">
           ¥{product.price.toLocaleString()}
-          {/* ランチプレートは、選ぶおにぎりによって追加料金がかかるため「〜」を付ける */}
-          {isLunchPlate(product) && '~'}
+          {/* ランチプレート・お弁当は、選ぶおにぎりによって追加料金がかかるため「〜」を付ける */}
+          {isNigiriSet(product) && '~'}
         </p>
 
         {/* オプション（追加する前から選べる） */}

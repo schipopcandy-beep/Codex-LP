@@ -20,7 +20,7 @@ import {
   NO_OPTION_SOLD_OUT,
   TAKEOUT_TABLE_ID,
   isHiddenFromMenu,
-  isLunchPlate,
+  isNigiriSet,
   isToppingSelectable,
   optionColumns,
   optionLabel,
@@ -79,7 +79,7 @@ export default function TakeoutEntryPage() {
       .then((r) => r.json())
       .then((data: Product[]) => {
         // テイクアウトの画面と同じく、ランチプレートとドリンクは扱わない
-        setProducts(data.filter((p) => !isLunchPlate(p) && p.category !== DRINK_CATEGORY))
+        setProducts(data.filter((p) => !isNigiriSet(p) && p.category !== DRINK_CATEGORY))
         setLoading(false)
       })
       .catch(() => setLoading(false))

@@ -377,6 +377,43 @@ export function getLunchPlateSurcharge(product: Product): number {
   return 0
 }
 
+/**
+ * お弁当（テイクアウト予約のみ。好きなおにぎり2個を選ぶ）
+ * カテゴリはDBの category と一致させること。店内注文のメニューには出さない
+ */
+export const BENTO_CATEGORY = 'お弁当'
+/** お弁当で選ぶおにぎりの個数 */
+export const BENTO_NIGIRI_COUNT = 2
+/** お弁当は受け取り日の何日前までの予約か（今日から数えてこの日数後から受け取れる） */
+export const BENTO_LEAD_DAYS = 2
+
+export function isBento(product: { category: string }): boolean {
+  return product.category === BENTO_CATEGORY
+}
+
+/**
+ * お弁当選択時のおにぎり追加料金
+ * 極み筋子・しゃけ筋子: +200円 / その他: 0円
+ */
+export function getBentoSurcharge(product: Product): number {
+  return product.name === '極み筋子' || product.name === 'しゃけ筋子' ? 200 : 0
+}
+
+/** 中のおにぎりを選ぶ商品か（ランチプレート・お弁当） */
+export function isNigiriSet(product: Product): boolean {
+  return isLunchPlate(product) || isBento(product)
+}
+
+/** その商品で選ぶおにぎりの個数（ランチプレート・お弁当） */
+export function setNigiriCount(product: Product): number {
+  return isBento(product) ? BENTO_NIGIRI_COUNT : lunchPlateNigiriCount(product)
+}
+
+/** ランチプレート・お弁当の中のおにぎりの追加料金 */
+export function getSetSurcharge(set: Product, nigiri: Product): number {
+  return isBento(set) ? getBentoSurcharge(nigiri) : getLunchPlateSurcharge(nigiri)
+}
+
 export interface Table {
   id: string
   name: string
@@ -566,7 +603,7 @@ export function groupLunchPlateNigiri(items: OrderItem[]): Map<string, OrderItem
 
   for (const b of batchNumbers) {
     const inBatch = items.filter((i) => (batches.get(i.id) ?? 0) === b)
-    const plates = inBatch.filter((i) => i.product && isLunchPlate(i.product))
+    const plates = inBatch.filter((i) => i.product && isNigiriSet(i.product))
 
     const groupMap = new Map<number, OrderItem[]>()
     for (const n of inBatch.filter((i) => i.lunch_plate_index != null)) {
@@ -576,7 +613,7 @@ export function groupLunchPlateNigiri(items: OrderItem[]): Map<string, OrderItem
     const remaining = [...groupMap.entries()].sort(([a], [b]) => a - b).map(([, g]) => g)
 
     for (const plate of plates) {
-      const required = plate.product ? lunchPlateNigiriCount(plate.product) : 1
+      const required = plate.product ? setNigiriCount(plate.product) : 1
       const groups: OrderItem[][] = []
       for (let k = 0; k < plate.quantity && remaining.length > 0; k++) {
         // 注文者が同じ組を優先する（同じ大きさのプレートを別々の人が頼んだときに入れ違わないように）
@@ -620,7 +657,7 @@ export interface CartPlate {
   units: LunchNigiriUnit[]
 }
 
-/** ランチプレート1枚の金額（プレートの価格＋おにぎりの種類ごとの追加料金＋トッピング） */
+/** ランチプレート・お弁当1つの金額（本体の価格＋おにぎりの種類ごとの追加料金＋トッピング） */
 export function calcPlatePrice(plate: CartPlate, products: Product[]): number {
   return (
     plate.product.price +
@@ -628,7 +665,7 @@ export function calcPlatePrice(plate: CartPlate, products: Product[]): number {
       const product = products.find((p) => p.id === unit.productId)
       return (
         sum +
-        (product ? getLunchPlateSurcharge(product) : 0) +
+        (product ? getSetSurcharge(plate.product, product) : 0) +
         optionPrice({ with_topping: unit.tororo, with_egg_yolk: unit.eggYolk, with_large: unit.large })
       )
     }, 0)

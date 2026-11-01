@@ -1,11 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
-import {
-  getLunchPlateSurcharge,
-  isLunchPlate,
-  isToppingSelectable,
-  lunchPlateNigiriCount,
-  type Product,
-} from '@/lib/types'
+import { getSetSurcharge, isNigiriSet, isToppingSelectable, setNigiriCount, type Product } from '@/lib/types'
 
 /** 1行で注文できる最大の個数 */
 const MAX_QUANTITY = 99
@@ -13,20 +7,26 @@ const MAX_QUANTITY = 99
 interface PricedInput {
   product_id: string
   quantity: number
+  /** ランチプレート・お弁当の中のおにぎりなら、何番目のランチプレート・お弁当に入るか */
   lunch_plate_index?: number | null
+  /**
+   * ランチプレート・お弁当の行が何番目か（中のおにぎりの lunch_plate_index と対応させる。記録はしない）
+   * 送られてこないときは、ランチプレート・お弁当の行の並び順（0から）とみなす
+   */
+  container_index?: number | null
 }
 
 /**
  * お客様の画面から届いた明細の値段・商品名を、データベースの商品で付け直す
  * （画面から届いた値段はそのまま使わない。書き換えられても正しい値段で記録するため）
- * - ランチプレートの中のおにぎり: 種類ごとの追加料金（getLunchPlateSurcharge）
+ * - ランチプレート・お弁当の中のおにぎり: 入れ物ごとの追加料金（getSetSurcharge）
  * - それ以外: 商品の値段
- * 個数がおかしい・商品がない・プレートにないおにぎりがある場合は、エラーの文を返す
+ * 個数がおかしい・商品がない・入れ物にないおにぎりがある場合は、エラーの文を返す
  */
 export async function priceOrderItems<T extends PricedInput>(
   supabase: SupabaseClient,
   items: T[],
-): Promise<{ items: (T & { unit_price: number; product_name: string })[] } | { error: string }> {
+): Promise<{ items: (T & { unit_price: number; product_name: string; product_category: string })[] } | { error: string }> {
   if (items.some((i) => !Number.isInteger(i.quantity) || i.quantity < 1 || i.quantity > MAX_QUANTITY)) {
     return { error: '個数が正しくありません' }
   }
@@ -37,27 +37,43 @@ export async function priceOrderItems<T extends PricedInput>(
   const products = new Map(((data ?? []) as Product[]).map((p) => [p.id, p]))
   if (ids.some((id) => !products.has(id))) return { error: '見つからない商品があります。画面を開き直してください' }
 
-  // ランチプレートの中のおにぎりは、注文したプレートに入る数までしか受け付けない（追加料金だけで単品を頼めないように）
-  let plateSlots = 0
-  let plateNigiri = 0
+  // 何番目の入れ物（ランチプレート・お弁当）が何の商品か
+  const containers = new Map<number, Product>()
+  let nextIndex = 0
   for (const item of items) {
     const product = products.get(item.product_id)!
-    if (item.lunch_plate_index != null) {
-      if (!isToppingSelectable(product)) return { error: 'ランチプレートにはおにぎりを選んでください' }
-      plateNigiri += item.quantity
-    } else if (isLunchPlate(product)) {
-      plateSlots += item.quantity * lunchPlateNigiriCount(product)
+    if (item.lunch_plate_index != null || !isNigiriSet(product)) continue
+    if (item.container_index != null) {
+      if (item.quantity !== 1) return { error: 'ランチプレート・お弁当の数が正しくありません' }
+      containers.set(item.container_index, product)
+    } else {
+      for (let k = 0; k < item.quantity; k++) containers.set(nextIndex++, product)
     }
   }
-  if (plateNigiri > plateSlots) return { error: 'ランチプレートのおにぎりの数が正しくありません' }
+
+  // 中のおにぎりは、注文した入れ物に入る数までしか受け付けない（追加料金だけで単品を頼めないように）
+  const filled = new Map<number, number>()
+  for (const item of items) {
+    if (item.lunch_plate_index == null) continue
+    const container = containers.get(item.lunch_plate_index)
+    if (!container) return { error: 'ランチプレート・お弁当のおにぎりの数が正しくありません' }
+    if (!isToppingSelectable(products.get(item.product_id)!)) {
+      return { error: 'ランチプレート・お弁当にはおにぎりを選んでください' }
+    }
+    const count = (filled.get(item.lunch_plate_index) ?? 0) + item.quantity
+    if (count > setNigiriCount(container)) return { error: 'ランチプレート・お弁当のおにぎりの数が正しくありません' }
+    filled.set(item.lunch_plate_index, count)
+  }
 
   return {
     items: items.map((item) => {
       const product = products.get(item.product_id)!
+      const container = item.lunch_plate_index != null ? containers.get(item.lunch_plate_index)! : null
       return {
         ...item,
         product_name: product.name,
-        unit_price: item.lunch_plate_index != null ? getLunchPlateSurcharge(product) : product.price,
+        product_category: product.category,
+        unit_price: container ? getSetSurcharge(container, product) : product.price,
       }
     }),
   }
