@@ -21,7 +21,7 @@ import {
   OPTION_NAMES,
   OPTION_PRICES,
   formatScheduleDate,
-  salesPausedUntil,
+  isPausedToday,
 } from '@/lib/types'
 
 /** 販売中・売り切れの切り替えボタン */
@@ -71,6 +71,9 @@ export default function SoldOutAdminPage() {
   const [stock, setStock] = useState<Map<string, StockStatus>>(new Map())
   /** 入力中の仕込み数（保存前） */
   const [drafts, setDrafts] = useState<Map<string, string>>(new Map())
+  /** 販売休止の設定を開いている商品と、入力中の再開日（空欄＝未定） */
+  const [pauseFormId, setPauseFormId] = useState<string | null>(null)
+  const [pauseUntil, setPauseUntil] = useState('')
 
   const fetchAll = useCallback(async () => {
     const [productsRes, optionsRes] = await Promise.all([
@@ -154,6 +157,108 @@ export default function SoldOutAdminPage() {
     }
 
     setUpdating(null)
+  }
+
+  /** 販売休止にする・やめる（until は再開日。空欄なら再開日未定） */
+  const setPause = async (product: Product, paused: boolean, until: string) => {
+    if (updating) return
+    if (paused) {
+      const ok = await confirm(
+        `「${product.name}」を販売休止にしますか？\n${until ? `${formatScheduleDate(until)}から自動で販売を再開します` : '再開日は未定です（「休止をやめる」で再開します）'}`,
+        { confirmLabel: '休止する', danger: true },
+      )
+      if (!ok) return
+    }
+    setUpdating(`pause-${product.id}`)
+    const res = await fetch(`/api/admin/products/${product.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ paused, paused_until: paused && until ? until : null }),
+    })
+    if (res.ok) {
+      const updated: Product = await res.json()
+      setProducts((prev) =>
+        prev.map((p) => (p.id === product.id ? { ...p, paused: updated.paused, paused_until: updated.paused_until } : p)),
+      )
+      setPauseFormId(null)
+      setPauseUntil('')
+    } else {
+      const data = await res.json().catch(() => ({}))
+      alert(
+        String(data.error ?? '').includes('paused')
+          ? '販売休止の項目がまだありません。案内したSQLを実行してください'
+          : (data.error ?? '更新に失敗しました'),
+      )
+    }
+    setUpdating(null)
+  }
+
+  /** 販売休止の表示・設定（長期で休むとき。夜中の売り切れリセットでは戻らない） */
+  const renderPause = (product: Product) => {
+    const busy = updating === `pause-${product.id}`
+    if (isPausedToday(product)) {
+      return (
+        <div className="flex items-center justify-between gap-2 rounded-lg bg-red-50 border border-red-200 px-2 py-1.5">
+          <p className="text-xs font-bold text-red-700">
+            販売休止中（{product.paused_until ? `${formatScheduleDate(product.paused_until)}から自動で再開` : '再開日未定'}）
+          </p>
+          <button
+            type="button"
+            onClick={() => setPause(product, false, '')}
+            disabled={busy}
+            className="flex-shrink-0 px-2 py-1 rounded-lg text-xs font-bold border border-red-300 bg-white text-red-700 disabled:opacity-50"
+          >
+            {busy ? '...' : '休止をやめる'}
+          </button>
+        </div>
+      )
+    }
+    if (pauseFormId !== product.id) {
+      return (
+        <button
+          type="button"
+          onClick={() => {
+            setPauseFormId(product.id)
+            setPauseUntil('')
+          }}
+          className="text-xs text-brown-400 underline underline-offset-2"
+        >
+          長期で販売休止にする
+        </button>
+      )
+    }
+    return (
+      <div className="rounded-lg bg-cream-100 border border-cream-300 p-2 space-y-2 text-sm">
+        <label className="flex items-center gap-2 flex-wrap">
+          <span className="text-brown-600">再開日</span>
+          <input
+            type="date"
+            value={pauseUntil}
+            min={jstDate(1)}
+            onChange={(e) => setPauseUntil(e.target.value)}
+            className="rounded-lg border border-cream-300 bg-white px-2 py-1"
+          />
+          <span className="text-xs text-brown-400">空欄なら再開日未定</span>
+        </label>
+        <div className="flex gap-2">
+          <button
+            type="button"
+            onClick={() => setPause(product, true, pauseUntil)}
+            disabled={busy}
+            className="px-3 py-1.5 rounded-lg text-sm font-bold bg-red-600 text-white disabled:opacity-50"
+          >
+            {busy ? '...' : '販売休止にする'}
+          </button>
+          <button
+            type="button"
+            onClick={() => setPauseFormId(null)}
+            className="px-3 py-1.5 rounded-lg text-sm font-bold border border-cream-300 bg-white text-brown-600"
+          >
+            やめる
+          </button>
+        </div>
+      </div>
+    )
   }
 
   const toggleOption = async (key: OptionKey) => {
@@ -249,7 +354,7 @@ export default function SoldOutAdminPage() {
 
   const renderProductRow = (product: Product) => {
     return (
-      <div key={product.id} className={`card p-3 space-y-2 ${product.is_sold_out ? 'opacity-70' : ''}`}>
+      <div key={product.id} className={`card p-3 space-y-2 ${product.is_sold_out || isPausedToday(product) ? 'opacity-70' : ''}`}>
         <div className="flex items-center gap-3">
           <div className="w-14 h-14 rounded-xl overflow-hidden bg-cream-200 flex-shrink-0">
             {product.image_url ? (
@@ -267,11 +372,6 @@ export default function SoldOutAdminPage() {
           <div className="flex-1 min-w-0">
             <p className="font-bold text-base text-brown-800 truncate">{product.name}</p>
             <p className="text-brown-500 text-sm">¥{product.price.toLocaleString()}</p>
-            {salesPausedUntil(product) && (
-              <p className="text-xs font-bold text-red-600">
-                販売休止中（{formatScheduleDate(salesPausedUntil(product)!)}から自動で再開）
-              </p>
-            )}
           </div>
           <SoldOutButton
             soldOut={product.is_sold_out}
@@ -284,6 +384,7 @@ export default function SoldOutAdminPage() {
         ) : (
           renderPrepInput(productStockKey(product.id))
         )}
+        {renderPause(product)}
       </div>
     )
   }
@@ -293,7 +394,7 @@ export default function SoldOutAdminPage() {
       <div className="space-y-2">
         <div className="flex items-center justify-between">
           <h1 className="section-title">売り切れ</h1>
-          <p className="text-sm text-brown-400">毎日0時にすべて販売中に戻ります</p>
+          <p className="text-sm text-brown-400">毎日0時にすべて販売中に戻ります（販売休止は戻りません）</p>
         </div>
         <div className="card p-3 text-sm text-brown-600 space-y-2">
           <p>

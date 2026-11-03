@@ -3,6 +3,7 @@ import { createServiceRoleClient } from '@/lib/supabase/server'
 import { checkStock, countByStockKey, getStockContext, syncAutoSoldOut } from '@/lib/stock'
 import { todayJST } from '@/lib/business-hours'
 import { priceOrderItems } from '@/lib/order-pricing'
+import { isPausedOn } from '@/lib/types'
 
 interface OrderRequestBody {
   table_id: string
@@ -46,6 +47,21 @@ export async function POST(req: NextRequest) {
   const priced = await priceOrderItems(supabase, body.items)
   if ('error' in priced) return NextResponse.json({ error: priced.error }, { status: 400 })
   const items = priced.items
+
+  // 販売休止中の商品は受け付けない
+  const paused = [
+    ...new Set(
+      items
+        .filter((item) => isPausedOn({ paused: item.product_paused, paused_until: item.product_paused_until }, todayJST()))
+        .map((item) => item.product_name),
+    ),
+  ]
+  if (paused.length > 0) {
+    return NextResponse.json(
+      { error: `${paused.map((n) => `「${n}」`).join('')}は販売をお休みしています。画面を開き直して、別の商品をお選びください。` },
+      { status: 400 },
+    )
+  }
 
   // 仕込み数を入れている商品は、残り数を超える注文を断る
   const shortage = await checkStock(

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServiceRoleClient } from '@/lib/supabase/server'
-import { BENTO_LEAD_DAYS, CUSTOMER_FEATURES, TAKEOUT_BOOKING_DAYS, TAKEOUT_TABLE_ID, isBento, formatScheduleDate, generatePickupSlots, optionLabel, optionPrice } from '@/lib/types'
+import { BENTO_LEAD_DAYS, CUSTOMER_FEATURES, TAKEOUT_BOOKING_DAYS, TAKEOUT_TABLE_ID, isBento, isPausedOn, formatScheduleDate, generatePickupSlots, optionLabel, optionPrice } from '@/lib/types'
 import { addDays, getEffectiveDays, todayJST } from '@/lib/business-hours'
 import { getAddFriendUrl, isLineFriend, sendLineMessage } from '@/lib/line-message'
 import { priceOrderItems } from '@/lib/order-pricing'
@@ -111,6 +111,25 @@ export async function POST(req: NextRequest) {
   const priced = await priceOrderItems(supabase, body.items)
   if ('error' in priced) return NextResponse.json({ error: priced.error }, { status: 400 })
   const items = priced.items
+
+  // 販売休止中の商品は、受け取り日が休止中なら受け付けない（再開日以降の受け取りなら注文できる）
+  // 店頭での入力は、その場の判断を優先して確認しない
+  if (!staff_entry) {
+    const pickupDate = pickup_at?.split(' ')[0] ?? todayJST()
+    const paused = [
+      ...new Set(
+        items
+          .filter((item) => isPausedOn({ paused: item.product_paused, paused_until: item.product_paused_until }, pickupDate))
+          .map((item) => item.product_name),
+      ),
+    ]
+    if (paused.length > 0) {
+      return NextResponse.json(
+        { error: `${paused.map((n) => `「${n}」`).join('')}はその日は販売をお休みしています。別の商品か受け取り日をお選びください。` },
+        { status: 400 },
+      )
+    }
+  }
 
   // 今日の分が売り切れの商品は、今日の受け取りでは受け付けない（明日以降の受け取りなら注文できる）
   // 店頭での入力は、その場の判断を優先して確認しない

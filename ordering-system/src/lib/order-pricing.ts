@@ -27,7 +27,16 @@ export async function priceOrderItems<T extends PricedInput>(
   supabase: SupabaseClient,
   items: T[],
 ): Promise<
-  | { items: (T & { unit_price: number; product_name: string; product_category: string; product_sold_out: boolean })[] }
+  | {
+      items: (T & {
+        unit_price: number
+        product_name: string
+        product_category: string
+        product_sold_out: boolean
+        product_paused: boolean
+        product_paused_until: string | null
+      })[]
+    }
   | { error: string }
 > {
   if (items.some((i) => !Number.isInteger(i.quantity) || i.quantity < 1 || i.quantity > MAX_QUANTITY)) {
@@ -78,6 +87,9 @@ export async function priceOrderItems<T extends PricedInput>(
         product_category: product.category,
         /** 今日の分が売り切れか（管理画面の売り切れ設定・仕込み数を使い切った自動の売り切れ） */
         product_sold_out: product.is_sold_out,
+        /** 販売休止（isPausedOn で、受け取り日・注文日に休止中か確かめる） */
+        product_paused: !!product.paused,
+        product_paused_until: product.paused_until ?? null,
         unit_price: container ? getSetSurcharge(container, product) : product.price,
       }
     }),
