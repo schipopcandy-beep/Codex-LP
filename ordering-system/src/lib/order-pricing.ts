@@ -26,7 +26,10 @@ interface PricedInput {
 export async function priceOrderItems<T extends PricedInput>(
   supabase: SupabaseClient,
   items: T[],
-): Promise<{ items: (T & { unit_price: number; product_name: string; product_category: string })[] } | { error: string }> {
+): Promise<
+  | { items: (T & { unit_price: number; product_name: string; product_category: string; product_sold_out: boolean })[] }
+  | { error: string }
+> {
   if (items.some((i) => !Number.isInteger(i.quantity) || i.quantity < 1 || i.quantity > MAX_QUANTITY)) {
     return { error: '個数が正しくありません' }
   }
@@ -73,6 +76,8 @@ export async function priceOrderItems<T extends PricedInput>(
         ...item,
         product_name: product.name,
         product_category: product.category,
+        /** 今日の分が売り切れか（管理画面の売り切れ設定・仕込み数を使い切った自動の売り切れ） */
+        product_sold_out: product.is_sold_out,
         unit_price: container ? getSetSurcharge(container, product) : product.price,
       }
     }),

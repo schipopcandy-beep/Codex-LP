@@ -56,6 +56,11 @@ export default function TakeoutUI({ lineUserId, lineDisplayName, seat, seatTable
   const [bentos, setBentos] = useState<CartPlate[]>([])
   /** おにぎりを選んでいるお弁当 */
   const [bentoSheet, setBentoSheet] = useState<Product | null>(null)
+  /**
+   * 今日の分が売り切れの商品（販売休止中のものは除く）
+   * テイクアウト予約では、明日以降の受け取りなら注文できる（夜中に売り切れが戻るため）
+   */
+  const [soldOutToday, setSoldOutToday] = useState<Set<string>>(new Set())
 
   const handlePickupSelect = useCallback((date: string, time: string) => {
     setPickupDate(date)
@@ -71,8 +76,25 @@ export default function TakeoutUI({ lineUserId, lineDisplayName, seat, seatTable
   )
   // お弁当は2日前までの予約のため、テイクアウト予約だけで扱う（席からのお持ち帰りでは出さない）
   const bentoProducts = isSeatOrder ? [] : products.filter(isBento)
-  /** お弁当があるときは、今日から BENTO_LEAD_DAYS 日後より前の日を選べない */
-  const minPickupDate = bentos.length > 0 ? addDays(todayJST(), BENTO_LEAD_DAYS) : null
+  /** 今日の分が売り切れの商品がカートにあるか（お弁当の中のおにぎりも含む） */
+  const hasSoldOutToday =
+    cartItems.some((item) => soldOutToday.has(item.product.id)) ||
+    bentos.some((b) => soldOutToday.has(b.product.id) || b.units.some((u) => soldOutToday.has(u.productId)))
+  /**
+   * 選べる一番早い受け取り日
+   * お弁当があれば今日から BENTO_LEAD_DAYS 日後、今日の分が売り切れの商品があれば明日から
+   */
+  const minPickupDate =
+    bentos.length > 0 ? addDays(todayJST(), BENTO_LEAD_DAYS) : hasSoldOutToday ? addDays(todayJST(), 1) : null
+  const pickupNote =
+    bentos.length > 0
+      ? `※ お弁当は${BENTO_LEAD_DAYS}日前までのご予約のため、${BENTO_LEAD_DAYS}日後以降の日を選べます`
+      : hasSoldOutToday
+        ? '※ 本日分が売り切れの商品があるため、明日以降の日を選べます'
+        : undefined
+  /** 今日の分が売り切れの商品に添える注意書き */
+  const noteOf = (product: Product) =>
+    soldOutToday.has(product.id) ? '本日分は売り切れ・明日以降のお受け取りで注文できます' : undefined
 
   const handleBentoAdd = useCallback((product: Product, units: LunchNigiriUnit[]) => {
     setBentos((prev) => [...prev, { id: `${Date.now()}-${prev.length}`, product, units }])
@@ -106,7 +128,19 @@ export default function TakeoutUI({ lineUserId, lineDisplayName, seat, seatTable
           seen.add(p.name)
           return true
         })
-        setProducts(unique)
+        // テイクアウト予約では、今日の分が売り切れの商品も選べるようにする（受け取り日を明日以降にする）
+        // 席からのお持ち帰りはその場で渡すので、売り切れのまま
+        if (isSeatOrder) {
+          setProducts(unique)
+        } else {
+          const ids = new Set(
+            unique
+              .filter((p) => p.is_sold_out && !(p as Product & { sales_paused_until?: string }).sales_paused_until)
+              .map((p) => p.id),
+          )
+          setSoldOutToday(ids)
+          setProducts(unique.map((p) => (ids.has(p.id) ? { ...p, is_sold_out: false } : p)))
+        }
         setLoading(false)
       })
       .catch(() => {
@@ -305,7 +339,8 @@ export default function TakeoutUI({ lineUserId, lineDisplayName, seat, seatTable
           <>
             {/* おすすめ（押すとそのままカートに入る） */}
             <RecommendedItem
-              products={products}
+              // おすすめは今日すぐ受け取れる商品から選ぶ
+              products={products.filter((p) => !soldOutToday.has(p.id))}
               optionSoldOut={optionSoldOut}
               getQuantity={(p, o) => quantityOf(p)(o)}
               onAdd={handleAdd}
@@ -323,6 +358,7 @@ export default function TakeoutUI({ lineUserId, lineDisplayName, seat, seatTable
                     onAdd={handleAdd}
                     onRemove={handleRemove}
                     optionSoldOut={optionSoldOut}
+                    note={noteOf(product)}
                   />
                 ))}
               </div>
@@ -343,6 +379,7 @@ export default function TakeoutUI({ lineUserId, lineDisplayName, seat, seatTable
                       getQuantity={() => bentos.filter((b) => b.product.id === product.id).length}
                       onAdd={() => setBentoSheet(product)}
                       onRemove={() => handleBentoRemove(product)}
+                      note={noteOf(product)}
                     />
                   ))}
                 </div>
@@ -361,6 +398,7 @@ export default function TakeoutUI({ lineUserId, lineDisplayName, seat, seatTable
                       getQuantity={quantityOf(product)}
                       onAdd={handleAdd}
                       onRemove={handleRemove}
+                      note={noteOf(product)}
                     />
                   ))}
                 </div>
@@ -386,6 +424,7 @@ export default function TakeoutUI({ lineUserId, lineDisplayName, seat, seatTable
         allProducts={products}
         onBentoDelete={handleBentoDelete}
         minPickupDate={minPickupDate}
+        pickupNote={pickupNote}
       />
 
       {bentoSheet && (

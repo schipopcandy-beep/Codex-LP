@@ -33,7 +33,11 @@ export async function GET(req: NextRequest) {
   if (raw) return NextResponse.json(unique)
 
   // 販売休止中の商品（期間限定で休む商品）は売り切れとして返す
-  const shown = unique.map((p) => (salesPausedUntil(p) ? { ...p, is_sold_out: true } : p))
+  // （テイクアウトで「明日以降なら注文できる」売り切れと区別できるよう、再開日も付ける）
+  const shown = unique.map((p) => {
+    const until = salesPausedUntil(p)
+    return until ? { ...p, is_sold_out: true, sales_paused_until: until } : p
+  })
 
   if (await isAllOnigiriSoldOut(createServiceRoleClient()).catch(() => false)) {
     return NextResponse.json(
