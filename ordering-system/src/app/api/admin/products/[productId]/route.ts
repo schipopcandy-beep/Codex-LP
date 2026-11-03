@@ -5,9 +5,30 @@ interface Params {
   params: Promise<{ productId: string }>
 }
 
+/**
+ * 管理用: 商品の売り切れ・販売休止を切り替える
+ * body: { is_sold_out } （今日の売り切れ。夜中に戻る）
+ *    または { paused, paused_until? } （販売休止。paused_until は再開日 YYYY-MM-DD、なければ再開日未定）
+ */
 export async function PATCH(req: NextRequest, { params }: Params) {
   const { productId } = await params
-  const body: { is_sold_out?: boolean } = await req.json()
+  const body: { is_sold_out?: boolean; paused?: boolean; paused_until?: string | null } = await req.json()
+
+  if (typeof body.paused === 'boolean') {
+    const until = body.paused && body.paused_until ? body.paused_until : null
+    if (until !== null && !/^\d{4}-\d{2}-\d{2}$/.test(until)) {
+      return NextResponse.json({ error: '再開日の形が正しくありません' }, { status: 400 })
+    }
+    const supabase = createServiceRoleClient()
+    const { data, error } = await supabase
+      .from('products')
+      .update({ paused: body.paused, paused_until: until, updated_at: new Date().toISOString() })
+      .eq('id', productId)
+      .select()
+      .single()
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+    return NextResponse.json(data)
+  }
 
   if (typeof body.is_sold_out !== 'boolean') {
     return NextResponse.json({ error: 'is_sold_out は boolean 必須です' }, { status: 400 })

@@ -13,6 +13,8 @@ import {
   storageUrl,
   isLunchPlate,
   isBento,
+  isPausedToday,
+  formatScheduleDate,
   BENTO_LEAD_DAYS,
   DRINK_CATEGORY,
   TAKEOUT_TABLE_ID,
@@ -57,10 +59,11 @@ export default function TakeoutUI({ lineUserId, lineDisplayName, seat, seatTable
   /** おにぎりを選んでいるお弁当 */
   const [bentoSheet, setBentoSheet] = useState<Product | null>(null)
   /**
-   * 今日の分が売り切れの商品（販売休止中のものは除く）
-   * テイクアウト予約では、明日以降の受け取りなら注文できる（夜中に売り切れが戻るため）
+   * 今日は注文できないが、先の日の受け取りなら注文できる商品 → 受け取れる一番早い日（YYYY-MM-DD）
+   * - 今日の分が売り切れ: 明日（夜中に売り切れが戻るため）
+   * - 販売休止中で再開日が決まっている: 再開日（再開日が未定のものは選べないまま）
    */
-  const [soldOutToday, setSoldOutToday] = useState<Set<string>>(new Set())
+  const [laterFrom, setLaterFrom] = useState<Map<string, string>>(new Map())
 
   const handlePickupSelect = useCallback((date: string, time: string) => {
     setPickupDate(date)
@@ -76,25 +79,32 @@ export default function TakeoutUI({ lineUserId, lineDisplayName, seat, seatTable
   )
   // お弁当は2日前までの予約のため、テイクアウト予約だけで扱う（席からのお持ち帰りでは出さない）
   const bentoProducts = isSeatOrder ? [] : products.filter(isBento)
-  /** 今日の分が売り切れの商品がカートにあるか（お弁当の中のおにぎりも含む） */
-  const hasSoldOutToday =
-    cartItems.some((item) => soldOutToday.has(item.product.id)) ||
-    bentos.some((b) => soldOutToday.has(b.product.id) || b.units.some((u) => soldOutToday.has(u.productId)))
-  /**
-   * 選べる一番早い受け取り日
-   * お弁当があれば今日から BENTO_LEAD_DAYS 日後、今日の分が売り切れの商品があれば明日から
-   */
-  const minPickupDate =
-    bentos.length > 0 ? addDays(todayJST(), BENTO_LEAD_DAYS) : hasSoldOutToday ? addDays(todayJST(), 1) : null
-  const pickupNote =
-    bentos.length > 0
+  /** カートの商品（お弁当の中のおにぎりも含む）のうち、受け取れる一番早い日がいちばん遅いもの */
+  const cartLaterFrom = [
+    ...cartItems.map((item) => laterFrom.get(item.product.id)),
+    ...bentos.flatMap((b) => [laterFrom.get(b.product.id), ...b.units.map((u) => laterFrom.get(u.productId))]),
+  ]
+    .filter((d): d is string => !!d)
+    .sort()
+    .at(-1)
+  const bentoFrom = bentos.length > 0 ? addDays(todayJST(), BENTO_LEAD_DAYS) : undefined
+  /** 選べる一番早い受け取り日（お弁当は BENTO_LEAD_DAYS 日後から、売り切れ・販売休止の商品はその日から） */
+  const minPickupDate = [bentoFrom, cartLaterFrom].filter((d): d is string => !!d).sort().at(-1) ?? null
+  const pickupNote = !minPickupDate
+    ? undefined
+    : minPickupDate === bentoFrom
       ? `※ お弁当は${BENTO_LEAD_DAYS}日前までのご予約のため、${BENTO_LEAD_DAYS}日後以降の日を選べます`
-      : hasSoldOutToday
+      : minPickupDate === addDays(todayJST(), 1)
         ? '※ 本日分が売り切れの商品があるため、明日以降の日を選べます'
-        : undefined
-  /** 今日の分が売り切れの商品に添える注意書き */
-  const noteOf = (product: Product) =>
-    soldOutToday.has(product.id) ? '本日分は売り切れ・明日以降のお受け取りで注文できます' : undefined
+        : `※ ${formatScheduleDate(minPickupDate)}から販売を再開する商品があるため、その日以降を選べます`
+  /** 今日は注文できない商品に添える注意書き */
+  const noteOf = (product: Product) => {
+    const from = laterFrom.get(product.id)
+    if (!from) return undefined
+    return from === addDays(todayJST(), 1)
+      ? '本日分は売り切れ・明日以降のお受け取りで注文できます'
+      : `${formatScheduleDate(from)}から販売再開・それ以降のお受け取りで注文できます`
+  }
 
   const handleBentoAdd = useCallback((product: Product, units: LunchNigiriUnit[]) => {
     setBentos((prev) => [...prev, { id: `${Date.now()}-${prev.length}`, product, units }])
@@ -128,18 +138,23 @@ export default function TakeoutUI({ lineUserId, lineDisplayName, seat, seatTable
           seen.add(p.name)
           return true
         })
-        // テイクアウト予約では、今日の分が売り切れの商品も選べるようにする（受け取り日を明日以降にする）
+        // テイクアウト予約では、今日は注文できない商品も、受け取れる日以降なら選べるようにする
         // 席からのお持ち帰りはその場で渡すので、売り切れのまま
         if (isSeatOrder) {
           setProducts(unique)
         } else {
-          const ids = new Set(
-            unique
-              .filter((p) => p.is_sold_out && !(p as Product & { sales_paused_until?: string }).sales_paused_until)
-              .map((p) => p.id),
-          )
-          setSoldOutToday(ids)
-          setProducts(unique.map((p) => (ids.has(p.id) ? { ...p, is_sold_out: false } : p)))
+          const tomorrow = addDays(todayJST(), 1)
+          const later = new Map<string, string>()
+          for (const p of unique) {
+            if (isPausedToday(p)) {
+              // 再開日が未定なら選べないまま
+              if (p.paused_until) later.set(p.id, p.paused_until > tomorrow ? p.paused_until : tomorrow)
+            } else if (p.is_sold_out) {
+              later.set(p.id, tomorrow)
+            }
+          }
+          setLaterFrom(later)
+          setProducts(unique.map((p) => (later.has(p.id) ? { ...p, is_sold_out: false } : p)))
         }
         setLoading(false)
       })
@@ -340,7 +355,7 @@ export default function TakeoutUI({ lineUserId, lineDisplayName, seat, seatTable
             {/* おすすめ（押すとそのままカートに入る） */}
             <RecommendedItem
               // おすすめは今日すぐ受け取れる商品から選ぶ
-              products={products.filter((p) => !soldOutToday.has(p.id))}
+              products={products.filter((p) => !laterFrom.has(p.id))}
               optionSoldOut={optionSoldOut}
               getQuantity={(p, o) => quantityOf(p)(o)}
               onAdd={handleAdd}

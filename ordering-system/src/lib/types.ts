@@ -266,16 +266,17 @@ export const LUNCH_PLATE_2_NAME = 'ランチプレート（おにぎり2個）'
 
 /** ランチプレート商品かどうか */
 /**
- * 期間を決めて販売を休む商品（until の日から販売再開。日本時間）
- * 夜中の売り切れリセットで戻らないよう、売り切れの設定とは別に持つ。終わったものは消してよい
+ * その日（YYYY-MM-DD、日本時間）に販売休止中か
+ * 販売休止は管理画面の「売り切れ」で設定する（products.paused・paused_until）。
+ * 夜中の売り切れリセットでは戻らない。再開日（paused_until）の日から自動で販売を再開する（再開日なし＝未定）
  */
-export const SALES_PAUSES: { productName: string; until: string }[] = []
+export function isPausedOn(product: { paused?: boolean | null; paused_until?: string | null }, date: string): boolean {
+  return !!product.paused && (!product.paused_until || date < product.paused_until)
+}
 
-/** 販売休止中なら再開日（YYYY-MM-DD）を返す。休止していなければ null */
-export function salesPausedUntil(product: { name: string }, now: Date = new Date()): string | null {
-  const today = new Date(now.getTime() + 9 * 60 * 60 * 1000).toISOString().slice(0, 10)
-  const pause = SALES_PAUSES.find((p) => p.productName === product.name && today < p.until)
-  return pause ? pause.until : null
+/** 今日（日本時間）販売休止中か */
+export function isPausedToday(product: { paused?: boolean | null; paused_until?: string | null }): boolean {
+  return isPausedOn(product, new Date(Date.now() + 9 * 60 * 60 * 1000).toISOString().slice(0, 10))
 }
 
 /** おかずパック（ランチプレートと合わせて仕込み数を数える） */
@@ -431,6 +432,10 @@ export interface Product {
   sort_order: number
   is_sold_out: boolean
   topping_available: boolean
+  /** 販売休止中か（長期で休むとき。夜中の売り切れリセットでは戻らない） */
+  paused?: boolean
+  /** 販売を再開する日（YYYY-MM-DD）。null なら再開日未定 */
+  paused_until?: string | null
 }
 
 /**

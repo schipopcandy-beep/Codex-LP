@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient, createServiceRoleClient } from '@/lib/supabase/server'
 import { isAllOnigiriSoldOut } from '@/lib/stock'
-import { NIGIRI_CATEGORY, isNigiriSet, salesPausedUntil, type Product } from '@/lib/types'
+import { NIGIRI_CATEGORY, isNigiriSet, isPausedToday, type Product } from '@/lib/types'
 
 /**
  * 商品一覧
@@ -32,12 +32,8 @@ export async function GET(req: NextRequest) {
 
   if (raw) return NextResponse.json(unique)
 
-  // 販売休止中の商品（期間限定で休む商品）は売り切れとして返す
-  // （テイクアウトで「明日以降なら注文できる」売り切れと区別できるよう、再開日も付ける）
-  const shown = unique.map((p) => {
-    const until = salesPausedUntil(p)
-    return until ? { ...p, is_sold_out: true, sales_paused_until: until } : p
-  })
+  // 販売休止中の商品は売り切れとして返す（paused・paused_until はそのまま返すので、テイクアウトでは再開日以降の予約にできる）
+  const shown = unique.map((p) => (isPausedToday(p as Product) ? { ...p, is_sold_out: true } : p))
 
   if (await isAllOnigiriSoldOut(createServiceRoleClient()).catch(() => false)) {
     return NextResponse.json(
