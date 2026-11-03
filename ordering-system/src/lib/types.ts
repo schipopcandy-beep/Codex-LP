@@ -97,8 +97,11 @@ export function orderShortId(orderId: string): string {
     .toString().padStart(4, '0')
 }
 
-/** 限定おにぎりの商品名（DBの name と一致させること） */
-export const LIMITED_ONIGIRI_NAME = '限定おにぎり'
+/**
+ * 限定おにぎりの商品名（DBの name と一致させること）
+ * 入れ替えたときは、新しい名前を先頭に足す（名前を変えるSQLを実行するまでの間も、追加料金が付くように古い名前も残す）
+ */
+export const LIMITED_ONIGIRI_NAMES = ['麻辣そぼろ卵黄', '限定おにぎり']
 
 /** おにぎりのカテゴリ名（DBの category と一致させること） */
 export const NIGIRI_CATEGORY = 'おにぎり'
@@ -266,9 +269,7 @@ export const LUNCH_PLATE_2_NAME = 'ランチプレート（おにぎり2個）'
  * 期間を決めて販売を休む商品（until の日から販売再開。日本時間）
  * 夜中の売り切れリセットで戻らないよう、売り切れの設定とは別に持つ。終わったものは消してよい
  */
-export const SALES_PAUSES: { productName: string; until: string }[] = [
-  { productName: '限定おにぎり', until: '2026-11-01' },
-]
+export const SALES_PAUSES: { productName: string; until: string }[] = []
 
 /** 販売休止中なら再開日（YYYY-MM-DD）を返す。休止していなければ null */
 export function salesPausedUntil(product: { name: string }, now: Date = new Date()): string | null {
@@ -366,13 +367,13 @@ export interface LunchNigiriUnit {
 
 /**
  * ランチプレート選択時のおにぎり追加料金
- * しゃけ筋子: +300円 / 筋子: +200円 / 限定おにぎり: +200円 /
+ * しゃけ筋子: +300円 / 筋子: +200円 / 限定おにぎり（LIMITED_ONIGIRI_NAMES）: +200円 /
  * 450円以上: +50円 / その他: 0円
  */
 export function getLunchPlateSurcharge(product: Product): number {
   if (product.name === 'しゃけ筋子') return 300
   if (product.name.includes('筋子')) return 200   // 筋子・極み筋子など
-  if (product.name === LIMITED_ONIGIRI_NAME) return 200
+  if (LIMITED_ONIGIRI_NAMES.includes(product.name)) return 200
   if (product.price >= 450) return 50
   return 0
 }
