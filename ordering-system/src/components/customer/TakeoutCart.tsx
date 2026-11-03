@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import type { CartItem, CartPlate, Product } from '@/lib/types'
-import { BENTO_LEAD_DAYS, TAKEOUT_LEAD_MINUTES, calcCartTotal, calcPlatePrice, optionLabel, optionPrice } from '@/lib/types'
+import { TAKEOUT_LEAD_MINUTES, calcCartTotal, calcPlatePrice, optionLabel, optionPrice } from '@/lib/types'
 import TonjiruSuggestion from '@/components/customer/TonjiruSuggestion'
 import PickupDateTimePicker from '@/components/customer/PickupDateTimePicker'
 
@@ -29,8 +29,10 @@ interface Props {
   allProducts?: Product[]
   /** カートからお弁当を削除 */
   onBentoDelete?: (bento: CartPlate) => void
-  /** これより前の受け取り日は選べない（お弁当があるとき） */
+  /** これより前の受け取り日は選べない（お弁当・本日売り切れの商品があるとき） */
   minPickupDate?: string | null
+  /** 受取日時の注意書き（選べる日が限られる理由。なければ当日の受け取りの案内） */
+  pickupNote?: string
 }
 
 export default function TakeoutCart({
@@ -49,6 +51,7 @@ export default function TakeoutCart({
   allProducts = [],
   onBentoDelete,
   minPickupDate,
+  pickupNote,
 }: Props) {
   const [isOpen, setIsOpen] = useState(false)
   const [confirmed, setConfirmed] = useState(false)
@@ -222,9 +225,7 @@ export default function TakeoutCart({
               <div className={`border-t border-cream-300 pt-4 ${isSeatOrder ? 'hidden' : ''}`}>
                 <p className="font-bold text-brown-700 mb-1">受取日時を選択</p>
                 <p className="text-xs text-brown-400 mb-3">
-                  {bentos.length > 0
-                    ? `※ お弁当は${BENTO_LEAD_DAYS}日前までのご予約のため、${BENTO_LEAD_DAYS}日後以降の日を選べます`
-                    : `※ 本日のお受け取りは、注文から${TAKEOUT_LEAD_MINUTES}分後以降の時間を選べます`}
+                  {pickupNote ?? `※ 本日のお受け取りは、注文から${TAKEOUT_LEAD_MINUTES}分後以降の時間を選べます`}
                 </p>
                 <PickupDateTimePicker
                   selectedDate={pickupDate}

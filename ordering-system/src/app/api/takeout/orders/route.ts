@@ -112,6 +112,18 @@ export async function POST(req: NextRequest) {
   if ('error' in priced) return NextResponse.json({ error: priced.error }, { status: 400 })
   const items = priced.items
 
+  // 今日の分が売り切れの商品は、今日の受け取りでは受け付けない（明日以降の受け取りなら注文できる）
+  // 店頭での入力は、その場の判断を優先して確認しない
+  if (!staff_entry && table_id === TAKEOUT_TABLE_ID && (!pickup_at || pickup_at.startsWith(todayJST()))) {
+    const soldOut = [...new Set(items.filter((item) => item.product_sold_out).map((item) => item.product_name))]
+    if (soldOut.length > 0) {
+      return NextResponse.json(
+        { error: `${soldOut.map((n) => `「${n}」`).join('')}は本日分が売り切れです。明日以降の受け取り日をお選びください。` },
+        { status: 400 },
+      )
+    }
+  }
+
   // お弁当は受け取り日の BENTO_LEAD_DAYS 日前までの予約（今日から BENTO_LEAD_DAYS 日後から受け取れる）
   if (items.some((item) => isBento({ category: item.product_category }))) {
     const pickupDate = pickup_at?.split(' ')[0]

@@ -27,6 +27,8 @@ interface Props {
   onRemove: (product: Product, options: NigiriOptions) => void
   /** オプションの売り切れ状態 */
   optionSoldOut?: OptionSoldOut
+  /** 値段の下に出す注意書き（例: 本日分は売り切れ・明日以降のお受け取りで注文できます） */
+  note?: string
 }
 
 /** オプションの組み合わせ（内訳の表示順） */
@@ -41,6 +43,7 @@ export default function ProductCard({
   onAdd,
   onRemove,
   optionSoldOut = NO_OPTION_SOLD_OUT,
+  note,
 }: Props) {
   const isSoldOut = product.is_sold_out
   const hasOptions = isToppingSelectable(product) && !isSoldOut
@@ -145,6 +148,7 @@ export default function ProductCard({
           {/* ランチプレート・お弁当は、選ぶおにぎりによって追加料金がかかるため「〜」を付ける */}
           {isNigiriSet(product) && '~'}
         </p>
+        {note && <p className="text-xs font-bold text-amber-700 leading-snug">{note}</p>}
 
         {/* オプション（追加する前から選べる） */}
         {hasOptions && (
