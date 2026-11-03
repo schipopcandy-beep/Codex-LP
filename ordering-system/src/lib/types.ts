@@ -101,7 +101,7 @@ export function orderShortId(orderId: string): string {
  * 限定おにぎりの商品名（DBの name と一致させること）
  * 入れ替えたときは、新しい名前を先頭に足す（名前を変えるSQLを実行するまでの間も、追加料金が付くように古い名前も残す）
  */
-export const LIMITED_ONIGIRI_NAMES = ['麻辣そぼろ卵黄', '限定おにぎり']
+export const LIMITED_ONIGIRI_NAMES = ['【期間限定】麻辣そぼろ卵黄', '麻辣そぼろ卵黄', '限定おにぎり']
 
 /** おにぎりのカテゴリ名（DBの category と一致させること） */
 export const NIGIRI_CATEGORY = 'おにぎり'
