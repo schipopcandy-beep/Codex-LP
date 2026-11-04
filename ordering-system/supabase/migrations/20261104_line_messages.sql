@@ -1,0 +1,9 @@
+-- 2026-11-04 来店後のLINEメッセージを管理画面から設定し、システム（毎日11時の定時処理）から送る
+--
+-- 実行方法: Supabase ダッシュボード → SQL Editor に貼り付けて Run
+-- 何度実行しても同じ結果になる書き方にしている
+--
+-- line_message_rules: 送るメッセージの設定（来店から days_after 日後に送る）
+--   enabled_from: 送るようにした日。この日より後に送る予定の分から送る（切り替えた日に二重に送らないため）
+-- line_message_logs: 送った記録（同じ来店日の分は1回だけ送る）
+CREATE TABLE IF NOT EXISTS line_message_rules (key TEXT PRIMARY KEY, name TEXT NOT NULL, enabled BOOLEAN NOT NULL DEFAULT false, days_after INTEGER NOT NULL CHECK (days_after BETWEEN 1 AND 365), text TEXT NOT NULL, image_url TEXT, preview_url TEXT, enabled_from DATE, sort_order INTEGER NOT NULL DEFAULT 0, updated_at TIMESTAMPTZ NOT NULL DEFAULT now()); CREATE TABLE IF NOT EXISTS line_message_logs (id UUID PRIMARY KEY DEFAULT gen_random_uuid(), rule_key TEXT NOT NULL, line_user_id TEXT NOT NULL, visit_date DATE NOT NULL, ok BOOLEAN NOT NULL, sent_at TIMESTAMPTZ NOT NULL DEFAULT now(), UNIQUE (rule_key, line_user_id, visit_date)); CREATE INDEX IF NOT EXISTS idx_line_message_logs_sent_at ON line_message_logs (sent_at); ALTER TABLE line_message_rules ENABLE ROW LEVEL SECURITY; ALTER TABLE line_message_logs ENABLE ROW LEVEL SECURITY; INSERT INTO line_message_rules (key, name, days_after, text, sort_order) VALUES ('thanks', '来店のお礼', 7, E'先日は織はやにご来店いただきありがとうございました😊\nまたのご来店をお待ちしております！\n\n下のメニューからテイクアウト予約もできます🍙\nお持ち帰りの際は、ぜひご利用ください。', 1) ON CONFLICT (key) DO NOTHING; INSERT INTO line_message_rules (key, name, days_after, text, image_url, preview_url, sort_order) VALUES ('comeback', 'しばらく来店がないお客様へ', 30, E'お久しぶりです！期間限定メニューのご紹介です！\nまたご来店お待ちしております😊', 'https://wgjfwjourukgtxpkuaup.supabase.co/storage/v1/object/public/product-images/shinshomhin_compressed.jpg', 'https://wgjfwjourukgtxpkuaup.supabase.co/storage/v1/object/public/product-images/shinshomhin_compressed.jpg', 2) ON CONFLICT (key) DO NOTHING;

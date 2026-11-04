@@ -20,8 +20,8 @@
  *   exportVisitLog()         - 来店記録シートを更新
  *   exportSalesAnalysis()    - 売上分析シートを更新（天気・競合・イベント付き）
  *   exportSalesForecast()    - 売上予測シートを更新（今後1か月）
- *   sendWeeklyFollowUp()     - 7日前来店者にLINEメッセージ送信（毎日トリガー推奨）
- *   setupFollowUpTrigger()   - sendWeeklyFollowUp を毎日11時台に自動実行する設定（初回に1度だけ実行）
+ *   sendWeeklyFollowUp()     - （使わない）来店後のLINEメッセージは管理画面「LINEメッセージ」から送る
+ *   setupFollowUpTrigger()   - （使わない）実行するとシステムと二重に送ってしまう
  *   setupRefreshTrigger()    - refreshAll を毎日9時台に自動実行する設定・古い自動実行の削除（初回に1度だけ実行）
  */
 
@@ -410,8 +410,12 @@ function refreshAll() {
 // すでにある refreshAll の自動実行は作り直し、このスクリプトにない関数の自動実行（古い版の残り）は消す。
 // ※シートに載るのは「会計済み」の注文のみ
 
-/** 自動実行してよい関数（これ以外の自動実行は古い版の残りとして消す） */
-const TRIGGER_FUNCTIONS = ['refreshAll', 'sendWeeklyFollowUp']
+/**
+ * 自動実行してよい関数（これ以外の自動実行は古い版の残りとして消す）
+ * 来店後のLINEメッセージは、注文システムの管理画面「LINEメッセージ」から送るようになったため、
+ * sendWeeklyFollowUp は自動実行しない（setupRefreshTrigger を実行すると、その自動実行も消える）
+ */
+const TRIGGER_FUNCTIONS = ['refreshAll']
 
 function setupRefreshTrigger() {
   for (const trigger of ScriptApp.getProjectTriggers()) {
@@ -996,6 +1000,8 @@ function sendWeeklyFollowUp() {
 }
 
 // ─── 来店後メッセージの自動実行を設定する ─────────────────────────
+// ※ 使わない: 来店後のLINEメッセージは、注文システムの管理画面「LINEメッセージ」から送る。
+//   これを実行すると、システムと二重に送ってしまう。
 // 初回に1度だけ手動で実行する。毎日11時台に sendWeeklyFollowUp が動くようになる。
 // 何度実行しても、トリガーが重複しないよう作り直す。
 
