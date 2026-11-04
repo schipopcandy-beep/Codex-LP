@@ -65,6 +65,52 @@ export async function sendLineMessage(lineUserId: string, text: string): Promise
 }
 
 /**
+ * メッセージ（文章・画像など。最大5つ）をまとめて1人に送る。送れたら true
+ * 1回にまとめて送れば、吹き出しがいくつでも送信数は1通と数える
+ */
+export async function pushLineMessages(lineUserId: string, messages: unknown[]): Promise<boolean> {
+  const token = process.env.LINE_CHANNEL_ACCESS_TOKEN
+  if (!token) {
+    console.error('LINE送信スキップ: LINE_CHANNEL_ACCESS_TOKEN が未設定です')
+    return false
+  }
+  try {
+    const res = await fetch(LINE_API, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ to: lineUserId, messages }),
+    })
+    if (!res.ok) {
+      console.error(`LINE送信失敗 status=${res.status} body=${await res.text().catch(() => '')}`)
+      return false
+    }
+    return true
+  } catch (err) {
+    console.error('LINE送信失敗:', err)
+    return false
+  }
+}
+
+/** 今月の送信数と上限（上限なしなら limit は null）。取れなければ null */
+export async function getMessageQuota(): Promise<{ used: number; limit: number | null } | null> {
+  const token = process.env.LINE_CHANNEL_ACCESS_TOKEN
+  if (!token) return null
+  try {
+    const headers = { Authorization: `Bearer ${token}` }
+    const [quotaRes, usageRes] = await Promise.all([
+      fetch('https://api.line.me/v2/bot/message/quota', { headers }),
+      fetch('https://api.line.me/v2/bot/message/quota/consumption', { headers }),
+    ])
+    if (!quotaRes.ok || !usageRes.ok) return null
+    const quota = (await quotaRes.json()) as { type: string; value?: number }
+    const usage = (await usageRes.json()) as { totalUsage: number }
+    return { used: usage.totalUsage, limit: quota.type === 'limited' ? quota.value ?? null : null }
+  } catch {
+    return null
+  }
+}
+
+/**
  * お店のLINEの友だちか（ブロックされていないか）
  * プロフィールが取れれば友だち。取れない（404）なら、友だちでないかブロックされている。
  * トークンがない・LINEの障害など確かめられないときは null（注文を止めないため、呼ぶ側で通す）
