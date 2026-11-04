@@ -1,12 +1,8 @@
 {
   "crons": [
     {
-      "path": "/api/admin/weather",
-      "schedule": "0 0 * * *"
-    },
-    {
-      "path": "/api/admin/weather",
-      "schedule": "0 12 * * *"
+      "path": "/api/cron/morning",
+      "schedule": "0 2 * * *"
     },
     {
       "path": "/api/cron/reset-sold-out",
