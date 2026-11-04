@@ -42,16 +42,15 @@ Vercel で動かしたまま Cloud Run を用意し、動作を確認してか�
 
 ## ④ 定期実行（Vercel Cron の代わり）
 
-Cloud Scheduler で 3 つ作る（無料は 3 ジョブまで）。タイムゾーンは「日本標準時」。
+Cloud Scheduler で 2 つ作る（無料は請求先アカウントごとに 3 ジョブまで）。タイムゾーンは「日本標準時」。
 
-| 名前 | 頻度（JST） | URL | メソッド |
-|---|---|---|---|
-| weather-morning | `0 9 * * *` | `https://<Cloud Run のURL>/api/admin/weather` | GET |
-| weather-night | `0 21 * * *` | `https://<Cloud Run のURL>/api/admin/weather` | GET |
-| reset-sold-out | `0 0 * * *` | `https://<Cloud Run のURL>/api/cron/reset-sold-out` | GET |
+| 名前 | 頻度（JST） | URL | メソッド | やること |
+|---|---|---|---|---|
+| morning | `0 11 * * *` | `https://<Cloud Run のURL>/api/cron/morning` | GET | 天気の記録（来店後メッセージもここに入れる予定） |
+| reset-sold-out | `0 0 * * *` | `https://<Cloud Run のURL>/api/cron/reset-sold-out` | GET | 売り切れを販売中に戻す |
 
-3 つとも、HTTP ヘッダーに `Authorization: Bearer <CRON_SECRET と同じ値>` を付ける
-（`/api/admin/...` は管理画面のログインが必要なため、定期実行はこのヘッダーで通す）。
+2 つとも、HTTP ヘッダーに `Authorization: Bearer <CRON_SECRET と同じ値>` を付ける。
+11時にやることを増やすときは、ジョブを増やさず `/api/cron/morning` に足す。
 
 ## ⑤ 動作確認（Cloud Run の URL で）
 
