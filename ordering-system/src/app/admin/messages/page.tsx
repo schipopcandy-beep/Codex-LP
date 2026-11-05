@@ -23,6 +23,7 @@ interface Rule {
 }
 
 interface Draft {
+  name: string
   days_after: string
   /** 空欄なら制限なし */
   min_interval_days: string
@@ -32,6 +33,7 @@ interface Draft {
 }
 
 const draftOf = (r: Rule): Draft => ({
+  name: r.name,
   days_after: String(r.days_after),
   min_interval_days: r.min_interval_days ? String(r.min_interval_days) : '',
   text: r.text,
@@ -108,6 +110,7 @@ export default function LineMessagesPage() {
     setBusy(rule.key)
     try {
       await patch(rule.key, {
+        name: draft.name,
         days_after: Number(draft.days_after),
         min_interval_days: draft.min_interval_days.trim() === '' ? null : Number(draft.min_interval_days),
         text: draft.text,
@@ -117,6 +120,42 @@ export default function LineMessagesPage() {
       await load()
       setSaved(rule.key)
       setTimeout(() => setSaved(null), 2000)
+    } catch (e) {
+      alert((e as Error).message)
+    }
+    setBusy(null)
+  }
+
+  /** メッセージを追加する（最初は送らない状態で、下に増える） */
+  const add = async () => {
+    setBusy('add')
+    try {
+      const res = await fetch('/api/admin/messages', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({}),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error(data.error ?? '追加できませんでした')
+      await load()
+    } catch (e) {
+      alert((e as Error).message)
+    }
+    setBusy(null)
+  }
+
+  /** メッセージを削除する（送った記録は残る） */
+  const remove = async (rule: Rule) => {
+    const ok = await confirm(`「${rule.name}」を削除しますか？\nこのメッセージは送られなくなります（これまでに送った記録は残ります）`, {
+      confirmLabel: '削除する',
+      danger: true,
+    })
+    if (!ok) return
+    setBusy(rule.key)
+    try {
+      const res = await fetch(`/api/admin/messages/${rule.key}`, { method: 'DELETE' })
+      if (!res.ok) throw new Error('削除できませんでした')
+      await load()
     } catch (e) {
       alert((e as Error).message)
     }
@@ -180,6 +219,7 @@ export default function LineMessagesPage() {
       {rules.map((rule) => {
         const draft = drafts.get(rule.key) ?? draftOf(rule)
         const changed =
+          draft.name !== rule.name ||
           draft.days_after !== String(rule.days_after) ||
           draft.min_interval_days !== (rule.min_interval_days ? String(rule.min_interval_days) : '') ||
           draft.text !== rule.text ||
@@ -189,7 +229,14 @@ export default function LineMessagesPage() {
           <section key={rule.key} className={`card p-4 space-y-3 ${rule.enabled ? 'border-2 border-matcha-500' : ''}`}>
             <div className="flex items-start justify-between gap-3">
               <div>
-                <h2 className="font-bold text-lg text-brown-800">{rule.name}</h2>
+                <input
+                  type="text"
+                  value={draft.name}
+                  maxLength={40}
+                  onChange={(e) => setDraft(rule.key, { name: e.target.value })}
+                  aria-label="メッセージの名前"
+                  className="w-full font-bold text-lg text-brown-800 bg-transparent border-b border-dashed border-cream-300 focus:border-brown-400 outline-none"
+                />
                 <p className="text-xs text-brown-500">
                   {rule.enabled
                     ? `送っています（明日の予定 ${rule.upcoming ?? 0}人・直近30日 ${rule.sent30}通${rule.failed30 > 0 ? `・送れなかった ${rule.failed30}件` : ''}）`
@@ -302,10 +349,29 @@ export default function LineMessagesPage() {
               </button>
               {changed && <span className="text-xs text-amber-700 font-bold">保存していない変更があります</span>}
               {saved === rule.key && <span className="text-sm text-matcha-600 font-bold">保存しました</span>}
+              <button
+                type="button"
+                onClick={() => remove(rule)}
+                disabled={ruleBusy}
+                className="ml-auto text-xs text-red-500 underline underline-offset-2 disabled:opacity-40"
+              >
+                削除
+              </button>
             </div>
           </section>
         )
       })}
+
+      {!loading && !error && (
+        <button
+          type="button"
+          onClick={add}
+          disabled={busy === 'add'}
+          className="w-full py-3 rounded-xl border-2 border-dashed border-brown-300 text-brown-600 font-bold disabled:opacity-50"
+        >
+          {busy === 'add' ? '追加中...' : '＋ メッセージを追加'}
+        </button>
+      )}
       {confirmDialog}
     </div>
   )
