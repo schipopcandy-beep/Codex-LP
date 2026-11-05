@@ -72,11 +72,11 @@ export default function LineContactButton({ order }: { order: Order }) {
         }}
         className="px-3 py-1.5 rounded-lg bg-[#06C755] text-white text-sm font-bold active:opacity-80"
       >
-        💬 LINEで連絡
+        LINEで連絡
       </button>
       {messages.map((m) => (
         <p key={m.id} className={`text-xs ${m.ok ? 'text-matcha-700' : 'text-red-600'}`}>
-          💬 {timeOf(m.created_at)} {m.ok ? '送信済み' : '送れませんでした'}
+          {timeOf(m.created_at)} {m.ok ? '送信済み' : '送れませんでした'}
         </p>
       ))}
 

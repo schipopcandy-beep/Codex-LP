@@ -372,7 +372,7 @@ export default function SoldOutAdminPage() {
                 className="object-cover w-full h-full"
               />
             ) : (
-              <div className="w-full h-full flex items-center justify-center text-2xl">🍙</div>
+              <div className="w-full h-full flex items-center justify-center text-[10px] text-brown-300">no image</div>
             )}
           </div>
           <div className="flex-1 min-w-0">
@@ -429,7 +429,7 @@ export default function SoldOutAdminPage() {
 
       {loading ? (
         <div className="text-center py-16">
-          <div className="text-5xl animate-bounce">🍙</div>
+          <p className="text-brown-400">読み込み中...</p>
         </div>
       ) : (
         <>
