@@ -202,7 +202,7 @@ export default function AdminDashboard() {
     <div className="p-4 md:p-6">
       {soundEnabled && !audioReady && (
         <p className="mb-3 text-sm text-brown-500 bg-cream-100 border border-cream-300 rounded-xl px-3 py-2">
-          🔔 画面をどこか一度タッチすると、新しい注文の通知音が鳴るようになります
+          画面をどこか一度タッチすると、新しい注文の通知音が鳴るようになります
         </p>
       )}
 
@@ -246,8 +246,7 @@ export default function AdminDashboard() {
             className={`text-sm font-medium flex items-center gap-1 ${soundEnabled ? 'text-matcha-600' : 'text-brown-400'}`}
             title={soundEnabled ? '通知音ON（クリックでOFF）' : '通知音OFF（クリックでON）'}
           >
-            {soundEnabled ? '🔔' : '🔕'}
-            <span className="hidden md:inline">{soundEnabled ? 'ON' : 'OFF'}</span>
+            {soundEnabled ? '通知音ON' : '通知音OFF'}
           </button>
         </div>
       </div>

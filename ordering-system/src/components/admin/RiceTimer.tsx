@@ -136,7 +136,6 @@ export default function RiceTimer() {
       } ${alarming ? 'animate-pulse' : ''}`}
     >
       <div className="flex items-center gap-3">
-        <span className="text-2xl">🍚</span>
         <div>
           <p className="text-sm font-bold text-brown-700">ご飯炊きタイマー</p>
           {finished ? (

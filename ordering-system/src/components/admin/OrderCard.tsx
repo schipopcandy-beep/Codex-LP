@@ -88,7 +88,7 @@ export default function OrderCard({ order, showStatus = false }: Props) {
               {tableName}
               {onigiriCount > 0 && (
                 <span className="text-base font-bold text-brown-700 bg-amber-100 border border-amber-300 px-2 py-0.5 rounded-full">
-                  🍙 {onigiriCount}個
+                  おにぎり {onigiriCount}個
                 </span>
               )}
             </p>

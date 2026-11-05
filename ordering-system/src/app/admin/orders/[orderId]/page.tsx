@@ -97,7 +97,7 @@ export default function OrderDetailPage({ params }: Props) {
   if (loading) {
     return (
       <div className="flex items-center justify-center py-20">
-        <div className="text-5xl animate-bounce">🍙</div>
+        <p className="text-brown-400">読み込み中...</p>
       </div>
     )
   }
@@ -179,7 +179,7 @@ export default function OrderDetailPage({ params }: Props) {
             {tableName}
             {onigiriCount > 0 && (
               <span className="font-sans text-base font-bold text-brown-700 bg-amber-100 border border-amber-300 px-2 py-0.5 rounded-full">
-                🍙 {onigiriCount}個
+                おにぎり {onigiriCount}個
               </span>
             )}
           </h1>

@@ -37,12 +37,13 @@ interface AnalyticsData {
   day_context: Record<string, DayCtx>
 }
 
-const WEATHER_EMOJI: Record<string, string> = {
-  Clear: '☀️', Clouds: '☁️', Rain: '🌧️', Drizzle: '🌦️',
-  Snow: '❄️', Thunderstorm: '⛈️', Mist: '🌫️', Fog: '🌫️', Haze: '🌫️',
+/** 天気の短い表記（管理画面では絵文字を使わない） */
+const WEATHER_LABEL: Record<string, string> = {
+  Clear: '晴', Clouds: '曇', Rain: '雨', Drizzle: '小雨',
+  Snow: '雪', Thunderstorm: '雷', Mist: '霧', Fog: '霧', Haze: '霞',
 }
-function weatherEmoji(main: string | null): string {
-  return main ? (WEATHER_EMOJI[main] ?? '🌤️') : '—'
+function weatherLabel(main: string | null): string {
+  return main ? (WEATHER_LABEL[main] ?? '他') : '—'
 }
 function pctChange(curr: number, prev: number): number | null {
   if (prev === 0) return null
@@ -170,12 +171,12 @@ export default function AnalyticsPage() {
                     <div key={entry.period} className="flex items-center gap-2">
                       <span className="text-xs text-brown-500 w-12 shrink-0 text-right tabular-nums">{entry.period}</span>
                       {range !== 'today' && (
-                        <span className="text-sm w-6 shrink-0 text-center" title={w?.weather_desc ?? ''}>{weatherEmoji(w?.weather_main ?? null)}</span>
+                        <span className="text-sm w-6 shrink-0 text-center" title={w?.weather_desc ?? ''}>{weatherLabel(w?.weather_main ?? null)}</span>
                       )}
                       {/* イベント・競合マーカー */}
                       <span className="w-8 shrink-0 flex gap-0.5">
-                        {ctx?.event_count > 0 && <span title={ctx.event_names.join(', ')} className="text-xs">🎪</span>}
-                        {ctx?.reduced_competition && <span title="競合店休業" className="text-xs">🏪</span>}
+                        {ctx?.event_count > 0 && <span title={ctx.event_names.join(', ')} className="text-xs font-bold text-amber-600">催</span>}
+                        {ctx?.reduced_competition && <span title="競合店休業" className="text-xs font-bold text-red-500">休</span>}
                       </span>
                       <div className="flex-1 bg-cream-200 rounded-full h-6 overflow-hidden">
                         <div
@@ -307,7 +308,7 @@ function DayCell({ day, onClick }: { day: CalendarDay; onClick: (day: CalendarDa
       {/* 日付 + 天気 */}
       <div className="flex items-center justify-between">
         <span className={`text-xs font-bold leading-none ${dateColor}`}>{dateNum}</span>
-        {weather && <span className="text-[11px] leading-none">{weatherEmoji(weather.main)}</span>}
+        {weather && <span className="text-[11px] leading-none">{weatherLabel(weather.main)}</span>}
       </div>
 
       {/* 売上 */}
@@ -401,7 +402,7 @@ function DayDetailModal({ day, onClose }: { day: CalendarDay; onClose: () => voi
             <div className="flex items-center justify-between">
               <span className="text-sm text-brown-500">{day.weather_actual ? '天気（実績）' : '天気（予報）'}</span>
               <span className="font-bold text-brown-700">
-                {weatherEmoji(weather.main)} {weather.desc ?? weather.main}
+                {weatherLabel(weather.main)} {weather.desc ?? weather.main}
                 {weather.temp_max !== null && weather.temp_min !== null && (
                   <span className="ml-1 text-sm font-normal text-brown-500">
                     {weather.temp_max}°/{weather.temp_min}°
@@ -581,10 +582,10 @@ function CalendarView() {
 function WeatherCard({ weather }: { weather: WeatherEntry | null }) {
   return (
     <div className="card p-4 border border-blue-100 bg-blue-50">
-      <h2 className="font-bold text-blue-700 mb-2 text-sm">🌤️ 仙台の天気（今日）</h2>
+      <h2 className="font-bold text-blue-700 mb-2 text-sm">仙台の天気（今日）</h2>
       {weather ? (
         <div className="flex items-center gap-4">
-          <span className="text-3xl">{weatherEmoji(weather.weather_main)}</span>
+          <span className="text-3xl">{weatherLabel(weather.weather_main)}</span>
           <div>
             <p className="text-sm font-bold text-blue-800">{weather.weather_desc ?? weather.weather_main}</p>
             <p className="text-xs text-blue-600 tabular-nums">
@@ -606,7 +607,7 @@ function CompetitorStatusCard({ competitors }: { competitors: CompetitorEntry[] 
   return (
     <div className="card p-4 border border-orange-100 bg-orange-50">
       <div className="flex items-center justify-between mb-3">
-        <h2 className="font-bold text-orange-700 text-sm">🏪 近隣おにぎり屋の状況</h2>
+        <h2 className="font-bold text-orange-700 text-sm">近隣おにぎり屋の状況</h2>
         <span className="text-xs text-orange-600 tabular-nums">{openCount}/{competitors.length}店営業中</span>
       </div>
       <div className="space-y-1.5">
@@ -638,7 +639,7 @@ function SoldoutSection({ logs }: { logs: SoldoutEntry[] }) {
         <div className="space-y-1.5">
           {logs.map((entry) => (
             <div key={`${entry.product_id}-${entry.sold_out_at}`} className="flex items-center gap-3">
-              <span className="text-red-500">🚫</span>
+              <span className="text-red-500 font-bold">×</span>
               <span className="text-sm text-brown-800 flex-1">{entry.product_name}</span>
               <span className="text-sm font-bold tabular-nums text-red-600">{entry.time}</span>
             </div>
@@ -683,7 +684,7 @@ function WeatherCorrelation({ data }: { data: WeatherCorrEntry[] }) {
           const barWidth = Math.round((entry.avg_revenue / maxRev) * 100)
           return (
             <div key={entry.weather_main} className="flex items-center gap-2">
-              <span className="text-base w-6 shrink-0 text-center">{weatherEmoji(entry.weather_main)}</span>
+              <span className="text-base w-6 shrink-0 text-center">{weatherLabel(entry.weather_main)}</span>
               <span className="text-xs text-brown-600 w-14 shrink-0 truncate">{entry.label}</span>
               <div className="flex-1 bg-cream-200 rounded-full h-5 overflow-hidden">
                 <div className="h-full bg-sky-400 rounded-full transition-all duration-500" style={{ width: `${Math.max(barWidth, 2)}%` }} />
@@ -705,12 +706,11 @@ function EventsSection({ events }: { events: EventEntry[] }) {
       <div className="space-y-2.5">
         {events.map((e) => (
           <div key={e.id} className="flex items-start gap-2">
-            <span className="text-base shrink-0 mt-0.5">🎪</span>
             <div className="flex-1 min-w-0">
               <p className="text-sm font-bold text-brown-800">{e.name}</p>
               <p className="text-xs text-brown-500">
                 {e.date}{e.end_date && e.end_date !== e.date ? ` 〜 ${e.end_date}` : ''}
-                {e.location && <span className="ml-1">📍{e.location}</span>}
+                {e.location && <span className="ml-1">（{e.location}）</span>}
               </p>
             </div>
             <span className="text-amber-400 text-xs shrink-0">{'★'.repeat(e.scale)}</span>
@@ -731,7 +731,7 @@ function WeatherHistory({ weather }: { weather: WeatherEntry[] }) {
           return (
             <div key={w.date} className="flex items-center gap-3 text-sm">
               <span className="text-brown-500 w-10 tabular-nums shrink-0">{`${parseInt(m)}/${parseInt(d)}`}</span>
-              <span className="text-base w-6 shrink-0">{weatherEmoji(w.weather_main)}</span>
+              <span className="text-base w-6 shrink-0">{weatherLabel(w.weather_main)}</span>
               <span className="text-brown-600 flex-1 truncate">{w.weather_desc ?? w.weather_main ?? '—'}</span>
               <span className="text-brown-500 tabular-nums shrink-0 text-xs">
                 {w.temp_max != null ? `${Math.round(w.temp_max)}°` : '—'}/{w.temp_min != null ? `${Math.round(w.temp_min)}°` : '—'}

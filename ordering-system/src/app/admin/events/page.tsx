@@ -305,12 +305,11 @@ function EventRow({
 
   return (
     <div className="flex items-start gap-3">
-      <span className="text-xl shrink-0 mt-0.5">🎪</span>
       <div className="flex-1 min-w-0">
         <p className="font-bold text-brown-800 text-sm">{event.name}</p>
         <p className="text-xs text-brown-500 mt-0.5">
           {dateLabel}
-          {event.location && <span className="ml-2">📍{event.location}</span>}
+          {event.location && <span className="ml-2">（{event.location}）</span>}
         </p>
         {event.note && <p className="text-xs text-brown-400 mt-0.5 leading-relaxed">{event.note}</p>}
       </div>
