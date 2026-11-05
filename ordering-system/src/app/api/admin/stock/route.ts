@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServiceRoleClient } from '@/lib/supabase/server'
 import { todayJST } from '@/lib/business-hours'
-import { getStockStatus, syncAutoSoldOut } from '@/lib/stock'
+import { getOrderedCounts, getStockStatus, syncAutoSoldOut } from '@/lib/stock'
 
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/
 
@@ -20,11 +20,15 @@ const STOCK_KEY_RE = /^(product:[0-9a-f-]{36}|group:(lunch_plate|all_onigiri)|op
 
 /**
  * 管理用: 仕込み数を登録・変更する
- * body: { date, stock_key, prepared_qty }（prepared_qty が null なら数の管理をやめる）
+ * body: { date, stock_key, prepared_qty } または { date, stock_key, remaining_qty }
+ * - prepared_qty: その日全体の数
+ * - remaining_qty: 「あと何個で売り切れ」。今の注文数を足して、その日全体の数にして保存する
+ * どちらも null なら数の管理をやめる
  * stock_key は "product:<商品ID>"・"group:lunch_plate"・"option:egg_yolk" など
  */
 export async function PUT(req: NextRequest) {
-  const body: { date?: string; stock_key?: string; prepared_qty?: number | null } = await req.json()
+  const body: { date?: string; stock_key?: string; prepared_qty?: number | null; remaining_qty?: number | null } =
+    await req.json()
   const date = body.date ?? todayJST()
   const stockKey = body.stock_key ?? ''
   if (!DATE_RE.test(date) || !STOCK_KEY_RE.test(stockKey)) {
@@ -32,6 +36,16 @@ export async function PUT(req: NextRequest) {
   }
 
   const supabase = createServiceRoleClient()
+
+  // 「あと何個で売り切れ」で受け取ったときは、今の注文数を足す
+  if (body.remaining_qty != null) {
+    const remaining = Number(body.remaining_qty)
+    if (!Number.isInteger(remaining) || remaining < 0) {
+      return NextResponse.json({ error: '売り切れまでの数は0以上の整数で入力してください' }, { status: 400 })
+    }
+    const ordered = (await getOrderedCounts(supabase, date)).get(stockKey) ?? 0
+    body.prepared_qty = remaining + ordered
+  }
 
   if (body.prepared_qty == null) {
     const { error } = await supabase
