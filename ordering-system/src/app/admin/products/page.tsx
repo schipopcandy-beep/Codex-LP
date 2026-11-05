@@ -102,15 +102,19 @@ export default function SoldOutAdminPage() {
     fetchStock()
   }, [fetchStock])
 
-  /** 仕込み数を保存する（空欄にすると数の管理をやめる） */
+  /**
+   * 「売り切れまで（あと何個で売り切れ）」を保存する（空欄にすると数の管理をやめる）
+   * サーバーで今の注文数を足して、その日全体の数（仕込み数）として保存する
+   */
   const savePrepared = async (stockKey: StockKey) => {
     const draft = drafts.get(stockKey)
     if (draft === undefined) return
     const trimmed = draft.trim()
-    const current = stock.get(stockKey)?.prepared_qty
+    const st = stock.get(stockKey)
+    const current = st ? Math.max(0, st.remaining) : undefined
     const next = trimmed === '' ? null : Number(trimmed)
     if (next !== null && (!Number.isInteger(next) || next < 0)) {
-      alert('仕込み数は0以上の整数で入力してください')
+      alert('売り切れまでの数は0以上の整数で入力してください')
       return
     }
     if (next === (current ?? null)) {
@@ -126,7 +130,7 @@ export default function SoldOutAdminPage() {
     const res = await fetch('/api/admin/stock', {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ date: jstDate(stockDay), stock_key: stockKey, prepared_qty: next }),
+      body: JSON.stringify({ date: jstDate(stockDay), stock_key: stockKey, remaining_qty: next }),
     })
     if (res.ok) {
       await Promise.all([fetchStock(), fetchAll()])
@@ -307,11 +311,12 @@ export default function SoldOutAdminPage() {
 
   // 入力欄があるため、コンポーネントではなく関数で描画する（入力中に欄が作り直されないように）
 
-  /** 仕込み数の入力欄と、注文数・残り数 */
+  /** 「売り切れまで（あと何個で売り切れ）」の入力欄と、注文数 */
   const renderPrepInput = (stockKey: StockKey) => {
     const st = stock.get(stockKey)
     const draft = drafts.get(stockKey)
-    const inputValue = draft ?? (st ? String(st.prepared_qty) : '')
+    // 注文が入るたびに減っていく（入れる数も「今からあと何個」）
+    const inputValue = draft ?? (st ? String(Math.max(0, st.remaining)) : '')
     const inputId = `prep-${stockKey}`
     const remainingClass =
       st == null
@@ -325,7 +330,7 @@ export default function SoldOutAdminPage() {
     return (
       <div className="flex items-center gap-2 text-sm">
         <label className="text-brown-500 whitespace-nowrap" htmlFor={inputId}>
-          仕込み数
+          売り切れまで
         </label>
         <input
           id={inputId}
@@ -345,7 +350,8 @@ export default function SoldOutAdminPage() {
         <span className="text-brown-400">個</span>
         {st && (
           <span className={`ml-auto font-bold tabular-nums ${remainingClass}`}>
-            注文 {st.ordered_qty}・残り {Math.max(0, st.remaining)}
+            {st.remaining <= 0 ? '売り切れ' : st.remaining <= LOW_STOCK_THRESHOLD ? 'もうすぐ売り切れ' : ''}
+            <span className="ml-1 text-xs font-normal text-brown-400">（注文 {st.ordered_qty}個）</span>
           </span>
         )}
       </div>
@@ -380,7 +386,7 @@ export default function SoldOutAdminPage() {
           />
         </div>
         {isInLunchStockGroup(product) ? (
-          <p className="text-xs text-brown-400">仕込み数は「ランチプレート・おかずパック（合計）」で入力します</p>
+          <p className="text-xs text-brown-400">売り切れまでの数は「ランチプレート・おかずパック（合計）」で入力します</p>
         ) : (
           renderPrepInput(productStockKey(product.id))
         )}
@@ -398,8 +404,8 @@ export default function SoldOutAdminPage() {
         </div>
         <div className="card p-3 text-sm text-brown-600 space-y-2">
           <p>
-            <span className="font-bold">仕込み数</span>
-            を入れた商品は、注文された数から残りを計算し、0になると自動で売り切れになります。空欄にすると数を管理しません。
+            <span className="font-bold">売り切れまで</span>
+            に「あと何個で売り切れにするか」を入れると、注文が入るたびに数が減り、0になると自動で売り切れになります。空欄にすると数を管理しません。
             テイクアウトは受け取り日の分として数えます。
           </p>
           <div className="flex gap-2">
@@ -414,7 +420,7 @@ export default function SoldOutAdminPage() {
                     : 'bg-white text-brown-600 border-cream-300'
                 }`}
               >
-                {d === 0 ? '今日の仕込み数' : '明日の仕込み数'}
+                {d === 0 ? '今日の分' : '明日の分'}
               </button>
             ))}
           </div>
@@ -432,7 +438,7 @@ export default function SoldOutAdminPage() {
             <div>
               <h2 className="font-bold text-lg text-brown-800">おにぎり（全体）</h2>
               <p className="text-xs text-brown-400">
-                あと何個作れるかを入れます。単品とランチプレートの中のおにぎりを合わせて数え、残りが0になると、おにぎりとランチプレートがすべて売り切れになります（仕込み数を増やすか空欄にすると元に戻ります）
+                あと何個作れるかを入れます。単品とランチプレートの中のおにぎりを合わせて数え、0になると、おにぎりとランチプレートがすべて売り切れになります（数を増やすか空欄にすると元に戻ります）
               </p>
             </div>
             {renderPrepInput(ALL_ONIGIRI_STOCK_KEY)}
@@ -493,7 +499,7 @@ export default function SoldOutAdminPage() {
                       onClick={() => toggleOption(key)}
                     />
                   </div>
-                  {/* 数に限りがある漬け卵黄だけ、仕込み数を入れられる */}
+                  {/* 数に限りがある漬け卵黄だけ、売り切れまでの数を入れられる */}
                   {key === 'egg_yolk' && renderPrepInput(optionStockKey(key))}
                 </div>
               ))}
