@@ -11,12 +11,13 @@ const MAX_TEXT = 2000
 
 /**
  * 管理用: 来店後のLINEメッセージの設定を保存する
- * body: { enabled?, days_after?, min_interval_days?, text?, image_url?, preview_url? }
+ * body: { name?, enabled?, days_after?, min_interval_days?, text?, image_url?, preview_url? }
  * 送らない→送るにしたときは、その日を enabled_from にする（その日より後に送る予定の分から送る）
  */
 export async function PATCH(req: NextRequest, { params }: Params) {
   const { key } = await params
   const body: {
+    name?: string
     enabled?: boolean
     days_after?: number
     min_interval_days?: number | null
@@ -30,6 +31,11 @@ export async function PATCH(req: NextRequest, { params }: Params) {
   if (!current) return NextResponse.json({ error: 'メッセージが見つかりません' }, { status: 404 })
 
   const updates: Record<string, unknown> = { updated_at: new Date().toISOString() }
+  if (body.name !== undefined) {
+    const name = String(body.name).trim().slice(0, 40)
+    if (!name) return NextResponse.json({ error: 'メッセージの名前を入れてください' }, { status: 400 })
+    updates.name = name
+  }
   if (typeof body.enabled === 'boolean') {
     updates.enabled = body.enabled
     if (body.enabled && !current.enabled) updates.enabled_from = todayJST()
@@ -65,4 +71,13 @@ export async function PATCH(req: NextRequest, { params }: Params) {
   const { data, error } = await supabase.from('line_message_rules').update(updates).eq('key', key).select().single()
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
   return NextResponse.json(data)
+}
+
+/** 管理用: メッセージを削除する（送った記録は残す） */
+export async function DELETE(_req: NextRequest, { params }: Params) {
+  const { key } = await params
+  const supabase = createServiceRoleClient()
+  const { error } = await supabase.from('line_message_rules').delete().eq('key', key)
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  return NextResponse.json({ ok: true })
 }
