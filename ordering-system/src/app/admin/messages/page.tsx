@@ -13,6 +13,8 @@ interface Rule {
   image_url: string | null
   preview_url: string | null
   enabled_from: string | null
+  /** 送ってからこの日数のあいだは、同じ人に送らない（null なら制限なし） */
+  min_interval_days?: number | null
   /** 明日の11時に送る予定の人数（目安。送らない設定なら null） */
   upcoming: number | null
   /** 直近30日に送れた数・送れなかった数 */
@@ -22,6 +24,8 @@ interface Rule {
 
 interface Draft {
   days_after: string
+  /** 空欄なら制限なし */
+  min_interval_days: string
   text: string
   image_url: string | null
   preview_url: string | null
@@ -29,6 +33,7 @@ interface Draft {
 
 const draftOf = (r: Rule): Draft => ({
   days_after: String(r.days_after),
+  min_interval_days: r.min_interval_days ? String(r.min_interval_days) : '',
   text: r.text,
   image_url: r.image_url,
   preview_url: r.preview_url,
@@ -104,6 +109,7 @@ export default function LineMessagesPage() {
     try {
       await patch(rule.key, {
         days_after: Number(draft.days_after),
+        min_interval_days: draft.min_interval_days.trim() === '' ? null : Number(draft.min_interval_days),
         text: draft.text,
         image_url: draft.image_url,
         preview_url: draft.preview_url,
@@ -175,6 +181,7 @@ export default function LineMessagesPage() {
         const draft = drafts.get(rule.key) ?? draftOf(rule)
         const changed =
           draft.days_after !== String(rule.days_after) ||
+          draft.min_interval_days !== (rule.min_interval_days ? String(rule.min_interval_days) : '') ||
           draft.text !== rule.text ||
           draft.image_url !== rule.image_url
         const ruleBusy = busy === rule.key
@@ -216,6 +223,25 @@ export default function LineMessagesPage() {
               />
               日後に送る
             </label>
+
+            <div className="text-sm text-brown-700 space-y-1">
+              <label className="flex items-center gap-2 flex-wrap">
+                同じ人には
+                <input
+                  type="number"
+                  min={1}
+                  max={365}
+                  value={draft.min_interval_days}
+                  placeholder="空欄"
+                  onChange={(e) => setDraft(rule.key, { min_interval_days: e.target.value })}
+                  className="w-20 rounded-lg border border-cream-300 bg-white px-2 py-1 text-right tabular-nums"
+                />
+                日以内に2回送らない
+              </label>
+              <p className="text-xs text-brown-400">
+                このメッセージを送ってからこの日数のあいだは、また来店しても送りません（送りすぎ防止）。空欄なら毎回送ります
+              </p>
+            </div>
 
             <label className="block">
               <span className="block text-sm font-semibold text-brown-600 mb-1">メッセージ</span>

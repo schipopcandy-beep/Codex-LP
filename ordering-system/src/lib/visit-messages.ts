@@ -10,6 +10,7 @@ import { TAKEOUT_TABLE_ID } from '@/lib/types'
  * - お客様ごとの「最後の来店日」から days_after 日後に、1回だけ送る（同じ来店日の分は二度送らない）
  * - 定時処理が止まった日があっても送り漏れないよう、CATCH_UP_DAYS 日前の予定分までさかのぼる
  * - 送るようにした日（enabled_from）より後に送る予定の分から送る（GASからの切り替えで二重に送らないため）
+ * - min_interval_days があれば、そのメッセージを送ってからその日数のあいだは、同じ人に送らない（送りすぎ防止）
  */
 
 export interface MessageRule {
@@ -21,6 +22,8 @@ export interface MessageRule {
   image_url: string | null
   preview_url: string | null
   enabled_from: string | null
+  /** 送ってからこの日数のあいだは、同じ人に送らない（null なら制限なし） */
+  min_interval_days?: number | null
   sort_order: number
   updated_at: string
 }
@@ -100,6 +103,22 @@ async function sentKeys(supabase: SupabaseClient, ruleKey: string, userIds: stri
   return keys
 }
 
+/** since 以降にこのメッセージを送れた（送り済みの）人 */
+async function recentlySent(supabase: SupabaseClient, ruleKey: string, userIds: string[], since: string): Promise<Set<string>> {
+  const users = new Set<string>()
+  for (let i = 0; i < userIds.length; i += 200) {
+    const { data } = await supabase
+      .from('line_message_logs')
+      .select('line_user_id')
+      .eq('rule_key', ruleKey)
+      .eq('ok', true)
+      .gte('sent_at', since)
+      .in('line_user_id', userIds.slice(i, i + 200))
+    for (const row of (data ?? []) as { line_user_id: string }[]) users.add(row.line_user_id)
+  }
+  return users
+}
+
 /** LINEで送る吹き出し（文章、画像があれば画像も） */
 export function buildMessages(rule: Pick<MessageRule, 'text' | 'image_url' | 'preview_url'>): unknown[] {
   const messages: unknown[] = [{ type: 'text', text: rule.text }]
@@ -133,7 +152,16 @@ export async function sendVisitMessages(
   for (const rule of rules) {
     const due = dueTargets(rule, visits, today)
     const done = await sentKeys(supabase, rule.key, due.map((t) => t.userId))
-    const targets = due.filter((t) => !done.has(`${t.userId}__${t.visitDate}`))
+    // 送りすぎ防止: min_interval_days 日以内にこのメッセージを送った人には送らない
+    const recent = rule.min_interval_days
+      ? await recentlySent(
+          supabase,
+          rule.key,
+          due.map((t) => t.userId),
+          new Date(`${addDays(today, -rule.min_interval_days)}T11:00:00+09:00`).toISOString(),
+        )
+      : new Set<string>()
+    const targets = due.filter((t) => !done.has(`${t.userId}__${t.visitDate}`) && !recent.has(t.userId))
     const result: RuleResult = { key: rule.key, name: rule.name, targets: targets.length, sent: 0, failed: 0, skipped: 0 }
 
     if (!dryRun) {
