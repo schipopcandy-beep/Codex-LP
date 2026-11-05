@@ -11,7 +11,7 @@ const MAX_TEXT = 2000
 
 /**
  * 管理用: 来店後のLINEメッセージの設定を保存する
- * body: { enabled?, days_after?, text?, image_url?, preview_url? }
+ * body: { enabled?, days_after?, min_interval_days?, text?, image_url?, preview_url? }
  * 送らない→送るにしたときは、その日を enabled_from にする（その日より後に送る予定の分から送る）
  */
 export async function PATCH(req: NextRequest, { params }: Params) {
@@ -19,6 +19,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
   const body: {
     enabled?: boolean
     days_after?: number
+    min_interval_days?: number | null
     text?: string
     image_url?: string | null
     preview_url?: string | null
@@ -38,6 +39,13 @@ export async function PATCH(req: NextRequest, { params }: Params) {
       return NextResponse.json({ error: '何日後に送るかは、1〜365の数字で入れてください' }, { status: 400 })
     }
     updates.days_after = body.days_after
+  }
+  if (body.min_interval_days !== undefined) {
+    const v = body.min_interval_days
+    if (v !== null && (!Number.isInteger(v) || v < 1 || v > 365)) {
+      return NextResponse.json({ error: '送らない日数は、1〜365の数字か空欄にしてください' }, { status: 400 })
+    }
+    updates.min_interval_days = v
   }
   if (body.text !== undefined) {
     const text = String(body.text).trim()
