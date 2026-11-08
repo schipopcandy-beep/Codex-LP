@@ -663,6 +663,26 @@ export interface CartPlate {
   units: LunchNigiriUnit[]
 }
 
+/**
+ * 店内のランチタイムに、メニューの上に出すランチプレートのおすすめ
+ * （ランチプレート（おにぎり2個）に入れるおにぎり。売り切れなどで作れないときは、単品のおすすめを出す）
+ */
+export const LUNCH_PLATE_RECOMMENDATION = {
+  plateName: LUNCH_PLATE_2_NAME,
+  title: 'ランチプレート（おにぎり2個）',
+  units: [
+    { productName: 'ルーロー', options: { tororo: false, eggYolk: true, large: false } },
+    { productName: 'しゃけ筋子', options: { tororo: false, eggYolk: false, large: false } },
+  ],
+}
+
+/** テイクアウトの定番セット（メニューの上に出し、まとめてカートに入れる） */
+export const TAKEOUT_SET = {
+  title: '定番セット',
+  productNames: ['焼しゃけ', 'ツナマヨ', 'おにぎり屋の豚汁'],
+  catchCopy: 'テイクアウトで人気の2品に、あたたかい豚汁を合わせて',
+}
+
 /** ランチプレート・お弁当1つの金額（本体の価格＋おにぎりの種類ごとの追加料金＋トッピング） */
 export function calcPlatePrice(plate: CartPlate, products: Product[]): number {
   return (

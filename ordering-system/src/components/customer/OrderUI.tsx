@@ -9,6 +9,7 @@ import type { DinerAssignment } from '@/components/customer/DinerSplitPopup'
 import Cart from '@/components/customer/Cart'
 import LunchPlateSheet from '@/components/customer/LunchPlateSheet'
 import RecommendedItem from '@/components/customer/RecommendedItem'
+import RecommendedSet from '@/components/customer/RecommendedSet'
 import type {
   Product,
   CartItem,
@@ -36,7 +37,20 @@ import {
   TAKEOUT_ONLY_CATEGORY,
   isHiddenFromMenu,
   optionsOfItem,
+  LUNCH_PLATE_RECOMMENDATION,
+  calcPlatePrice,
+  isComboSoldOut,
+  optionLabel,
+  optionColumns,
 } from '@/lib/types'
+
+/** 同じおにぎり・トッピングの組み合わせか（並び順も同じ） */
+const sameUnits = (a: LunchNigiriUnit[], b: LunchNigiriUnit[]) =>
+  a.length === b.length &&
+  a.every(
+    (u, i) =>
+      u.productId === b[i].productId && u.tororo === b[i].tororo && !!u.eggYolk === !!b[i].eggYolk && !!u.large === !!b[i].large,
+  )
 
 interface Props {
   tableId: string
@@ -205,6 +219,26 @@ export default function OrderUI({ tableId, lineUserId, partySize, buildCompleteH
   const handlePlateDelete = useCallback((plate: CartPlate) => {
     setPlates((prev) => prev.filter((p) => p.id !== plate.id))
   }, [])
+
+  /**
+   * 店内のランチタイムに出す、ランチプレートのおすすめ（LUNCH_PLATE_RECOMMENDATION）
+   * プレート・中のおにぎり・トッピングのどれかが売り切れなら null（単品のおすすめを出す）
+   */
+  const lunchRecommendation = (() => {
+    if (!isLunchTime || !plateOrderable || isTakeoutMode) return null
+    const plate = products.find((p) => p.name === LUNCH_PLATE_RECOMMENDATION.plateName)
+    if (!plate || plate.is_sold_out) return null
+    const units: LunchNigiriUnit[] = []
+    const names: string[] = []
+    for (const u of LUNCH_PLATE_RECOMMENDATION.units) {
+      const product = products.find((p) => p.name === u.productName)
+      if (!product || product.is_sold_out || isComboSoldOut(u.options, optionSoldOut)) return null
+      units.push({ productId: product.id, tororo: u.options.tororo, eggYolk: u.options.eggYolk, large: u.options.large })
+      const label = optionLabel(optionColumns(u.options))
+      names.push(label ? `${product.name}（${label}）` : product.name)
+    }
+    return { plate, units, detail: names.join('・'), price: calcPlatePrice({ id: 'recommend', product: plate, units }, products) }
+  })()
 
   /** メニューのカードに出す、選んでいるモードでの注文数 */
   const quantityOf = (product: Product) => (options: NigiriOptions) =>
@@ -441,7 +475,19 @@ export default function OrderUI({ tableId, lineUserId, partySize, buildCompleteH
           </div>
         ) : (() => {
           // メニューの一番上に出すおすすめ（押すとそのままカートに入る）
-          const recommendedSection = (
+          // 店内のランチタイムは、ランチプレート（おにぎり2個）のおすすめ。作れないときは単品のおすすめ
+          const recommendedSection = lunchRecommendation ? (
+            <RecommendedSet
+              key="recommended"
+              label="ランチのおすすめ"
+              title={lunchRecommendation.plate.name}
+              detail={lunchRecommendation.detail}
+              imageUrl={lunchRecommendation.plate.image_url}
+              price={lunchRecommendation.price}
+              quantity={plates.filter((p) => p.product.id === lunchRecommendation.plate.id && sameUnits(p.units, lunchRecommendation.units)).length}
+              onAdd={() => handlePlateAdd(lunchRecommendation.plate, lunchRecommendation.units)}
+            />
+          ) : (
             <RecommendedItem
               key="recommended"
               products={products}
