@@ -159,7 +159,7 @@ export default function LunchPlateSelector({
                         />
                         {o.label}（+¥{o.price}）{o.soldOut && ' 売り切れ'}
                         {o.key === 'eggYolk' && !o.soldOut && (
-                          <span className="inline-block rounded-full bg-red-500 px-1.5 py-px text-[10px] font-bold text-white">おすすめ</span>
+                          <span className="inline-block rounded-full bg-orange-400 px-1.5 py-px text-[10px] font-bold text-white">おすすめ</span>
                         )}
                       </label>
                     )
