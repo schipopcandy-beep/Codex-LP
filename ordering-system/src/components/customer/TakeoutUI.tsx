@@ -6,6 +6,7 @@ import Image from 'next/image'
 import ProductCard from '@/components/customer/ProductCard'
 import TakeoutCart from '@/components/customer/TakeoutCart'
 import RecommendedItem from '@/components/customer/RecommendedItem'
+import RecommendedSet from '@/components/customer/RecommendedSet'
 import LunchPlateSheet from '@/components/customer/LunchPlateSheet'
 import type { Product, CartItem, CartPlate, LunchNigiriUnit, NigiriOptions, OptionSoldOut } from '@/lib/types'
 import { addDays, todayJST } from '@/lib/business-hours'
@@ -13,6 +14,7 @@ import {
   storageUrl,
   isLunchPlate,
   isBento,
+  TAKEOUT_SET,
   isPausedToday,
   formatScheduleDate,
   BENTO_LEAD_DAYS,
@@ -125,6 +127,23 @@ export default function TakeoutUI({ lineUserId, lineDisplayName, seat, seatTable
   /** メニューのカードに出す、オプションの組み合わせごとの注文数 */
   const quantityOf = (product: Product) => (options: NigiriOptions) =>
     cartMap.get(cartKey(product.id, options))?.quantity ?? 0
+
+  /**
+   * テイクアウトの定番セット（TAKEOUT_SET）。今日受け取れない商品が入っていれば出さない
+   * 押すと、それぞれの商品をカートに1つずつ入れる
+   */
+  const takeoutSet = (() => {
+    const items = TAKEOUT_SET.productNames.map((name) => products.find((p) => p.name === name))
+    if (items.some((p) => !p || p.is_sold_out || laterFrom.has(p.id))) return null
+    const list = items as Product[]
+    return {
+      items: list,
+      detail: list.map((p) => p.name).join('・'),
+      price: list.reduce((sum, p) => sum + p.price, 0),
+      // カートに入っているセットの数（中身のうち、いちばん少ない数）
+      quantity: Math.min(...list.map((p) => quantityOf(p)(NO_OPTIONS))),
+    }
+  })()
 
   useEffect(() => {
     fetch('/api/products')
@@ -352,6 +371,20 @@ export default function TakeoutUI({ lineUserId, lineDisplayName, seat, seatTable
           </div>
         ) : (
           <>
+            {/* 定番セット（押すと中身をまとめてカートに入れる） */}
+            {takeoutSet && (
+              <RecommendedSet
+                label="定番セット"
+                title={TAKEOUT_SET.title}
+                detail={takeoutSet.detail}
+                catchCopy={TAKEOUT_SET.catchCopy}
+                imageUrl={takeoutSet.items[0].image_url}
+                price={takeoutSet.price}
+                quantity={takeoutSet.quantity}
+                onAdd={() => takeoutSet.items.forEach((p) => handleAdd(p, NO_OPTIONS))}
+              />
+            )}
+
             {/* おすすめ（押すとそのままカートに入る） */}
             <RecommendedItem
               // おすすめは今日すぐ受け取れる商品から選ぶ

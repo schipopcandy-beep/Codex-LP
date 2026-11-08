@@ -6,7 +6,7 @@ import { NO_OPTION_SOLD_OUT, isComboSoldOut, optionColumns, optionPrice } from '
 
 /**
  * おすすめメニュー（上から順に、売り切れでない最初の1つを出す）。変えるときはここを書き換える
- * 例: 漬け卵黄が売り切れたら、大満足120%のほうをおすすめする
+ * ルーローか漬け卵黄が売り切れたら、辛子明太子＋とろろ昆布をおすすめする
  */
 export const RECOMMENDATIONS: {
   productName: string
@@ -22,9 +22,10 @@ export const RECOMMENDATIONS: {
     catchCopy: '台湾の人気グルメ ルーローに、とろっと濃厚な漬け卵黄をトッピング',
   },
   {
-    productName: 'ルーロー',
-    options: { tororo: false, eggYolk: false, large: true },
-    title: 'ルーロー＋大満足120%おにぎり',
+    productName: '辛子明太子',
+    options: { tororo: true, eggYolk: false, large: false },
+    title: 'めんたいこ＋とろろ昆布',
+    catchCopy: 'ピリッとやみつきの明太子を、風味豊かなとろろ昆布で',
   },
 ]
 

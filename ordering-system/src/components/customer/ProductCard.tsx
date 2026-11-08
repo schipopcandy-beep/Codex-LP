@@ -76,12 +76,15 @@ export default function ProductCard({
     available,
     label,
     price,
+    recommended = false,
   }: {
     checked: boolean
     onChange: (v: boolean) => void
     available: boolean
     label: string
     price: number
+    /** 「おすすめ」の印を付ける */
+    recommended?: boolean
   }) => (
     <label
       className={`flex items-center gap-2 text-sm select-none ${
@@ -98,6 +101,9 @@ export default function ProductCard({
       <span>
         {label}
         <span className={`ml-1 font-bold ${available ? 'text-amber-700' : ''}`}>+¥{price}</span>
+        {recommended && available && (
+          <span className="ml-1 inline-block rounded-full bg-red-500 px-1.5 py-px text-[10px] font-bold text-white align-[1px]">おすすめ</span>
+        )}
         {!available && <span className="ml-1 text-xs">売り切れ</span>}
       </span>
     </label>
@@ -173,6 +179,7 @@ export default function ProductCard({
               onChange={setEggYolkChecked}
               available={eggYolkAvailable}
               label={EGG_YOLK_CHANGE_LABEL}
+              recommended
               price={EGG_YOLK_PRICE}
             />
           </div>
