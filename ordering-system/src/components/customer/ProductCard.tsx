@@ -102,7 +102,7 @@ export default function ProductCard({
         {label}
         <span className={`ml-1 font-bold ${available ? 'text-amber-700' : ''}`}>+¥{price}</span>
         {recommended && available && (
-          <span className="ml-1 inline-block rounded-full bg-red-500 px-1.5 py-px text-[10px] font-bold text-white align-[1px]">おすすめ</span>
+          <span className="ml-1 inline-block rounded-full bg-orange-400 px-1.5 py-px text-[10px] font-bold text-white align-[1px]">おすすめ</span>
         )}
         {!available && <span className="ml-1 text-xs">売り切れ</span>}
       </span>
