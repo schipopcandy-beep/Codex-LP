@@ -9,6 +9,8 @@ interface Props {
   title: string
   /** 中身の説明（例: 「焼しゃけ・ツナマヨ・豚汁」） */
   detail?: string
+  /** 中身の説明を大きく太い字にする（ランチのおすすめなど、中身がいちばん大事なとき） */
+  detailLarge?: boolean
   catchCopy?: string
   imageUrl?: string | null
   price: number
@@ -21,7 +23,7 @@ interface Props {
  * メニューの上に出す、組み合わせのおすすめ（ランチプレートのおすすめ・テイクアウトの定番セット）
  * 押すと中身をまとめてカートに入れる
  */
-export default function RecommendedSet({ label, title, detail, catchCopy, imageUrl, price, quantity = 0, onAdd }: Props) {
+export default function RecommendedSet({ label, title, detail, detailLarge = false, catchCopy, imageUrl, price, quantity = 0, onAdd }: Props) {
   /** 押した直後に「カートに入れました」を出す */
   const [added, setAdded] = useState(false)
 
@@ -43,7 +45,11 @@ export default function RecommendedSet({ label, title, detail, catchCopy, imageU
         </div>
         <div className="flex-1 min-w-0 flex flex-col">
           <p className="font-bold text-lg text-brown-800 leading-tight">{title}</p>
-          {detail && <p className="text-sm text-brown-600 mt-0.5 leading-snug">{detail}</p>}
+          {detail && (
+            <p className={`mt-0.5 leading-snug ${detailLarge ? 'text-lg font-bold text-amber-800' : 'text-sm text-brown-600'}`}>
+              {detail}
+            </p>
+          )}
           {catchCopy && <p className="text-xs text-brown-500 mt-1 leading-snug">{catchCopy}</p>}
           <div className="mt-auto pt-2 flex items-center justify-between gap-2">
             <p className="text-lg font-bold text-brown-700 tabular-nums">¥{price.toLocaleString()}</p>

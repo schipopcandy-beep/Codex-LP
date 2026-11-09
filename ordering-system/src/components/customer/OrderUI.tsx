@@ -480,8 +480,9 @@ export default function OrderUI({ tableId, lineUserId, partySize, buildCompleteH
             <RecommendedSet
               key="recommended"
               label="ランチのおすすめ"
-              title={`${lunchRecommendation.detail}のランチプレート`}
-              detail={lunchRecommendation.plate.description ?? undefined}
+              title={lunchRecommendation.plate.name}
+              detail={lunchRecommendation.detail}
+              detailLarge
               imageUrl={lunchRecommendation.plate.image_url}
               price={lunchRecommendation.price}
               quantity={plates.filter((p) => p.product.id === lunchRecommendation.plate.id && sameUnits(p.units, lunchRecommendation.units)).length}
