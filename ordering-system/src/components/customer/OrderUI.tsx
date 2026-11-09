@@ -40,8 +40,6 @@ import {
   LUNCH_PLATE_RECOMMENDATION,
   calcPlatePrice,
   isComboSoldOut,
-  optionLabel,
-  optionColumns,
 } from '@/lib/types'
 
 /** 同じおにぎり・トッピングの組み合わせか（並び順も同じ） */
@@ -234,10 +232,12 @@ export default function OrderUI({ tableId, lineUserId, partySize, buildCompleteH
       const product = products.find((p) => p.name === u.productName)
       if (!product || product.is_sold_out || isComboSoldOut(u.options, optionSoldOut)) return null
       units.push({ productId: product.id, tororo: u.options.tororo, eggYolk: u.options.eggYolk, large: u.options.large })
-      const label = optionLabel(optionColumns(u.options))
-      names.push(label ? `${product.name}（${label}）` : product.name)
+      // トッピングは短い名前で添える（例: ルーロー（漬け卵黄））
+      const toppings = [u.options.large && '大満足', u.options.tororo && 'とろろ昆布', u.options.eggYolk && '漬け卵黄'].filter(Boolean)
+      names.push(toppings.length > 0 ? `${product.name}（${toppings.join('・')}）` : product.name)
     }
-    return { plate, units, detail: names.join('・'), price: calcPlatePrice({ id: 'recommend', product: plate, units }, products) }
+    // おにぎりごとに改行する（2つ目からは「・」を付ける）
+    return { plate, units, detail: names.map((n, i) => (i === 0 ? n : `・${n}`)).join('\n'), price: calcPlatePrice({ id: 'recommend', product: plate, units }, products) }
   })()
 
   /** メニューのカードに出す、選んでいるモードでの注文数 */

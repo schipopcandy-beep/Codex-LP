@@ -46,7 +46,7 @@ export default function RecommendedSet({ label, title, detail, detailLarge = fal
         <div className="flex-1 min-w-0 flex flex-col">
           <p className="font-bold text-lg text-brown-800 leading-tight">{title}</p>
           {detail && (
-            <p className={`mt-0.5 leading-snug ${detailLarge ? 'text-lg font-bold text-amber-800' : 'text-sm text-brown-600'}`}>
+            <p className={`mt-0.5 leading-snug whitespace-pre-line ${detailLarge ? 'text-base font-bold text-amber-800' : 'text-sm text-brown-600'}`}>
               {detail}
             </p>
           )}
