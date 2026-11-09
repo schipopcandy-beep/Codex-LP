@@ -681,6 +681,8 @@ export const TAKEOUT_SET = {
   title: '定番セット',
   productNames: ['焼しゃけ', 'ツナマヨ', 'おにぎり屋の豚汁'],
   catchCopy: 'テイクアウトで人気の2品に、あたたかい豚汁を合わせて',
+  /** セットの写真（アプリに同梱） */
+  imageUrl: '/products/takeout-set.webp',
 }
 
 /** ランチプレート・お弁当1つの金額（本体の価格＋おにぎりの種類ごとの追加料金＋トッピング） */
