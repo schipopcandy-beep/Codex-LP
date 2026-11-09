@@ -378,7 +378,7 @@ export default function TakeoutUI({ lineUserId, lineDisplayName, seat, seatTable
                 title={TAKEOUT_SET.title}
                 detail={takeoutSet.detail}
                 catchCopy={TAKEOUT_SET.catchCopy}
-                imageUrl={takeoutSet.items[0].image_url}
+                imageUrl={TAKEOUT_SET.imageUrl}
                 price={takeoutSet.price}
                 quantity={takeoutSet.quantity}
                 onAdd={() => takeoutSet.items.forEach((p) => handleAdd(p, NO_OPTIONS))}
