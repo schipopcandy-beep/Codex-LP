@@ -35,6 +35,8 @@ interface Props {
   /** カートに入っている数（商品とオプションの組み合わせごと） */
   getQuantity: (product: Product, options: NigiriOptions) => number
   onAdd: (product: Product, options: NigiriOptions) => void
+  /** 枠の見出し（既定は「おすすめ」） */
+  label?: string
 }
 
 /** 商品があって、商品もオプションも売り切れでない最初のおすすめ（どれもなければ null） */
@@ -49,7 +51,7 @@ export function pickRecommendation(products: Product[], optionSoldOut: OptionSol
 }
 
 /** メニューの上に出すおすすめ。押すとそのままカートに入る */
-export default function RecommendedItem({ products, optionSoldOut = NO_OPTION_SOLD_OUT, getQuantity, onAdd }: Props) {
+export default function RecommendedItem({ products, optionSoldOut = NO_OPTION_SOLD_OUT, getQuantity, onAdd, label = 'おすすめ' }: Props) {
   const picked = pickRecommendation(products, optionSoldOut)
   if (!picked) return null
   const { recommendation, product } = picked
@@ -60,7 +62,7 @@ export default function RecommendedItem({ products, optionSoldOut = NO_OPTION_SO
 
   return (
     <section className="rounded-2xl border-2 border-amber-300 bg-amber-50 overflow-hidden">
-      <p className="px-3 pt-2 text-sm font-bold text-amber-800">⭐ おすすめ</p>
+      <p className="px-3 pt-2 text-sm font-bold text-amber-800">⭐ {label}</p>
       <div className="flex gap-3 p-3 pt-2">
         <div className="relative w-28 h-28 flex-shrink-0 rounded-xl overflow-hidden bg-cream-200">
           {product.image_url && (

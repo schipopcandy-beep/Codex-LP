@@ -385,8 +385,9 @@ export default function TakeoutUI({ lineUserId, lineDisplayName, seat, seatTable
               />
             )}
 
-            {/* おすすめ（押すとそのままカートに入る） */}
+            {/* おすすめ（押すとそのままカートに入る）。定番セットと区別するため「単品おすすめ」と表示する */}
             <RecommendedItem
+              label="単品おすすめ"
               // おすすめは今日すぐ受け取れる商品から選ぶ
               products={products.filter((p) => !laterFrom.has(p.id))}
               optionSoldOut={optionSoldOut}
