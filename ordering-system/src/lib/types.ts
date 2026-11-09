@@ -669,7 +669,6 @@ export interface CartPlate {
  */
 export const LUNCH_PLATE_RECOMMENDATION = {
   plateName: LUNCH_PLATE_2_NAME,
-  title: 'ランチプレート（おにぎり2個）',
   units: [
     { productName: 'ルーロー', options: { tororo: false, eggYolk: true, large: false } },
     { productName: 'しゃけ筋子', options: { tororo: false, eggYolk: false, large: false } },
