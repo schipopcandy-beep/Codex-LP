@@ -35,9 +35,10 @@ export default function RecommendedSet({ label, title, detail, catchCopy, imageU
     <section className="rounded-2xl border-2 border-amber-300 bg-amber-50 overflow-hidden">
       <p className="px-3 pt-2 text-sm font-bold text-amber-800">⭐ {label}</p>
       <div className="flex gap-3 p-3 pt-2">
-        <div className="relative w-28 h-28 flex-shrink-0 rounded-xl overflow-hidden bg-cream-200">
+        {/* セット・プレートの写真は横長なので、横長の枠にする */}
+        <div className="relative w-32 h-24 flex-shrink-0 self-center rounded-xl overflow-hidden bg-cream-200">
           {imageUrl && (
-            <Image src={imageUrl} alt={title} fill className="object-cover" sizes="112px" unoptimized={imageUrl.startsWith('/')} />
+            <Image src={imageUrl} alt={title} fill className="object-cover" sizes="128px" unoptimized={imageUrl.startsWith('/')} />
           )}
         </div>
         <div className="flex-1 min-w-0 flex flex-col">
