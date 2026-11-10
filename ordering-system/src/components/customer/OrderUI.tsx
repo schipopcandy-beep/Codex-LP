@@ -38,6 +38,7 @@ import {
   isHiddenFromMenu,
   optionsOfItem,
   LUNCH_PLATE_RECOMMENDATION,
+  LIMITED_ONIGIRI_NAMES,
   optionLabel,
   optionColumns,
   calcPlatePrice,
@@ -500,6 +501,21 @@ export default function OrderUI({ tableId, lineUserId, partySize, buildCompleteH
             />
           )
 
+          // おすすめの下に出す期間限定のおにぎり（売り切れ・休止中は出さない）。押すとそのままカートに入る
+          const limited = products.find((p) => LIMITED_ONIGIRI_NAMES.includes(p.name) && !p.is_sold_out)
+          const limitedSection = limited && (
+            <RecommendedSet
+              key="limited"
+              label="期間限定"
+              title={limited.name}
+              detail={limited.description ?? undefined}
+              imageUrl={limited.image_url}
+              price={limited.price}
+              quantity={quantityOf(limited)(NO_OPTIONS)}
+              onAdd={() => handleAdd(limited, NO_OPTIONS)}
+            />
+          )
+
           // ─ 各セクションを変数化し、ランチタイム中はドリンクをおにぎりの上に表示する ─
           const lunchPlateSection = lunchPlateProducts.length > 0 && (
             <section key="lunch-plate">
@@ -582,6 +598,7 @@ export default function OrderUI({ tableId, lineUserId, partySize, buildCompleteH
             return (
               <>
                 {recommendedSection}
+                {limitedSection}
                 {nigiriSection}
                 {sideSection}
               </>
@@ -594,6 +611,7 @@ export default function OrderUI({ tableId, lineUserId, partySize, buildCompleteH
           return isLunchTime ? (
             <>
               {recommendedSection}
+              {limitedSection}
               {lunchPlateSection}
               {drinkSection}
               {nigiriSection}
@@ -602,6 +620,7 @@ export default function OrderUI({ tableId, lineUserId, partySize, buildCompleteH
           ) : (
             <>
               {recommendedSection}
+              {limitedSection}
               {lunchPlateSection}
               {nigiriSection}
               {sideSection}
