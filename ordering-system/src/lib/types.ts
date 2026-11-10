@@ -689,9 +689,9 @@ export const LUNCH_PLATE_RECOMMENDATION = {
 export const TAKEOUT_SET = {
   title: '定番セット',
   productNames: ['焼しゃけ', 'ツナマヨ', 'おにぎり屋の豚汁'],
-  catchCopy: 'テイクアウトで人気の2品に、あたたかい豚汁を合わせて',
+  catchCopy: 'テイクアウトで人気の2品に、生姜の効いた豚汁を合わせて',
   /** セットの写真（アプリに同梱） */
-  imageUrl: '/products/takeout-set.webp',
+  imageUrl: '/products/takeout-set-2.webp',
 }
 
 /**
