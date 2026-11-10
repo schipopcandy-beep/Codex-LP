@@ -694,6 +694,18 @@ export const TAKEOUT_SET = {
   imageUrl: '/products/takeout-set.webp',
 }
 
+/**
+ * 店内の定番セット。ランチプレートを注文できないとき（朝・ランチプレートの売り切れ時）に、メニューの上に出す
+ * まとめてカートに入れる
+ */
+export const EATIN_SET = {
+  title: '定番セット',
+  productNames: ['おかチー', '焼しゃけ', 'おにぎり屋の豚汁'],
+  catchCopy: '一番人気のおかチーと焼しゃけに、あたたかい豚汁を合わせて',
+  /** セットの写真（なければ1品目の商品の写真） */
+  imageUrl: null as string | null,
+}
+
 /** ランチプレート・お弁当1つの金額（本体の価格＋おにぎりの種類ごとの追加料金＋トッピング） */
 export function calcPlatePrice(plate: CartPlate, products: Product[]): number {
   return (

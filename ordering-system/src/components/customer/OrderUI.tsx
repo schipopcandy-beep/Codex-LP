@@ -38,6 +38,7 @@ import {
   isHiddenFromMenu,
   optionsOfItem,
   LUNCH_PLATE_RECOMMENDATION,
+  EATIN_SET,
   lunchPlateNigiriCount,
   LIMITED_ONIGIRI_NAMES,
   optionLabel,
@@ -262,6 +263,26 @@ export default function OrderUI({ tableId, lineUserId, partySize, buildCompleteH
     isLunchPlate(product)
       ? plates.filter((p) => p.product.id === product.id).length
       : cartMap.get(cartKey(product.id, options, isTakeoutMode))?.quantity ?? 0
+
+  /**
+   * 店内の定番セット（EATIN_SET）。ランチプレートを注文できないとき（朝・ランチプレートの売り切れ時）だけ出す
+   * 中身のどれかが売り切れなら出さない
+   */
+  const eatinSet = (() => {
+    if (isTakeoutMode) return null
+    const plateAvailable = plateOrderable && lunchPlateProducts.some((p) => !p.is_sold_out)
+    if (plateAvailable) return null
+    const items = EATIN_SET.productNames.map((name) => products.find((p) => p.name === name))
+    if (items.some((p) => !p || p.is_sold_out)) return null
+    const list = items as Product[]
+    return {
+      items: list,
+      detail: list.map((p) => p.name).join('・'),
+      price: list.reduce((sum, p) => sum + p.price, 0),
+      // カートに入っているセットの数（中身のうち、いちばん少ない数）
+      quantity: Math.min(...list.map((p) => quantityOf(p)(NO_OPTIONS))),
+    }
+  })()
 
   /** ドリンク用 */
   const handleAddDrink = useCallback((product: Product, temp?: DrinkTemp) => {
@@ -491,6 +512,21 @@ export default function OrderUI({ tableId, lineUserId, partySize, buildCompleteH
             <p className="text-brown-400 text-lg">メニューを読み込み中...</p>
           </div>
         ) : (() => {
+          // ランチプレートを注文できないとき（朝・売り切れ時）は、いちばん上に店内の定番セット
+          const eatinSetSection = eatinSet && (
+            <RecommendedSet
+              key="eatin-set"
+              label="定番セット"
+              title={EATIN_SET.title}
+              detail={eatinSet.detail}
+              catchCopy={EATIN_SET.catchCopy}
+              imageUrl={EATIN_SET.imageUrl ?? eatinSet.items[0].image_url}
+              price={eatinSet.price}
+              quantity={eatinSet.quantity}
+              onAdd={() => eatinSet.items.forEach((p) => handleAdd(p, NO_OPTIONS))}
+            />
+          )
+
           // メニューの一番上に出すおすすめ（押すとそのままカートに入る）
           // 店内のランチタイムは、ランチプレート（おにぎり2個）のおすすめ。作れないときは単品のおすすめ
           const recommendedSection = lunchRecommendation ? (
@@ -624,6 +660,7 @@ export default function OrderUI({ tableId, lineUserId, partySize, buildCompleteH
           // ※ランチ中も全商品を注文できる。並び順だけを入れ替えている
           return isLunchTime ? (
             <>
+              {eatinSetSection}
               {recommendedSection}
               {limitedSection}
               {lunchPlateSection}
@@ -633,6 +670,7 @@ export default function OrderUI({ tableId, lineUserId, partySize, buildCompleteH
             </>
           ) : (
             <>
+              {eatinSetSection}
               {recommendedSection}
               {limitedSection}
               {lunchPlateSection}
