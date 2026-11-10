@@ -665,15 +665,23 @@ export interface CartPlate {
 
 /**
  * 店内のランチタイムに、メニューの上に出すランチプレートのおすすめ
- * （ランチプレート（おにぎり2個）に入れるおにぎり。売り切れなどで作れないときは、単品のおすすめを出す）
+ * ランチプレート（おにぎり2個）に入れるおにぎりの組み合わせを、上から順に試し、作れる最初の1つを出す
+ * （どれも作れないときは、単品のおすすめを出す）
  */
 export const LUNCH_PLATE_RECOMMENDATION = {
   plateName: LUNCH_PLATE_2_NAME,
   /** 名前で見つからないときは、おにぎりの数で探す */
   nigiriCount: 2,
-  units: [
-    { productName: 'ルーロー', options: { tororo: false, eggYolk: true, large: false } },
-    { productName: 'しゃけ筋子', options: { tororo: false, eggYolk: false, large: false } },
+  candidates: [
+    [
+      { productName: 'ルーロー', options: { tororo: false, eggYolk: true, large: false } },
+      { productName: 'しゃけ筋子', options: { tororo: false, eggYolk: false, large: false } },
+    ],
+    // 漬け卵黄（またはルーロー）が売り切れのとき
+    [
+      { productName: 'おかチー', options: { tororo: false, eggYolk: false, large: false } },
+      { productName: 'しゃけ筋子', options: { tororo: false, eggYolk: false, large: false } },
+    ],
   ],
 }
 
