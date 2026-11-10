@@ -38,6 +38,7 @@ import {
   isHiddenFromMenu,
   optionsOfItem,
   LUNCH_PLATE_RECOMMENDATION,
+  lunchPlateNigiriCount,
   LIMITED_ONIGIRI_NAMES,
   optionLabel,
   optionColumns,
@@ -227,7 +228,10 @@ export default function OrderUI({ tableId, lineUserId, partySize, buildCompleteH
    */
   const lunchRecommendation = (() => {
     if (!isLunchTime || !plateOrderable || isTakeoutMode) return null
-    const plate = products.find((p) => p.name === LUNCH_PLATE_RECOMMENDATION.plateName)
+    // 名前の書き方（かっこの全角・半角など）が少し違っても見つかるよう、ランチプレートのうちおにぎりの数で探す
+    const plate =
+      products.find((p) => p.name === LUNCH_PLATE_RECOMMENDATION.plateName) ??
+      products.find((p) => isLunchPlate(p) && lunchPlateNigiriCount(p) === LUNCH_PLATE_RECOMMENDATION.nigiriCount)
     if (!plate || plate.is_sold_out) return null
     const units: LunchNigiriUnit[] = []
     const names: string[] = []

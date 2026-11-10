@@ -24,7 +24,7 @@ export const RECOMMENDATIONS: {
   {
     productName: '辛子明太子',
     options: { tororo: true, eggYolk: false, large: false },
-    title: 'めんたいこ＋とろろ昆布',
+    title: 'めんたいこ＋海苔をとろろ昆布に変更',
     catchCopy: 'ピリッとやみつきの明太子を、風味豊かなとろろ昆布で',
   },
 ]
