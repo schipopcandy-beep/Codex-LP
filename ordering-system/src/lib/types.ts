@@ -701,7 +701,7 @@ export const TAKEOUT_SET = {
 export const EATIN_SET = {
   title: '定番セット',
   productNames: ['おかチー', '焼しゃけ', 'おにぎり屋の豚汁'],
-  catchCopy: '一番人気のおかチーと焼しゃけに、あたたかい豚汁を合わせて',
+  catchCopy: '朝に人気の2品に、生姜の効いた豚汁を合わせて',
   /** セットの写真（なければ1品目の商品の写真） */
   imageUrl: '/products/eatin-set.webp' as string | null,
 }
