@@ -703,7 +703,7 @@ export const EATIN_SET = {
   productNames: ['おかチー', '焼しゃけ', 'おにぎり屋の豚汁'],
   catchCopy: '一番人気のおかチーと焼しゃけに、あたたかい豚汁を合わせて',
   /** セットの写真（なければ1品目の商品の写真） */
-  imageUrl: null as string | null,
+  imageUrl: '/products/eatin-set.webp' as string | null,
 }
 
 /** ランチプレート・お弁当1つの金額（本体の価格＋おにぎりの種類ごとの追加料金＋トッピング） */
