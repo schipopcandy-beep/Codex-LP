@@ -246,11 +246,11 @@ export default function OrderUI({ tableId, lineUserId, partySize, buildCompleteH
         names.push(label ? `${product.name}（${label}）` : product.name)
       }
       if (units.length !== candidate.length) continue
-      // おにぎりごとに改行する（2つ目からは「・」を付ける）
+      // おにぎりごとに改行する
       return {
         plate,
         units,
-        detail: names.map((n, i) => (i === 0 ? n : `・${n}`)).join('\n'),
+        detail: names.join('\n'),
         price: calcPlatePrice({ id: 'recommend', product: plate, units }, products),
       }
     }
