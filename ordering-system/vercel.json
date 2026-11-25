@@ -1,12 +1,1 @@
-{
-  "crons": [
-    {
-      "path": "/api/cron/morning",
-      "schedule": "0 2 * * *"
-    },
-    {
-      "path": "/api/cron/reset-sold-out",
-      "schedule": "0 15 * * *"
-    }
-  ]
-}
+{}
