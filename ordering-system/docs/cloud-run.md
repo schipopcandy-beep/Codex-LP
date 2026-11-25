@@ -34,7 +34,7 @@ Vercel で動かしたまま Cloud Run を用意し、動作を確認してか�
 6. Cloud Run → `orihaya` →「新しいリビジョンの編集とデプロイ」→「変数とシークレット」に、
    Vercel と同じ値で次を入れる（秘密の値。GitHub には書かない）:
    - `NEXT_PUBLIC_SUPABASE_URL` / `NEXT_PUBLIC_SUPABASE_ANON_KEY` / `SUPABASE_SERVICE_ROLE_KEY`
-   - `LINE_CHANNEL_ACCESS_TOKEN` / `LINE_CHANNEL_SECRET` / `LINE_HARNESS_WEBHOOK_SECRET`
+   - `LINE_CHANNEL_ACCESS_TOKEN` / `LINE_CHANNEL_SECRET`
    - `NEXT_PUBLIC_LIFF_ID` / `NEXT_PUBLIC_ORDER_LIFF_ID`
    - `CRON_SECRET` / `OPENWEATHERMAP_API_KEY`
    - `ADMIN_PASSWORD`（管理画面のパスワード。12文字以上）
@@ -46,7 +46,7 @@ Cloud Scheduler で 2 つ作る（無料は請求先アカウントごとに 3 �
 
 | 名前 | 頻度（JST） | URL | メソッド | やること |
 |---|---|---|---|---|
-| morning | `0 11 * * *` | `https://<Cloud Run のURL>/api/cron/morning` | GET | 天気の記録（来店後メッセージもここに入れる予定） |
+| morning | `0 11 * * *` | `https://<Cloud Run のURL>/api/cron/morning` | GET | 天気の記録・来店後メッセージの送信 |
 | reset-sold-out | `0 0 * * *` | `https://<Cloud Run のURL>/api/cron/reset-sold-out` | GET | 売り切れを販売中に戻す |
 
 2 つとも、HTTP ヘッダーに `Authorization: Bearer <CRON_SECRET と同じ値>` を付ける。
@@ -65,10 +65,10 @@ LINE Developers で、URL の `https://codex-lp-k187.vercel.app` を Cloud Run �
 
 - 店内注文の LIFF のエンドポイント: `<Cloud Run のURL>/order`
 - テイクアウトの LIFF のエンドポイント: `<Cloud Run のURL>/takeout`
-- Messaging API の Webhook URL: `<Cloud Run のURL>/api/line/webhook`（「検証」で成功を確認）
 
 お店の端末のブックマーク（`/admin`）も変える。
 席の QR コード・リッチメニュー（`liff.line.me` の URL）は変えなくてよい。
+LINE の Webhook は LINE Harness（`line-harness.schi-popcandy.workers.dev`）が受け取る。注文システムには Webhook の入口はない（2026-11 に削除）。
 
 ## ⑦ Vercel を止める
 
