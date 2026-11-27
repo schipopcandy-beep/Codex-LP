@@ -395,10 +395,12 @@ export function isBento(product: { category: string }): boolean {
 
 /**
  * お弁当選択時のおにぎり追加料金
- * 極み筋子・しゃけ筋子: +200円 / その他: 0円
+ * 極み筋子・しゃけ筋子・限定おにぎり（LIMITED_ONIGIRI_NAMES）: +200円 / その他: 0円
  */
 export function getBentoSurcharge(product: Product): number {
-  return product.name === '極み筋子' || product.name === 'しゃけ筋子' ? 200 : 0
+  if (product.name === '極み筋子' || product.name === 'しゃけ筋子') return 200
+  if (LIMITED_ONIGIRI_NAMES.includes(product.name)) return 200
+  return 0
 }
 
 /** 中のおにぎりを選ぶ商品か（ランチプレート・お弁当） */
