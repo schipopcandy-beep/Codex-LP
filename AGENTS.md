@@ -104,6 +104,7 @@ npx next build           # ビルド（ここで失敗すると Cloud Run のデ
 | 起きたこと | 原因と対処 |
 |---|---|
 | 注文画面・管理画面が重い、Disk IO の警告 | Realtime と取り直しの多さが原因。Realtime をやめ、取り直しを減らし、GAS を1日1回にした |
+| コードから Realtime を消した後も Disk IO の警告（2026-11） | `order_items` が `supabase_realtime` の対象に残っていて、Realtime が WAL を読み続けていた。対象から外した（`20261127_stop_realtime_publication.sql`）。調べるときは `pg_stat_statements` を `shared_blks_read` の多い順に見る |
 | 新しい写真が本番で表示されない | 画像の最適化の不具合。`/products` の画像は `unoptimized` にした |
 | ランチのおすすめが出ない | 中身（漬け卵黄）が売り切れだった。候補を順に試すようにした |
 | カードの中のボタンを押すと別の画面に飛ぶ | `<Link>` の中にボタンがあった。ボタンを `Link` の外に出した |
