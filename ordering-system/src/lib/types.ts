@@ -103,6 +103,16 @@ export function orderShortId(orderId: string): string {
  */
 export const LIMITED_ONIGIRI_NAMES = ['【期間限定】麻辣そぼろ卵黄', '麻辣そぼろ卵黄', '限定おにぎり']
 
+/**
+ * 限定おにぎりか
+ * 名前に「期間限定」が入っているもの（新しい期間限定に入れ替えても対象になる）と、LIMITED_ONIGIRI_NAMES の名前
+ * 空白（全角・半角）が混ざっていても一致させる
+ */
+export function isLimitedOnigiri(product: { name: string }): boolean {
+  const name = product.name.replace(/\s/g, '')
+  return name.includes('期間限定') || LIMITED_ONIGIRI_NAMES.includes(name)
+}
+
 /** おにぎりのカテゴリ名（DBの category と一致させること） */
 export const NIGIRI_CATEGORY = 'おにぎり'
 
@@ -368,13 +378,13 @@ export interface LunchNigiriUnit {
 
 /**
  * ランチプレート選択時のおにぎり追加料金
- * しゃけ筋子: +300円 / 筋子: +200円 / 限定おにぎり（LIMITED_ONIGIRI_NAMES）: +200円 /
+ * しゃけ筋子: +300円 / 筋子: +200円 / 限定おにぎり（isLimitedOnigiri）: +200円 /
  * 450円以上: +50円 / その他: 0円
  */
 export function getLunchPlateSurcharge(product: Product): number {
   if (product.name === 'しゃけ筋子') return 300
   if (product.name.includes('筋子')) return 200   // 筋子・極み筋子など
-  if (LIMITED_ONIGIRI_NAMES.includes(product.name)) return 200
+  if (isLimitedOnigiri(product)) return 200
   if (product.price >= 450) return 50
   return 0
 }
@@ -395,11 +405,11 @@ export function isBento(product: { category: string }): boolean {
 
 /**
  * お弁当選択時のおにぎり追加料金
- * 極み筋子・しゃけ筋子・限定おにぎり（LIMITED_ONIGIRI_NAMES）: +200円 / その他: 0円
+ * 極み筋子・しゃけ筋子・限定おにぎり（isLimitedOnigiri）: +200円 / その他: 0円
  */
 export function getBentoSurcharge(product: Product): number {
   if (product.name === '極み筋子' || product.name === 'しゃけ筋子') return 200
-  if (LIMITED_ONIGIRI_NAMES.includes(product.name)) return 200
+  if (isLimitedOnigiri(product)) return 200
   return 0
 }
 
