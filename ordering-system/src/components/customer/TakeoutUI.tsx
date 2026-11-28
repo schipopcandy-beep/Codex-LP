@@ -15,7 +15,7 @@ import {
   isLunchPlate,
   isBento,
   TAKEOUT_SET,
-  LIMITED_ONIGIRI_NAMES,
+  isLimitedOnigiri,
   isPausedToday,
   formatScheduleDate,
   BENTO_LEAD_DAYS,
@@ -399,7 +399,7 @@ export default function TakeoutUI({ lineUserId, lineDisplayName, seat, seatTable
             {/* 期間限定のおにぎり（今日受け取れないときは出さない）。押すとそのままカートに入る */}
             {(() => {
               const limited = products.find(
-                (p) => LIMITED_ONIGIRI_NAMES.includes(p.name) && !p.is_sold_out && !laterFrom.has(p.id),
+                (p) => isLimitedOnigiri(p) && !p.is_sold_out && !laterFrom.has(p.id),
               )
               return (
                 limited && (

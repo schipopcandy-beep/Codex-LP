@@ -40,7 +40,7 @@ import {
   LUNCH_PLATE_RECOMMENDATION,
   EATIN_SET,
   lunchPlateNigiriCount,
-  LIMITED_ONIGIRI_NAMES,
+  isLimitedOnigiri,
   optionLabel,
   optionColumns,
   calcPlatePrice,
@@ -552,7 +552,7 @@ export default function OrderUI({ tableId, lineUserId, partySize, buildCompleteH
           )
 
           // おすすめの下に出す期間限定のおにぎり（売り切れ・休止中は出さない）。押すとそのままカートに入る
-          const limited = products.find((p) => LIMITED_ONIGIRI_NAMES.includes(p.name) && !p.is_sold_out)
+          const limited = products.find((p) => isLimitedOnigiri(p) && !p.is_sold_out)
           const limitedSection = limited && (
             <RecommendedSet
               key="limited"
