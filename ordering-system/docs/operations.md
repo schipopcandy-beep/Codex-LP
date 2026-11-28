@@ -42,6 +42,10 @@ AI（Codex など）に頼むときの決まりは、リポジトリ直下の `A
 
 - **Cloud Build が赤（失敗）**：本番は前のままで動き続けます。Codex に失敗のログを見せて直してもらいます。
 - **反映後に画面がおかしい**：GitHub でその PR を開き、「Revert」で元に戻す PR を作ってマージします。約10分で前の状態に戻ります。
+- **マージしたのに本番が変わらない**：Cloud Build →「履歴」に、マージした時刻のビルドがあるか見ます。
+  - ない場合は、GitHub とのつながりが切れています。Cloud Build →「トリガー」→ `deploy-main` の「実行」で、ブランチの一覧が出ない、または「Couldn't read commit」と出るなら確定です。
+  - 直し方：GitHub の `https://github.com/settings/installations` で「Google Cloud Build」が `Codex-LP` を読めるようにします。それでも直らなければ、Cloud Build →「リポジトリ」（第1世代）でつなぎ直します。
+  - 直したら、`deploy-main` を `main` で手動実行します。
 - **エラーの内容を見たい**：Google Cloud → Cloud Run → `orihaya` →「ログ」を開きます。
 
 ## 秘密の値（パスワード・トークン）
